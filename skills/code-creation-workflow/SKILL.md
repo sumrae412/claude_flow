@@ -680,6 +680,19 @@ Dispatch all applicable agents in a single parallel batch with **`model: "sonnet
 | Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | Swallowed errors, empty catches, hidden failures |
 | Security Reviewer | `security-reviewer` | Auth, data exposure, injection, OWASP |
 | QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | Test coverage gaps, missing edge cases, untested error paths |
+| Production Readiness | `general-purpose` | Auth config, data protection, monitoring, IaC gaps — uses `production-readiness-check` skill (structured checklist — do NOT apply overshoot prompt) |
+
+**Production Readiness dispatch prompt:**
+```
+You are running a production readiness check. Load and follow the `production-readiness-check` skill exactly.
+
+Diff to review: [paste git diff or provide file list]
+Branch: [branch name]
+
+Run the skill's 6-step process: get diff → minimal core checks → match deep-dive triggers → expanded checks → report findings table → propose fix plan (wait for user approval before fixing).
+
+Do NOT freelance — follow the skill's checklist and scoring. Report in the skill's table format.
+```
 
 **Tier 2 — Conditional (skip if already ran in Phase 5):**
 
@@ -878,7 +891,7 @@ Invoke `session-learnings` skill:
 | 3 | Clarification | — | Surface all ambiguities + optional PRP export | **User answers** |
 | 4 | Architecture | **opus** | 3 competing architects + iterative refinement with convergence detection | **User chooses + approves plan** |
 | 5 | Implementation | **sonnet** | TDD per step + fresh eyes self-review + drift detection + swarm coordination | Tests pass |
-| 6 | Quality + Finish | **sonnet/opus** | 5-tier review (overshoot technique) + random exploration + UX polish + de-slopification → verify → commit | **Verification** |
+| 6 | Quality + Finish | **sonnet/opus** | 5-tier + production readiness review (overshoot technique) + random exploration + UX polish + de-slopification → verify → commit | **Verification** |
 
 ## Agents Used Within This Workflow
 
@@ -894,6 +907,7 @@ Invoke `session-learnings` skill:
 | Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | 6 | Always (overshoot prompts) | sonnet |
 | Security Reviewer | `security-reviewer` | 6 | Always (overshoot prompts) | sonnet |
 | QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | 6 | Always (overshoot prompts) | sonnet |
+| Production Readiness | `general-purpose` | 6 | Always (hybrid trigger) | sonnet |
 | Design Reviewer | `general-purpose` | 6 | UI files modified | sonnet |
 | Type Design Analyzer | `pr-review-toolkit:type-design-analyzer` | 6 | New types/models | sonnet |
 | API Doc Auditor | `api-doc-auditor` | 6 | New/modified routes | sonnet |
@@ -918,6 +932,7 @@ Invoke `session-learnings` skill:
 | verification-before-completion | Phase 6 (pre-finish check) |
 | finishing-a-development-branch | Phase 6 (branch completion) |
 | session-learnings | Phase 6 (capture discoveries) |
+| production-readiness-check | Phase 6 (production infra/ops review) |
 
 ## Static Analysis Tools (Automatic)
 

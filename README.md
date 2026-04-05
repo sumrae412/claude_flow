@@ -14,6 +14,31 @@ Claude Code's default mode is a single-pass loop: read a few files, form a menta
 - **4-tier parallel review.** 5+ agents (code review, silent failure hunting, security, test coverage analysis) plus conditional specialists (migration, async, API audit) that fire only when relevant file types appear in the diff. This catches entire categories of bugs vanilla Claude misses: swallowed exceptions, missing error states, auth gaps, untested edge cases, and type mismatches.
 - **Context persistence across sessions.** Hook scripts handle pre-compaction transcript backup, post-commit memory updates, and session-start context reloading so the next session doesn't start from scratch.
 
+## How it works
+
+```mermaid
+flowchart LR
+    A([User Request]):::start --> B[Context\nLoading]:::phase0
+    B --> C{Small\nchange?}:::decision
+    C -->|No| E[Explore\n2-3 parallel agents]:::opus
+    E --> F[Clarify\nhard gate]:::gate
+    F --> G[Architecture\n2 competing proposals]:::opus
+    G --> H[Implement\nTDD per step]:::sonnet
+    H --> I[Review\n4-tier parallel]:::sonnet
+    I --> J([Ship]):::ship
+    C -->|Yes| D[Fast Path\nchange + test + commit]:::fast
+    D --> J
+
+    classDef start fill:#1a1a2e,stroke:#16213e,color:#e94560,stroke-width:2px
+    classDef phase0 fill:#0f3460,stroke:#16213e,color:#e8e8e8
+    classDef decision fill:#533483,stroke:#16213e,color:#e8e8e8
+    classDef opus fill:#e94560,stroke:#16213e,color:#fff
+    classDef gate fill:#f5a623,stroke:#16213e,color:#1a1a2e,stroke-width:2px
+    classDef sonnet fill:#0f3460,stroke:#e94560,color:#e8e8e8,stroke-width:2px
+    classDef fast fill:#2d4059,stroke:#16213e,color:#e8e8e8
+    classDef ship fill:#1a1a2e,stroke:#e94560,color:#e94560,stroke-width:2px
+```
+
 ## Install
 
 ```bash

@@ -38,7 +38,7 @@ Grep the diff for hardcoded secrets:
 git diff origin/main...HEAD -U0 | grep -iE "(api_key|api_secret|password|secret_key|private_key|token)\s*=\s*['\"][^'\"]{8,}"
 
 # Known-format tokens (AWS, Stripe, GitHub, GitLab)
-git diff origin/main...HEAD -U0 | grep -E 'AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|pk_live_|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9\-]{20}'
+git diff origin/main...HEAD -U0 | grep -E 'AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9\-]{20,}|pk_live_|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9\-]{20}'
 ```
 
 Also check for committed `.env` files:
@@ -62,7 +62,13 @@ git diff origin/main...HEAD | grep -E 'http://' | grep -vE 'localhost|127\.0\.0\
 Check for HSTS header configuration:
 
 ```bash
-grep -riE 'Strict-Transport-Security|HSTS' --include='*.py' --include='*.js' --include='*.ts' --include='*.yaml' --include='*.yml'
+git diff origin/main...HEAD --name-only | xargs grep -l 'Strict-Transport-Security' /dev/null 2>/dev/null
+```
+
+If no matches in changed files, fall back to a project-wide check to confirm HSTS exists somewhere:
+
+```bash
+grep -riE 'Strict-Transport-Security' --include='*.py' --include='*.js' --include='*.ts' --include='*.yaml' --include='*.yml' 2>/dev/null
 ```
 
 - **Score: 75** — plaintext `http://` URLs found in non-exempt contexts.
@@ -286,6 +292,7 @@ resource "aws_cloudwatch_metric_alarm" "traffic_anomaly" {
   comparison_operator = "GreaterThanUpperThreshold"
   evaluation_periods  = 3
   threshold_metric_id = "ad1"
+  alarm_description   = "Alert on anomalous traffic patterns"
 
   metric_query {
     id          = "m1"

@@ -682,6 +682,18 @@ Dispatch all applicable agents in a single parallel batch with **`model: "sonnet
 | QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | Test coverage gaps, missing edge cases, untested error paths |
 | Production Readiness | `general-purpose` | Auth config, data protection, monitoring, IaC gaps — uses `production-readiness-check` skill (structured checklist — do NOT apply overshoot prompt) |
 
+**Production Readiness dispatch prompt:**
+```
+You are running a production readiness check. Load and follow the `production-readiness-check` skill exactly.
+
+Diff to review: [paste git diff or provide file list]
+Branch: [branch name]
+
+Run the skill's 6-step process: get diff → minimal core checks → match deep-dive triggers → expanded checks → report findings table → propose fix plan (wait for user approval before fixing).
+
+Do NOT freelance — follow the skill's checklist and scoring. Report in the skill's table format.
+```
+
 **Tier 2 — Conditional (skip if already ran in Phase 5):**
 
 | Condition | Agent | `subagent_type` |

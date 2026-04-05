@@ -34,7 +34,11 @@ These three checks run on every invocation regardless of which files changed.
 Grep the diff for hardcoded secrets:
 
 ```bash
-git diff origin/main...HEAD -G 'AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|pk_live_|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9\-]{20}'
+# General credential assignments (catches custom keys, passwords, secrets)
+git diff origin/main...HEAD -U0 | grep -iE '(api_key|api_secret|password|secret_key|private_key|token)\s*=\s*["\x27][^"\x27]{8,}'
+
+# Known-format tokens (AWS, Stripe, GitHub, GitLab)
+git diff origin/main...HEAD -U0 | grep -E 'AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|pk_live_|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9\-]{20}'
 ```
 
 Also check for committed `.env` files:
@@ -43,7 +47,7 @@ Also check for committed `.env` files:
 git diff origin/main...HEAD --name-only | grep -i '\.env'
 ```
 
-Look for inline API keys, AWS access keys (`AKIA[0-9A-Z]{16}`), Stripe keys (`sk-`, `pk_live_`), GitHub tokens (`ghp_`), and GitLab tokens (`glpat-`).
+Look for generic credential assignments (`API_KEY = "..."`, `password = "..."`) as well as known-format tokens: AWS access keys (`AKIA[0-9A-Z]{16}`), Stripe keys (`sk-`, `pk_live_`), GitHub tokens (`ghp_`), and GitLab tokens (`glpat-`).
 
 - **Score: 100** — any match is a critical finding.
 
@@ -58,7 +62,7 @@ git diff origin/main...HEAD | grep -E 'http://' | grep -vE 'localhost|127\.0\.0\
 Check for HSTS header configuration:
 
 ```bash
-grep -r 'Strict-Transport-Security' $(git diff origin/main...HEAD --name-only) 2>/dev/null
+git diff origin/main...HEAD --name-only | xargs grep -l 'Strict-Transport-Security' 2>/dev/null
 ```
 
 - **Score: 75** — plaintext `http://` URLs found in non-exempt contexts.
@@ -123,23 +127,35 @@ Only run the sections triggered in Step 3.
 
 ## Step 5: Report Findings
 
-Present findings in a table matching the format used by other Phase 6 reviewers. Only report items with score >= 60 or status UNCONFIRMED.
+Present findings in a table matching the format used by other Phase 6 reviewers. Only report items with score >= 60 or status UNCONFIRMED. Omit PASS items unless they provide useful context.
 
-| ID | Check | Status | Score | Action |
-|---|---|---|---|---|
-| C1 | Secrets in Code | PASS / FAIL | 100 | Remove secret, rotate credential, add to `.gitignore` |
-| C2 | HTTPS/TLS | PASS / FAIL | 75 / 60 | Replace `http://` with `https://`, add HSTS header |
-| C3 | Security Logging | PASS / FAIL | 80 | Add audit logging to new endpoints |
-| A1 | MFA Available | PASS / UNCONFIRMED | — | Enable MFA (see IaC snippet) |
-| A2 | Password Policy | PASS / FAIL | 75 | Add password complexity rules |
-| A3 | Session Management | PASS / FAIL | 75 | Set `httpOnly`, `secure`, `sameSite` on cookies |
-| A4 | JWT Secured | PASS / FAIL | 85 / 100 | Switch to RS256/ES256, add `exp` claim |
-| D1 | Encryption at Rest | PASS / UNCONFIRMED | — | Enable encryption (see IaC snippets) |
-| D3 | PII Anonymization | PASS / FAIL | 70 / 80 | Mask PII in logs and error responses |
-| D4 | Backup & Recovery | PASS / UNCONFIRMED | — | Configure automated backups (see IaC snippet) |
-| M2 | Anomaly Detection | PASS / UNCONFIRMED | — | Configure anomaly alerts (see IaC snippet) |
-| M3 | Incident Response | PASS / UNCONFIRMED | — | Create `docs/incident-response.md` (see stub) |
-| M4 | Audit Schedule | PASS / UNCONFIRMED | — | Create `docs/security-audit-schedule.md` (see stub) |
+**Output format:**
+
+```markdown
+### Production Readiness Check
+
+**Triggered sections:** [list which sections ran, e.g. "Authentication, Monitoring (Data Protection skipped — no matching files)"]
+
+| # | Item | Status | Score | Action |
+|---|------|--------|-------|--------|
+| 1 | JWT secret from env | PASS | — | — |
+| 2 | Session https_only | FAIL | 75 | Fix: set `https_only: True` in session config |
+| 3 | MFA enabled | UNCONFIRMED | — | User confirmation needed |
+| 4 | Security event logging | FAIL | 80 | Fix: add audit log to new `/api/users` endpoint |
+| 5 | Anomaly detection | UNCONFIRMED | — | Generate CloudWatch alarm config? |
+
+**Proposed fix plan:**
+1. Set `https_only: True` in `app/config/session.py:14`
+2. Add `logger.info("user_action", extra={...})` to `app/routes/users.py:45`
+3. Generate `terraform/modules/monitoring/alarms.tf` with anomaly detection config
+
+Proceed with fixes?
+```
+
+Statuses:
+- **PASS** — check passed, no action needed
+- **FAIL** — code-level issue found, score >= 60
+- **UNCONFIRMED** — infra item, needs user confirmation
 
 ## Step 6: Fix Iteration
 
@@ -239,8 +255,8 @@ resource "aws_db_instance" "main" {
   backup_retention_period = 30
   backup_window           = "03:00-04:00"
   copy_tags_to_snapshot   = true
+  deletion_protection     = true
 
-  # Enable point-in-time recovery
   # ... other configuration
 }
 ```

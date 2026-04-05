@@ -1,0 +1,153 @@
+{
+  "version": "1.0",
+  "hooks": [
+    {
+      "id": "secret-detection",
+      "tier": 1,
+      "trigger": "PreToolUse",
+      "matcher": ["Edit", "Write"],
+      "script": "hooks/tier1/secret-detection.sh",
+      "description": "Blocks edits introducing secrets"
+    },
+    {
+      "id": "large-file-warning",
+      "tier": 1,
+      "trigger": "PreToolUse",
+      "matcher": ["Edit"],
+      "script": "hooks/tier1/large-file-warning.sh",
+      "description": "Warns when editing files >500 lines"
+    },
+    {
+      "id": "missing-test-companion",
+      "tier": 1,
+      "trigger": "PostToolUse",
+      "matcher": ["Write"],
+      "script": "hooks/tier1/missing-test-companion.sh",
+      "description": "Suggests test file for new source files"
+    },
+    {
+      "id": "dangerous-git-ops",
+      "tier": 1,
+      "trigger": "PreToolUse",
+      "matcher": [
+        "Bash(git push --force*)",
+        "Bash(git push -f *)",
+        "Bash(git reset --hard*)",
+        "Bash(git checkout .)"
+      ],
+      "script": "hooks/tier1/dangerous-git-ops.sh",
+      "description": "Blocks dangerous git commands"
+    },
+    {
+      "id": "uncommitted-work-guard",
+      "tier": 1,
+      "trigger": "PreToolUse",
+      "matcher": ["Bash(git checkout *)"],
+      "script": "hooks/tier1/uncommitted-work-guard.sh",
+      "description": "Warns on branch switch with uncommitted changes"
+    },
+    {
+      "id": "build-before-commit",
+      "tier": 1,
+      "trigger": "PreToolUse",
+      "matcher": ["Bash(git commit*)"],
+      "script": "hooks/tier1/build-before-commit.sh",
+      "description": "Runs lint/typecheck before commit"
+    },
+    {
+      "id": "todo-cleanup",
+      "tier": 1,
+      "trigger": "PostToolUse",
+      "matcher": ["Bash(git commit*)"],
+      "script": "hooks/tier1/todo-cleanup.sh",
+      "description": "Surfaces TODO/FIXME/HACK after commit"
+    },
+    {
+      "id": "session-context-loader",
+      "tier": 1,
+      "trigger": "SessionStart",
+      "matcher": null,
+      "script": "hooks/tier1/session-context-loader.sh",
+      "description": "Loads context + handoff on start"
+    },
+    {
+      "id": "pre-compaction-backup",
+      "tier": 1,
+      "trigger": "PreCompact",
+      "matcher": null,
+      "script": "hooks/tier1/pre-compaction-backup.sh",
+      "description": "Saves transcript before compression"
+    },
+    {
+      "id": "worktree-cleanup",
+      "tier": 1,
+      "trigger": "SessionStart",
+      "matcher": null,
+      "script": "hooks/tier1/worktree-cleanup.sh",
+      "description": "Cleans stale worktrees"
+    },
+    {
+      "id": "lint-on-save-python",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit(*.py)"],
+      "script": "hooks/tier2/lint-on-save-python.sh",
+      "description": "Runs Python linter on save",
+      "stack_tags": ["ruff", "flake8"]
+    },
+    {
+      "id": "lint-on-save-js",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit(*.js)", "Edit(*.ts)", "Edit(*.jsx)", "Edit(*.tsx)"],
+      "script": "hooks/tier2/lint-on-save-js.sh",
+      "description": "Runs ESLint on save",
+      "stack_tags": ["eslint"]
+    },
+    {
+      "id": "test-on-save-python",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit(app/**/*.py)", "Edit(src/**/*.py)"],
+      "script": "hooks/tier2/test-on-save-python.sh",
+      "description": "Runs pytest on save",
+      "stack_tags": ["pytest"]
+    },
+    {
+      "id": "test-on-save-js",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit(src/**/*.js)", "Edit(src/**/*.ts)", "Edit(src/**/*.tsx)"],
+      "script": "hooks/tier2/test-on-save-js.sh",
+      "description": "Runs Jest on save",
+      "stack_tags": ["jest"]
+    },
+    {
+      "id": "migration-sequence-check",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Write(alembic/versions/*.py)", "Write(**/migrations/*.py)"],
+      "script": "hooks/tier2/migration-sequence-check.sh",
+      "description": "Checks Alembic migration sequence on new migration file",
+      "stack_tags": ["alembic"]
+    },
+    {
+      "id": "type-check-on-save",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit(*.ts)", "Edit(*.tsx)"],
+      "script": "hooks/tier2/type-check-on-save.sh",
+      "description": "Runs TypeScript type check on save",
+      "stack_tags": ["typescript"]
+    },
+    {
+      "id": "docker-rebuild-reminder",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit(Dockerfile*)", "Edit(docker-compose*)"],
+      "script": "hooks/tier2/docker-rebuild-reminder.sh",
+      "description": "Reminds to rebuild Docker image after config changes",
+      "stack_tags": ["docker"]
+    }
+  ]
+}

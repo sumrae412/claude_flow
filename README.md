@@ -96,6 +96,19 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 - `hook-doctor` — Diagnose hook health: missing files, bad exit codes, env issues
 - `memory-injection` — Inject project gotchas and constraints into subagent system prompts
 
+### Self-debugging agents
+
+Autonomous failure detection, diagnosis, and retry for Phases 5-6. When a test, lint check, or review fix fails:
+
+1. The retry loop classifies the error against the **failure catalog** (`memory/failure-catalog.md`)
+2. Known patterns are fixed automatically using documented strategies
+3. Novel failures dispatch a **diagnosis subagent** that identifies root cause and proposes a fix
+4. New patterns are validated via multi-model review (DeepSeek + Codex) before being added to the catalog
+5. The catalog is pushed to GitHub so all users benefit from accumulated patterns
+6. All events are logged to `memory/failure-events.jsonl` for trend analysis
+
+Fully autonomous — user only sees failures that survive 3 retry attempts.
+
 ### Hook system
 
 Three-tier hook architecture for automated enforcement and context management:
@@ -186,6 +199,10 @@ Add to `.github/workflows/pr-review.yml` — the action posts review comments di
 - `hooks/stack/test.sh` — Run affected tests before commit
 - `hooks/stack/migration-check.sh` — Validate migration files when schema changes
 - `hooks/stack/type-check.sh` — Run type checker when type files change
+
+**Self-debugging:**
+- `scripts/emit-failure-event.sh` — Append structured events to the failure event log
+- `hooks/tier1/failure-catalog-push.sh` — Auto-commit and push failure catalog updates to GitHub
 
 **MCP server:**
 - `mcp-server/index.js` — MCP server entrypoint (5 resources, 4 tools)

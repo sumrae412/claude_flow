@@ -310,6 +310,30 @@ done
 
 echo ""
 
+# Install memory files (don't overwrite existing — they accumulate data)
+MEMORY_DIR="$CLAUDE_DIR/memory"
+echo -e "${YELLOW}Installing memory files to $MEMORY_DIR/${NC}"
+mkdir -p "$MEMORY_DIR"
+
+memory_count=0
+if [ ! -f "$MEMORY_DIR/failure-catalog.md" ]; then
+  cp "$SCRIPT_DIR/memory/failure-catalog.md" "$MEMORY_DIR/failure-catalog.md"
+  echo "  + failure-catalog.md"
+  memory_count=$((memory_count + 1))
+else
+  echo "  ~ failure-catalog.md (exists, skipped)"
+fi
+
+if [ ! -f "$MEMORY_DIR/failure-events.jsonl" ]; then
+  touch "$MEMORY_DIR/failure-events.jsonl"
+  echo "  + failure-events.jsonl (created empty)"
+  memory_count=$((memory_count + 1))
+else
+  echo "  ~ failure-events.jsonl (exists, skipped)"
+fi
+
+echo ""
+
 # Install MCP server
 MCP_DIR="$CLAUDE_DIR/mcp/claude-flow"
 echo -e "${YELLOW}Installing MCP server to $MCP_DIR/${NC}"
@@ -335,7 +359,7 @@ echo "    \"args\": [\"$HOME/.claude/mcp/claude-flow/server.py\"]"
 echo "  }"
 
 echo ""
-echo -e "${GREEN}Done!${NC} Installed $installed skills, $script_count scripts, $hook_count hooks, and MCP server."
+echo -e "${GREEN}Done!${NC} Installed $installed skills, $script_count scripts, $hook_count hooks, $memory_count memory files, and MCP server."
 echo ""
 echo "Usage:"
 echo "  In Claude Code, invoke the workflow with: /code-creation-workflow"

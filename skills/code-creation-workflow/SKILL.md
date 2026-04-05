@@ -32,6 +32,63 @@ Use **Opus** for thinking-heavy phases (exploration, architecture, planning) and
 
 When dispatching subagents, pass `model: "opus"` or `model: "sonnet"` on the Agent tool call to enforce this.
 
+### Thinking Budget Control
+
+Use thinking budget keywords in subagent prompts to control how deeply Claude reasons at each step. This prevents over-thinking simple tasks and ensures critical decisions get adequate analysis.
+
+| Keyword | Budget | Use When |
+|---------|--------|----------|
+| `think about this...` | ~4K tokens (fast) | Simple file reads, straightforward edits, config changes |
+| `think harder about...` | ~10K tokens (deep) | Multi-step logic, debugging, integration analysis |
+| `ultrathink about...` | ~32K tokens (max) | Architecture decisions, security review, complex refactors |
+
+**Phase-to-thinking mapping:**
+
+| Phase | Default Thinking | Escalate When |
+|-------|-----------------|---------------|
+| 0 Context | `think about` | — (always lightweight) |
+| 1 Discovery | `think about` | Complex triage with many branching paths → `think harder` |
+| 2 Exploration | `think harder` | Unfamiliar codebase or 10+ integration points → `ultrathink` |
+| 3 Clarification | `think about` | Conflicting requirements or subtle edge cases → `think harder` |
+| 4 Architecture | `ultrathink` | — (always max for architecture decisions) |
+| 5 Implementation | `think about` | Complex business logic or concurrency → `think harder` |
+| 6 Review | `think harder` | Security-sensitive code or auth flows → `ultrathink` |
+
+**How to apply:** Prefix subagent prompts with the keyword. Examples:
+
+```
+# Phase 2 explorer — default
+"think harder about... Trace how authentication middleware is implemented — find patterns, data flow, and key files"
+
+# Phase 4 architect — always max (3 competing perspectives)
+"ultrathink about... Design an architecture for the multi-tenant permission system optimizing for SIMPLICITY — reuse existing patterns, minimal new files"
+
+# Phase 5 implementation — simple step
+"think about this... Add the new column to the User model following the existing pattern in models/client.py"
+
+# Phase 5 implementation — complex step
+"think harder about... Implement the rate limiting middleware with sliding window algorithm and Redis backend"
+
+# Phase 6 security review — escalated
+"ultrathink about... Review this authentication flow for JWT vulnerabilities, token storage issues, and session fixation risks"
+```
+
+**Rule:** Default to the phase mapping above. Escalate one level when the specific step is more complex than typical for that phase. Never under-think architecture (Phase 4) or security reviews.
+
+### Compaction Recovery Protocol
+
+Long sessions trigger context compression (compaction). After compaction, the agent loses awareness of project rules, current plan state, and workflow position. This protocol prevents post-compaction drift.
+
+**When compaction is detected** (confused behavior, forgetting rules, losing track of plan progress):
+
+1. **Re-read CLAUDE.md** — Reload all project rules and conventions
+2. **Re-read current plan** — If a plan file exists in `docs/plans/` or `plans/`, reload it
+3. **Check TodoWrite state** — Review current todo items to re-establish where you are in the workflow
+4. **Re-read the active skill** — If mid-workflow, re-read this SKILL.md to recover phase awareness
+5. **Announce recovery** — Tell the user: "Context was compacted — I've reloaded project rules and plan state. Resuming from Phase X, Step Y."
+
+**Rule:** If you notice yourself unsure about project conventions or your current workflow position, assume compaction occurred and run this protocol. False positives (unnecessary re-reads) are cheap. False negatives (drifting without rules) are expensive.
+
 ---
 
 ## Phase 0: Context Loading
@@ -287,40 +344,105 @@ If not triggered, skip — most single-session features don't need this.
 
 ---
 
-## Phase 4: Architecture (Parallel Design + Optional AI Review)
+## Phase 4: Architecture (Multi-Model Competition + Iterative Refinement)
 
-Launch 2 **code-architect** subagents in parallel with different optimization targets:
+### Step 1: Competing Architecture Proposals
+
+Launch 3 **code-architect** subagents in parallel with deliberately different optimization targets. The third "contrarian" perspective prevents groupthink and surfaces approaches the other two miss.
 
 ```
-┌──────────────────────────────────────────────────┐
-│ Architect A: "Design optimizing for SIMPLICITY — │
-│  reuse existing patterns, minimal new files,     │
-│  least moving parts"                             │
-│                                                   │
-│ Architect B: "Design optimizing for CLEAN        │
-│  SEPARATION — extensibility, testability,        │
-│  clear boundaries between concerns"              │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│ Architect A: "Design optimizing for SIMPLICITY —     │
+│  reuse existing patterns, minimal new files,         │
+│  least moving parts"                                 │
+│                                                       │
+│ Architect B: "Design optimizing for CLEAN            │
+│  SEPARATION — extensibility, testability,            │
+│  clear boundaries between concerns"                  │
+│                                                       │
+│ Architect C: "Design optimizing for MAXIMUM REUSE —  │
+│  leverage every existing abstraction, minimize new   │
+│  code, build on what's already there even if it      │
+│  means bending existing patterns slightly"           │
+└──────────────────────────────────────────────────────┘
                     │
                     ▼
-   Present BOTH architectures to user:
+   Present ALL THREE architectures to user:
    - Files to create/modify (with line counts)
    - Component designs and responsibilities
    - Data flow (how data moves through the system)
    - Trade-off analysis (what each approach sacrifices)
+   - Best-of-all-worlds synthesis recommendation
                     │
                     ▼
-   ◆ USER CHOOSES architecture (A, B, or hybrid) ◆
+   ◆ USER CHOOSES architecture (A, B, C, or hybrid) ◆
 ```
 
 **Subagent dispatch:** Use the Agent tool with `subagent_type: "feature-dev:code-architect"` and **`model: "opus"`**. Each gets the exploration findings + clarification answers + a clear optimization directive.
 
-### Write Implementation Plan
+**Synthesis step:** After all 3 return, present a "best-of-all-worlds" recommendation that blends the strongest ideas from each. Be intellectually honest about which architect had the better approach for each aspect.
+
+**Architect C rotation:** The third target should vary based on what matters most for this feature. Options beyond "maximum reuse":
+- "FUTURE EXTENSIBILITY — design for the next 3 features, not just this one"
+- "PERFORMANCE — minimize allocations, queries, and round-trips"
+- "MINIMAL RISK — fewest changes to existing code, safest migration path"
+
+### Step 2: Write Implementation Plan
 
 After user chooses, write a structured plan using the `writing-plans` skill:
 - Numbered steps with specific files and changes
 - Test requirements per step
 - Dependencies between steps marked clearly
+
+### Step 3: Iterative Plan Refinement
+
+<HARD-GATE>
+Do not skip refinement for complex features (3+ files, schema changes, or new endpoints). Simple features (single file, config tweaks) may skip to Step 4.
+</HARD-GATE>
+
+After the plan is written, refine it through 2-3 rounds. Each round uses a **fresh subagent** (clean context prevents anchoring on prior output).
+
+**Refinement prompt template:**
+```
+ultrathink about... Carefully review this implementation plan.
+Find every issue — I'm positive there are at least 30 problems
+including architectural weaknesses, missing edge cases, unclear
+steps, dependency gaps, and testing blind spots.
+
+For each issue, provide:
+1. What's wrong
+2. Why it matters
+3. The specific fix (as a diff against the plan)
+
+Plan to review:
+<PASTE CURRENT PLAN>
+```
+
+**The "overshoot" technique:** Models tend to stop finding problems after 20-25 issues. Telling them to find "at least 30" pushes them past this plateau. The number is deliberately ambitious — they'll find what they can, which is always more than without the target.
+
+**Per-round process:**
+1. Dispatch fresh `general-purpose` subagent with `model: "opus"` and the refinement prompt
+2. Review suggested changes — accept the good ones, reject overengineering
+3. Update the plan in-place
+4. Check for convergence (see below)
+
+### Convergence Detection
+
+Stop refining when any of these signals appear:
+
+| Signal | What It Looks Like |
+|--------|-------------------|
+| **Suggestions become cosmetic** | "Consider renaming this variable" instead of "This architecture won't handle concurrent access" |
+| **No architectural changes** | All suggestions are about implementation details, not structure |
+| **Declining rate of change** | Round N finds 5 issues, Round N+1 finds 2, Round N+2 finds 1 |
+| **Oscillation** | Two rounds alternating between approaches — pick one and commit |
+
+**Rule of thumb:** 2 rounds minimum for complex features, 3 rounds maximum. If Round 3 still finds architectural issues, step back and reconsider the chosen architecture.
+
+**Early termination red flags:**
+- Oscillation (alternating between two versions) → reframe the problem, don't keep refining
+- Expansion (output growing instead of shrinking) → step back, simplify
+- Plateau at low quality → kill approach, restart architecture with different constraints
 
 ### Optional: PlanCraft AI Review
 
@@ -334,7 +456,7 @@ If triggered:
 3. Revise plan if needed
 4. Get user re-approval
 
-If not triggered: Skip. The parallel architect approach already provides design validation through competing proposals.
+If not triggered: Skip. The multi-model competition + iterative refinement already provides robust validation.
 
 ```
 ◆ USER APPROVES final plan before implementation ◆
@@ -393,7 +515,63 @@ For each plan step:
 5. Mark TodoWrite item complete
 ```
 
-### Parallel Subagent Dispatch (For Independent Steps)
+### Fresh Eyes Self-Review (After Major Chunks)
+
+After completing a major implementation chunk (3+ files modified or a logically complete subsystem), pause and review your own work before proceeding.
+
+```
+After every 3+ file chunk:
+  │
+  ▼
+  Re-read ALL new/modified code with "fresh eyes"
+  │
+  ▼
+  Look for: obvious bugs, incorrect logic, missing error
+  handling, violated patterns from Phase 2, edge cases
+  from Phase 3 that weren't covered
+  │
+  ▼
+  Fix anything found → re-run tests → then continue
+```
+
+**Fresh eyes prompt (self-directed):**
+```
+think harder about... Re-read all the code I just wrote
+and modified in this chunk with fresh eyes. Look carefully
+for obvious bugs, logic errors, missing error handling,
+pattern violations, and edge cases I may have missed.
+Fix anything found before moving on.
+```
+
+**Why this matters:** The cheapest bugs to fix are the ones you catch yourself immediately. This gate costs ~30 seconds of reasoning but prevents expensive rework discovered in Phase 6 review.
+
+### Strategic Drift Detection
+
+Every 5 completed plan steps (or when ~30 minutes of implementation have passed), run a drift checkpoint:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ DRIFT CHECK:                                         │
+│                                                       │
+│ 1. What did the user originally ask for?             │
+│ 2. What have we built so far?                        │
+│ 3. If we implement all remaining steps, do we        │
+│    actually produce the thing we're building?        │
+│ 4. Are any steps now redundant or missing?           │
+│                                                       │
+│ If drift detected:                                    │
+│   → Stop implementation                              │
+│   → Report to user: "We've drifted — here's how"    │
+│   → Revise remaining steps before continuing         │
+│                                                       │
+│ If on track:                                          │
+│   → Continue (no user interruption needed)           │
+└─────────────────────────────────────────────────────┘
+```
+
+**Rule:** Drift detection is a silent self-check when on track. Only surface it to the user when drift is actually detected. A swarm (or agent) can look productive while heading in the wrong direction — this catches it early.
+
+### Parallel Subagent Dispatch (Swarm-Adapted Coordination)
 
 When the plan has 3+ steps with no dependencies between them:
 
@@ -405,6 +583,30 @@ Use subagent-driven-development skill:
 ```
 
 Only parallelize truly independent work — shared state or sequential dependencies must stay sequential.
+
+**Swarm coordination protocol** (when dispatching 3+ parallel agents):
+
+1. **Stagger dispatch** — Wait 2-3 seconds between agent launches. Sending all at once causes the "thundering herd" problem where agents pick the same work.
+
+2. **Structured marching orders** — Each agent gets an explicit prompt:
+   ```
+   think about this... You are implementing Step [N]: [description].
+
+   FILES YOU OWN (do not modify others):
+   - [file1.py] — [what you're doing to it]
+   - [file2.py] — [what you're doing to it]
+
+   CONTEXT:
+   - Patterns to follow: [from Phase 2 exploration]
+   - Edge cases to handle: [from Phase 3 clarification]
+   - Dependencies: [what must exist before your code works]
+
+   WORKFLOW: Write test → implement → verify green → report done.
+   ```
+
+3. **Explicit file claims** — Each agent's prompt explicitly lists which files it will touch. No agent modifies files outside its claim without coordinating.
+
+4. **Work announcement** — Each agent's first action is announcing what it's working on (via its return message), not silently starting.
 
 ### Conditional Specialist Reviews (During Implementation)
 
@@ -438,6 +640,8 @@ MEDIUM/LOW findings defer to Phase 6 review. Agents that ran in Phase 5 are **sk
 ### 4-Tier Parallel Review
 
 Dispatch all applicable agents in a single parallel batch with **`model: "sonnet"`**. Each gets the diff + the plan + project conventions.
+
+**Overshoot technique for ALL review prompts:** Append this to every reviewer's prompt: *"I'm positive there are at least 30 issues in this code — find them all. Look for bugs, logic errors, security issues, pattern violations, edge cases, and quality gaps."* Models find 30-50% more issues when given an ambitious target versus "find any problems." The number is deliberately unreachable — it prevents the model from stopping after finding 20-25 issues, which is the typical plateau.
 
 **Tier 1 — Core (always run):**
 
@@ -496,6 +700,68 @@ Dispatch a design-review agent that tests the **live rendered UI**, not just the
 
 **Merge & fix:** Collect all findings across all tiers, deduplicate, fix HIGH+ issues (including Design Review Blockers and High-Priority). Post summary of findings to user.
 
+**Tier 5 — UI/UX Polish (when UI was modified):**
+
+<SKIP-CONDITION>
+Skip if no templates, CSS, HTML, or JS files were modified, OR if Design Review (Tier 4) found no UI to polish.
+</SKIP-CONDITION>
+
+This is distinct from Tier 4 Design Review. Tier 4 finds bugs (broken flows, accessibility failures, overflow). Tier 5 finds friction, ugliness, and missed opportunities to delight. The problems here aren't bugs — they're quality gaps.
+
+Dispatch a `general-purpose` subagent with **`model: "opus"`** (needs taste, not speed):
+
+**UI/UX Polish prompt:**
+```
+ultrathink about... Scrutinize every aspect of the application
+workflow and look for things that are sub-optimal from a
+user-friendliness and intuitiveness standpoint. Look for places
+where the UI/UX could be improved to feel slicker, more visually
+appealing, and more premium — like Stripe-level quality.
+
+Evaluate SEPARATELY for:
+1. DESKTOP (1440px+) — hover states, keyboard shortcuts,
+   information density, whitespace balance
+2. MOBILE (375px) — touch targets, thumb zones, swipe
+   affordances, content priority
+
+For each finding, categorize as:
+- [Friction] — something that slows the user down
+- [Delight] — a missed opportunity to surprise/please
+- [Polish] — visual inconsistency or rough edge
+- [Flow] — a workflow that could be streamlined
+
+Only flag things that would noticeably improve the user experience.
+Skip nitpicks.
+```
+
+**Triage:** Fix [Friction] and [Flow] items. [Delight] and [Polish] items are user's choice — present them and ask.
+
+### Random Code Exploration Review
+
+After structured review tiers complete, dispatch one more agent for unstructured exploration. This catches cross-cutting issues that per-file review misses — problems only visible when you see how pieces fit together.
+
+Dispatch a `general-purpose` subagent with **`model: "opus"`**:
+
+**Random exploration prompt:**
+```
+ultrathink about... Randomly explore code files in this project.
+Pick files to deeply investigate — trace their functionality and
+execution flows through related files they import or are imported by.
+
+Once you understand each file's purpose in the larger context,
+do a careful check with fresh eyes for:
+- Obvious bugs or logic errors
+- Inconsistencies between related files
+- Dead code or unreachable paths
+- Assumptions that don't hold across the codebase
+- Error handling gaps in call chains
+
+I'm positive there are at least 20 issues across this codebase
+that structured review missed. Find them.
+```
+
+**Rule:** This agent explores freely — don't constrain it to modified files. The value is in finding issues at the seams between components.
+
 ### Post-Review Simplifier
 
 After fixing review issues, run a single code-simplifier pass before the verification gate:
@@ -503,6 +769,30 @@ After fixing review issues, run a single code-simplifier pass before the verific
 - Scope: only files modified during this feature
 - Accept changes only if tests still pass afterward
 - Skip for trivial changes (single-file edits, config tweaks)
+
+### De-Slopification Pass
+
+<SKIP-CONDITION>
+Skip if no documentation, README sections, docstrings, or user-facing comments were written or modified.
+</SKIP-CONDITION>
+
+After code simplification, scan any generated documentation or substantial comments for telltale AI writing patterns. These patterns mark output as obviously machine-generated and reduce perceived quality.
+
+**Patterns to find and fix:**
+
+| Pattern | Problem | Fix |
+|---------|---------|-----|
+| Emdash overuse (—) | LLMs use emdashes constantly | Use semicolons, commas, or periods |
+| "It's not X, it's Y" | Formulaic contrast structure | Rewrite directly |
+| "Here's why" / "Here's why it matters:" | Clickbait-style lead-in | State the reason directly |
+| "Let's dive in" / "Let's explore" | Forced enthusiasm | Delete or replace with substance |
+| "At its core..." | Pseudo-profound opener | Start with the actual point |
+| "It's worth noting..." | Unnecessary hedge | Just state the thing |
+| "This ensures that..." | Weak causal claim | Use "because" or restructure |
+| "Robust" / "Seamless" / "Leverage" | Buzzwords with no content | Use specific, concrete language |
+| Bullet lists where prose works better | Over-structuring | Convert to sentences when natural |
+
+**How to apply:** Read each documentation section aloud mentally. If it sounds like a corporate blog post, rewrite it to sound like a competent engineer explaining something to a colleague.
 
 ### Static Analysis Gate
 
@@ -558,28 +848,31 @@ Invoke `session-learnings` skill:
 | 1 | Discovery | — | Fast-path escape for small changes | Auto |
 | 2 | Exploration | **opus** | 2-3 parallel code-explorer subagents + context hydration | **Context hydration** |
 | 3 | Clarification | — | Surface all ambiguities + optional PRP export | **User answers** |
-| 4 | Architecture | **opus** | 2 parallel code-architect subagents | **User chooses + approves plan** |
-| 5 | Implementation | **sonnet** | TDD per step + parallel dispatch | Tests pass |
-| 6 | Quality + Finish | **sonnet** | 4-tier parallel reviewers → verify → commit | **Verification** |
+| 4 | Architecture | **opus** | 3 competing architects + iterative refinement with convergence detection | **User chooses + approves plan** |
+| 5 | Implementation | **sonnet** | TDD per step + fresh eyes self-review + drift detection + swarm coordination | Tests pass |
+| 6 | Quality + Finish | **sonnet/opus** | 5-tier review (overshoot technique) + random exploration + UX polish + de-slopification → verify → commit | **Verification** |
 
 ## Agents Used Within This Workflow
 
 | Agent | `subagent_type` | Phase | Trigger | Model |
 |-------|-----------------|-------|---------|-------|
 | Code Explorer (x2-3) | `feature-dev:code-explorer` | 2 | Always | opus |
-| Code Architect (x2) | `feature-dev:code-architect` | 4 | Always | opus |
+| Code Architect (x3) | `feature-dev:code-architect` | 4 | Always | opus |
+| Plan Refiner (x2-3 rounds) | `general-purpose` | 4 | Complex features | opus |
 | Migration Reviewer | `migration-reviewer` | 5, 6 | Alembic files | sonnet |
 | Google API Reviewer | `google-api-reviewer` | 5, 6 | Google API code | sonnet |
 | Async Reviewer | `async-reviewer` | 5, 6 | async I/O code | sonnet |
-| Code Reviewer (x2) | `feature-dev:code-reviewer` | 6 | Always | sonnet |
-| Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | 6 | Always | sonnet |
-| Security Reviewer | `security-reviewer` | 6 | Always | sonnet |
-| QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | 6 | Always | sonnet |
+| Code Reviewer (x2) | `feature-dev:code-reviewer` | 6 | Always (overshoot prompts) | sonnet |
+| Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | 6 | Always (overshoot prompts) | sonnet |
+| Security Reviewer | `security-reviewer` | 6 | Always (overshoot prompts) | sonnet |
+| QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | 6 | Always (overshoot prompts) | sonnet |
 | Design Reviewer | `general-purpose` | 6 | UI files modified | sonnet |
 | Type Design Analyzer | `pr-review-toolkit:type-design-analyzer` | 6 | New types/models | sonnet |
 | API Doc Auditor | `api-doc-auditor` | 6 | New/modified routes | sonnet |
 | Invariant Checker | `courierflow-invariant-checker` | 6 | Always (CF projects) | sonnet |
 | Defensive Verifier | `defensive-pattern-verifier` | 6 | Always (CF projects) | sonnet |
+| UX Polish Reviewer | `general-purpose` | 6 | UI files modified | opus |
+| Random Code Explorer | `general-purpose` | 6 | Always (complex features) | opus |
 | Code Simplifier | `code-simplifier:code-simplifier` | 6 | After review fixes | opus |
 
 ## Skills Invoked Within This Workflow
@@ -620,11 +913,16 @@ Invoke `session-learnings` skill:
 | Situation | Action |
 |-----------|--------|
 | Explorer agent returns poor results | Re-dispatch with more specific prompt, or explore manually |
-| Architecture options both rejected | Ask user what they want different, re-run architects |
+| All architecture options rejected | Ask user what they want different, re-run 3 architects with revised constraints |
 | Tests fail during implementation | Fix immediately, don't proceed to next step |
 | Reviewer finds critical issue | Fix before finishing, re-run verification |
 | User wants to stop mid-workflow | Stop. Summarize state (phase, what's done, what's left). |
 | Wrong architecture chosen | Revert to plan, re-architect with new constraints |
+| Plan refinement oscillating | Two rounds alternating — pick one and commit, don't keep refining |
+| Plan refinement expanding | Output growing instead of shrinking — step back, simplify |
+| Strategic drift detected mid-implementation | Stop, report to user, revise remaining steps before continuing |
+| Post-compaction confusion | Run Compaction Recovery Protocol immediately |
+| Parallel agents touching same files | Review file claims, split work more granularly |
 
 ## Common Mistakes
 
@@ -634,9 +932,18 @@ Invoke `session-learnings` skill:
 | Exploring sequentially instead of parallel | Use 2-3 explorer subagents |
 | Proceeding to clarification with only explorer summaries | Context hydration is a hard gate — main session must read top 5-10 files firsthand before Phase 3 |
 | Coding before clarification | Phase 3 is a hard gate — resolve ambiguities first |
-| Single architecture proposal | Always present 2 options (simplicity vs separation) |
+| Only 2 architecture proposals | Always present 3 competing perspectives (simplicity vs separation vs contrarian) |
+| Skipping plan refinement | Complex features need 2-3 refinement rounds with fresh subagents |
+| Implementing without polishing the plan | "Check your plan N times, implement once" — planning is 85% of the work |
 | Writing tests after code | TDD — test first, then implement |
+| Not doing fresh eyes self-review | After every 3+ file chunk, re-read your own code before continuing |
+| Ignoring strategic drift | Every 5 steps, check: "Are remaining steps still producing the right thing?" |
+| Dispatching all parallel agents at once | Stagger dispatch by 2-3 seconds to prevent thundering herd |
+| Reviewer prompts without ambitious targets | Use overshoot: "find at least 30 issues" in every review prompt |
+| Skipping random code exploration | Structured review misses cross-cutting issues — always run the explorer |
+| AI-sounding documentation | Run de-slopification pass on all generated docs and comments |
 | Not finishing the branch | Always run Phase 6 to completion |
 | Guessing external API patterns | **Hard gate:** Invoke `/fetch-api-docs` before any API implementation — never code from memory |
 | Multiple grep iterations for a symbol | Use Serena `find_symbol` or `find_referencing_symbols` |
 | Re-discovering context each session | Use Serena `write_memory` / `read_memory` |
+| Confused after long session | Run Compaction Recovery Protocol — re-read CLAUDE.md, plan, and todos |

@@ -533,15 +533,78 @@ For each plan step:
      Backend → input validation, error handling, no silent swallows
 
 3. Run test → verify green
+   If PASS → continue to step 4
+   If FAIL → enter RETRY LOOP (see below)
 
 4. Run static analysis on changed files (catch issues early):
    semgrep --config=.semgrep.yml <changed-files>
    ast-grep scan <changed-directory>
-
-   Fix any ERROR-level issues before proceeding.
+   If PASS → continue to step 5
+   If FAIL → enter RETRY LOOP for lint_violation
 
 5. Mark TodoWrite item complete
 ```
+
+### Phase 5 Retry Loop
+
+When a test or static analysis check fails during implementation:
+
+```
+RETRY LOOP (max 3 attempts):
+  attempt = 1
+  thinking_levels = [original_level, one_level_up, "ultrathink"]
+
+  WHILE attempt <= 3 AND failure unresolved:
+
+    1. EMIT failure event:
+       Run: scripts/emit-failure-event.sh '{
+         "session": "<session-id>",
+         "phase": 5,
+         "type": "failure:test|failure:lint",
+         "step": "<step-number>",
+         "files": [<files-touched>],
+         "error_class": "<best-guess-class>",
+         "error_summary": "<first 200 chars of error output>",
+         "attempt": <attempt>,
+         "resolution": null
+       }'
+
+    2. MATCH against failure catalog:
+       - Load catalog entries for matched domains (via memory-injection mapping)
+       - Compare error output against each entry's Signal field
+       - If match with high/medium confidence:
+           → Apply the documented Fix strategy
+           → EMIT resolution:known event
+       - If no match or low confidence:
+           → Dispatch DIAGNOSIS SUBAGENT (see references/diagnosis-subagent.md)
+           → Model: sonnet (attempt 1-2), opus (attempt 3)
+           → Thinking: thinking_levels[attempt - 1]
+           → Apply the returned fix_strategy / fix_code
+           → If recurrence_likelihood is medium or high:
+               → Draft new catalog entry
+               → Run multi-model validation (plancraft_review.py)
+               → If approved: append to memory/failure-catalog.md
+               → Run: hooks/tier1/failure-catalog-push.sh
+           → EMIT resolution:novel event
+
+    3. RE-RUN verification (test or static analysis)
+       If PASS → EMIT resolution event, EXIT loop, continue to next step
+       If FAIL → increment attempt, CONTINUE loop
+
+  IF attempt > 3:
+    EMIT failure:unresolved event
+    Surface to user: "Step X failed after 3 attempts. Root cause: [diagnosis].
+    Last error: [output]. Manual intervention needed."
+    WAIT for user guidance before proceeding.
+```
+
+**Token budget escalation during retries:**
+
+| Attempt | Thinking Budget | Model |
+|---------|----------------|-------|
+| 1 | Same as original step | sonnet |
+| 2 | One level up from original | sonnet |
+| 3 | `ultrathink` | opus |
 
 ### Fresh Eyes Self-Review (After Major Chunks)
 

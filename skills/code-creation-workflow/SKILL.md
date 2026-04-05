@@ -680,7 +680,7 @@ Dispatch all applicable agents in a single parallel batch with **`model: "sonnet
 | Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | Swallowed errors, empty catches, hidden failures |
 | Security Reviewer | `security-reviewer` | Auth, data exposure, injection, OWASP |
 | QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | Test coverage gaps, missing edge cases, untested error paths |
-| Production Readiness | `general-purpose` | Auth config, data protection, monitoring, IaC gaps — uses `production-readiness-check` skill |
+| Production Readiness | `general-purpose` | Auth config, data protection, monitoring, IaC gaps — uses `production-readiness-check` skill (structured checklist — do NOT apply overshoot prompt) |
 
 **Tier 2 — Conditional (skip if already ran in Phase 5):**
 

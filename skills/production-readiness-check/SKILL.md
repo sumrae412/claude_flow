@@ -35,7 +35,7 @@ Grep the diff for hardcoded secrets:
 
 ```bash
 # General credential assignments (catches custom keys, passwords, secrets)
-git diff origin/main...HEAD -U0 | grep -iE '(api_key|api_secret|password|secret_key|private_key|token)\s*=\s*["\x27][^"\x27]{8,}'
+git diff origin/main...HEAD -U0 | grep -iE "(api_key|api_secret|password|secret_key|private_key|token)\s*=\s*['\"][^'\"]{8,}"
 
 # Known-format tokens (AWS, Stripe, GitHub, GitLab)
 git diff origin/main...HEAD -U0 | grep -E 'AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|pk_live_|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9\-]{20}'
@@ -62,7 +62,7 @@ git diff origin/main...HEAD | grep -E 'http://' | grep -vE 'localhost|127\.0\.0\
 Check for HSTS header configuration:
 
 ```bash
-git diff origin/main...HEAD --name-only | xargs grep -l 'Strict-Transport-Security' 2>/dev/null
+grep -riE 'Strict-Transport-Security|HSTS' --include='*.py' --include='*.js' --include='*.ts' --include='*.yaml' --include='*.yml'
 ```
 
 - **Score: 75** — plaintext `http://` URLs found in non-exempt contexts.
@@ -105,7 +105,7 @@ Only run the sections triggered in Step 3.
 | A1 | MFA Available | infra-confirm | Ask: "Is MFA enabled for user-facing auth (e.g., TOTP, WebAuthn)?" If unconfirmed, mark UNCONFIRMED and provide IaC snippet. |
 | A2 | Password Policy | code-check | Grep for password length/complexity enforcement. Look for `minlength`, `MIN_PASSWORD_LENGTH`, `passwordStrength`, `zxcvbn`. **Score: 75** if no policy found. |
 | A3 | Session Management | code-check | Check for `httpOnly`, `secure`, `sameSite` on cookies. Check session expiry / max-age configuration. **Score: 75** per missing attribute. |
-| A4 | JWT Secured | code-check | Verify JWT uses RS256/ES256 (not HS256 with weak secret). Check for expiry (`exp` claim). **Score: 85** for HS256 with hardcoded secret, **Score: 100** for no expiry. |
+| A4 | JWT Secured | code-check | Verify JWT algorithm is pinned (not `none`). Check secret is from env var. Check for expiry (`exp` claim). **Score: 100** for hardcoded secret, **Score: 85** for algorithm `none` allowed, **Score: 75** for missing `exp` claim. |
 
 #### Data Protection Deep-Dive
 

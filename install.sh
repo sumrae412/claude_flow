@@ -309,7 +309,33 @@ for hook in "$SCRIPT_DIR/hooks/tier2"/*.sh; do
 done
 
 echo ""
-echo -e "${GREEN}Done!${NC} Installed $installed skills, $script_count scripts, and $hook_count hooks."
+
+# Install MCP server
+MCP_DIR="$CLAUDE_DIR/mcp/claude-flow"
+echo -e "${YELLOW}Installing MCP server to $MCP_DIR/${NC}"
+mkdir -p "$MCP_DIR"
+
+cp "$SCRIPT_DIR/mcp/claude-flow-server/server.py" "$MCP_DIR/server.py"
+cp "$SCRIPT_DIR/mcp/claude-flow-server/requirements.txt" "$MCP_DIR/requirements.txt"
+echo "  + server.py"
+echo "  + requirements.txt"
+
+# Install Python dependencies
+pip install -r "$MCP_DIR/requirements.txt" --quiet 2>/dev/null || \
+  pip3 install -r "$MCP_DIR/requirements.txt" --quiet 2>/dev/null || \
+  echo "  ⚠️  Could not install Python dependencies. Run manually: pip install -r $MCP_DIR/requirements.txt"
+
+echo ""
+echo -e "${CYAN}MCP Server:${NC}"
+echo "  Add this to ~/.claude/settings.json under \"mcpServers\":"
+echo ""
+echo "  \"claude-flow\": {"
+echo "    \"command\": \"python3\","
+echo "    \"args\": [\"$HOME/.claude/mcp/claude-flow/server.py\"]"
+echo "  }"
+
+echo ""
+echo -e "${GREEN}Done!${NC} Installed $installed skills, $script_count scripts, $hook_count hooks, and MCP server."
 echo ""
 echo "Usage:"
 echo "  In Claude Code, invoke the workflow with: /code-creation-workflow"

@@ -148,6 +148,30 @@ Load **only** what matches. Don't dump everything into context.
 
 Verify you're on a feature branch. If on main, create one before proceeding.
 
+### Step 7: Bootstrap MEMORY.md (One-Time)
+
+<SKIP-CONDITION>
+Skip if a project-scoped `MEMORY.md` already exists. Check these locations in order:
+1. `$PROJECT/.claude/memory/MEMORY.md` (Claude Code auto-memory)
+2. `$PROJECT/MEMORY.md` (project root)
+</SKIP-CONDITION>
+
+If no MEMORY.md exists, create one to enable cross-session context persistence:
+
+1. **Determine the memory directory.** Use `$PROJECT/.claude/memory/` if the `.claude/` directory exists; otherwise use `$PROJECT/`.
+2. **Create MEMORY.md** with this starter template:
+
+```markdown
+# Project Memory
+
+<!-- Index of memory files. Each entry: - [Title](file.md) — one-line description -->
+<!-- Keep entries under 150 chars. Content goes in individual files, not here. -->
+```
+
+3. **Announce:** "Created MEMORY.md for cross-session context — I'll populate it as I learn about the project."
+
+**Why this matters:** The memory-injection system (see `references/memory-injection.md`) maps domain-specific gotchas from MEMORY.md into subagent prompts. Without MEMORY.md, that system silently no-ops and gotchas discovered during sessions are lost.
+
 ---
 
 ## Phase 0.5: Bootstrap Project Hooks (One-Time)

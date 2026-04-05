@@ -87,6 +87,14 @@
       "description": "Cleans stale worktrees"
     },
     {
+      "id": "failure-catalog-push",
+      "tier": 1,
+      "trigger": "manual",
+      "matcher": null,
+      "script": "hooks/tier1/failure-catalog-push.sh",
+      "description": "Commit and push failure catalog after novel failure resolution"
+    },
+    {
       "id": "lint-on-save-python",
       "tier": 2,
       "trigger": "PostToolUse",

@@ -1,0 +1,1 @@
+{"session": "smoke-test", "phase": 5, "type": "failure:test", "step": "1/1", "files": ["test.py"], "error_class": "syntax_error", "error_summary": "SyntaxError: unexpected EOF", "attempt": 1, "resolution": null, "ts": "2026-04-05T22:14:18Z"}

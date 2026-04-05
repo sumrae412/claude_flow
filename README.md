@@ -4,23 +4,7 @@ Standalone, self-contained agentic workflow for building features with Claude Co
 
 ## Why use this instead of vanilla Claude Code?
 
-Claude Code out of the box is powerful, but it wings it. It reads some files, makes a plan in its head, and starts coding. That works for small tasks. For anything complex, you hit the same failure modes over and over:
-
-**Claude skips understanding before building.** Without structured exploration, Claude reads 2-3 files and starts writing code based on assumptions. This workflow launches 2-3 parallel explorer agents that map the actual codebase — patterns, data flow, architecture layers — before a single line is written. The main session then reads the key files firsthand (context hydration) so it has real knowledge, not summaries.
-
-**There's no checkpoint before ambiguity bites you.** Vanilla Claude will happily build the wrong thing because it never stopped to ask about edge cases, error handling, or scope boundaries. Phase 3 is a hard gate — all ambiguities get surfaced and resolved with you before architecture work begins.
-
-**You get one architecture, take it or leave it.** This workflow runs two competing architect agents in parallel — one optimizing for simplicity, one for clean separation. You see both proposals with trade-offs and pick the best fit (or combine them). Vanilla Claude gives you whatever it thought of first.
-
-**Tests come after the code (or not at all).** Claude tends to write implementation first, then bolt on tests as an afterthought. This workflow enforces TDD — test first, implement to make it pass, verify green — for every step in the plan.
-
-**Review is an afterthought.** Vanilla Claude commits and calls it done. This workflow runs a 4-tier parallel review: two code reviewers (bugs + conventions), a silent failure hunter (swallowed errors, empty catches), a security reviewer, and a test coverage analyzer — all before you ship. Conditional specialists (migration reviewer, async reviewer, API auditor) fire when relevant code is detected.
-
-**No defensive patterns by default.** Claude doesn't think about guard clauses, loading/error/success states, silent error swallowing, or input validation unless you remind it every time. This workflow loads defensive skills automatically — UI flows get guard clauses and state management, backend code gets error handling discipline and no-silent-swallow rules.
-
-**Context evaporates between sessions.** Hook scripts preserve context across compaction events and session boundaries. Post-commit memory updates capture what was learned. Session-start hooks reload relevant context automatically. Vanilla Claude starts fresh every time.
-
-In short: this workflow adds structure where Claude Code is weakest — exploration before coding, clarification before building, competing designs before committing to one, tests before implementation, and review before shipping. The result is code that works on the first PR, not the third.
+Claude Code's default mode is a single-pass loop: read a few files, form a mental model, write code, commit. This workflow replaces that with a structured multi-agent pipeline. Exploration dispatches 2-3 parallel subagents (Opus) to map codebase patterns and architecture before the main session touches code, then the main session reads the top 5-10 source files itself so it has firsthand knowledge of the code, not just agent summaries. A bundled repo outline script extracts function and class signatures without their bodies, so Claude sees the full codebase structure without burning context tokens on implementation details. A hard gate forces all ambiguities (edge cases, error handling, scope boundaries) to be resolved with you before architecture begins, so Claude doesn't build the wrong thing based on assumptions. Two competing architect agents (simplicity vs. separation) produce proposals you choose between rather than getting a single take-it-or-leave-it design. Implementation enforces strict TDD ordering (test-first per plan step) with defensive skill injection: guard clauses, no-silent-swallow rules, and state management loaded automatically based on whether the step touches UI or backend. Before shipping, a 4-tier parallel review runs 5+ agents (code review, silent failure hunting, security, test coverage analysis) plus conditional specialists (migration, async, API audit) that fire only when relevant file types appear in the diff. This catches entire categories of bugs that vanilla Claude misses: swallowed exceptions, missing error states, auth gaps, untested edge cases, and type mismatches. Hook scripts handle context persistence: pre-compaction transcript backup, post-commit memory updates, and session-start context reloading so the next session doesn't start from scratch.
 
 ## Install
 

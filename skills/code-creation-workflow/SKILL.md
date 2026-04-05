@@ -804,6 +804,27 @@ Dispatch a design-review agent that tests the **live rendered UI**, not just the
 
 **Merge & fix:** Collect all findings across all tiers, deduplicate, fix HIGH+ issues (including Design Review Blockers and High-Priority). Post summary of findings to user.
 
+### Phase 6 Retry Loop
+
+When fixing a review finding, use the same retry loop as Phase 5. Review fixes are especially prone to introducing new issues — the retry loop catches cascading failures.
+
+```
+For each HIGH+ review finding to fix:
+
+  1. Apply fix
+  2. Run affected tests + static analysis
+  3. If PASS → mark finding resolved, continue
+  4. If FAIL → enter RETRY LOOP (same as Phase 5, but with):
+     - type: "failure:review"
+     - Include the original review finding in the diagnosis context
+     - Diagnosis subagent gets both the review comment AND the error output
+
+  After all findings fixed:
+  5. Re-run FULL test suite (not just affected tests)
+  6. If new failures → these are regressions from fixes
+     Enter RETRY LOOP with error_class "regression"
+```
+
 **Tier 5 — UI/UX Polish (when UI was modified):**
 
 <SKIP-CONDITION>

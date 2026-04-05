@@ -306,6 +306,8 @@ After explorers return, the **main session** (not a subagent) must:
 
 **What to pass forward:** The hydrated file contents stay in the main session's context and naturally inform Phases 3 and 4. When dispatching architect subagents in Phase 4, reference specific file paths and patterns you observed — don't just forward explorer summaries.
 
+**Memory injection:** After exploration completes, invoke the `memory-injection` skill with the deduplicated list of key files identified. Append the returned PROJECT GOTCHAS block to all subsequent subagent prompts (Phases 4, 5, and 6).
+
 ---
 
 ## Phase 3: Clarification (Hard Gate)
@@ -402,7 +404,7 @@ Launch 3 **code-architect** subagents in parallel with deliberately different op
    ◆ USER CHOOSES architecture (A, B, C, or hybrid) ◆
 ```
 
-**Subagent dispatch:** Use the Agent tool with `subagent_type: "feature-dev:code-architect"` and **`model: "opus"`**. Each gets the exploration findings + clarification answers + a clear optimization directive.
+**Subagent dispatch:** Use the Agent tool with `subagent_type: "feature-dev:code-architect"` and **`model: "opus"`**. Each gets the exploration findings + clarification answers + a clear optimization directive. Include PROJECT GOTCHAS from memory-injection in each architect's prompt.
 
 **Synthesis step:** After all 3 return, present a "best-of-all-worlds" recommendation that blends the strongest ideas from each. Be intellectually honest about which architect had the better approach for each aspect.
 
@@ -514,6 +516,8 @@ Plan step touches external API?
 Break the plan into individual TodoWrite items. Mark each complete as you finish it.
 
 ### Execute Each Step
+
+Include PROJECT GOTCHAS from memory-injection in each implementation subagent's prompt.
 
 For each plan step:
 
@@ -663,7 +667,7 @@ MEDIUM/LOW findings defer to Phase 6 review. Agents that ran in Phase 5 are **sk
 
 ### 4-Tier Parallel Review
 
-Dispatch all applicable agents in a single parallel batch with **`model: "sonnet"`**. Each gets the diff + the plan + project conventions.
+Dispatch all applicable agents in a single parallel batch with **`model: "sonnet"`**. Each gets the diff + the plan + project conventions. Include PROJECT GOTCHAS from memory-injection in each reviewer's prompt.
 
 **Overshoot technique for ALL review prompts:** Append this to every reviewer's prompt: *"I'm positive there are at least 30 issues in this code — find them all. Look for bugs, logic errors, security issues, pattern violations, edge cases, and quality gaps."* Models find 30-50% more issues when given an ambitious target versus "find any problems." The number is deliberately unreachable — it prevents the model from stopping after finding 20-25 issues, which is the typical plateau.
 

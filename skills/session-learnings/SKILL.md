@@ -43,6 +43,8 @@ SESSION CONTEXT:
 - Code quality catches: [N+1 queries, race conditions, duplicate code found in review]
 - Cross-cutting changes: [same rule applied to 3+ files = policy; needs memory entry]
 - Skills modified: [which skills were edited and why — triggers cross-reference audit]
+- Failure events: [read memory/failure-events.jsonl for this session's events —
+  count by type, note any failure:unresolved, list novel patterns added to catalog]
 ```
 
 ### Step 2: Dispatch Background Agent
@@ -127,6 +129,22 @@ Task tool:
        documenting: what the policy is, why it was established, and which
        files were updated. Future sessions need this context immediately,
        not buried across individual skill files.
+
+    ## Failure Event Analysis (REQUIRED when failure-events.jsonl has entries)
+
+    Read memory/failure-events.jsonl and analyze:
+
+    10. **Pattern frequency:** Which error_classes appear most? Should any become
+        a defensive pattern in the relevant skill (e.g., defensive-backend-flows)?
+        Threshold: 5+ occurrences across sessions → propose skill promotion.
+
+    11. **Catalog health:** Are there catalog entries that haven't been hit in
+        30+ days? Flag them for review (may be stale or too specific).
+
+    12. **Unresolved failures:** Any failure:unresolved events? These represent
+        gaps in the self-debugging system. Propose: new catalog entry with
+        the manual resolution the user applied, OR a skill update to prevent
+        the failure class entirely.
 
     ## Output Format
     For EACH proposed update, write:

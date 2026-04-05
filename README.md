@@ -2,10 +2,30 @@
 
 Standalone, self-contained agentic workflow for building features with Claude Code. Uses parallel subagents for exploration, competing architecture proposals, TDD implementation, and multi-tier quality review.
 
+## Why use this instead of vanilla Claude Code?
+
+Claude Code out of the box is powerful, but it wings it. It reads some files, makes a plan in its head, and starts coding. That works for small tasks. For anything complex, you hit the same failure modes over and over:
+
+**Claude skips understanding before building.** Without structured exploration, Claude reads 2-3 files and starts writing code based on assumptions. This workflow launches 2-3 parallel explorer agents that map the actual codebase — patterns, data flow, architecture layers — before a single line is written. The main session then reads the key files firsthand (context hydration) so it has real knowledge, not summaries.
+
+**There's no checkpoint before ambiguity bites you.** Vanilla Claude will happily build the wrong thing because it never stopped to ask about edge cases, error handling, or scope boundaries. Phase 3 is a hard gate — all ambiguities get surfaced and resolved with you before architecture work begins.
+
+**You get one architecture, take it or leave it.** This workflow runs two competing architect agents in parallel — one optimizing for simplicity, one for clean separation. You see both proposals with trade-offs and pick the best fit (or combine them). Vanilla Claude gives you whatever it thought of first.
+
+**Tests come after the code (or not at all).** Claude tends to write implementation first, then bolt on tests as an afterthought. This workflow enforces TDD — test first, implement to make it pass, verify green — for every step in the plan.
+
+**Review is an afterthought.** Vanilla Claude commits and calls it done. This workflow runs a 4-tier parallel review: two code reviewers (bugs + conventions), a silent failure hunter (swallowed errors, empty catches), a security reviewer, and a test coverage analyzer — all before you ship. Conditional specialists (migration reviewer, async reviewer, API auditor) fire when relevant code is detected.
+
+**No defensive patterns by default.** Claude doesn't think about guard clauses, loading/error/success states, silent error swallowing, or input validation unless you remind it every time. This workflow loads defensive skills automatically — UI flows get guard clauses and state management, backend code gets error handling discipline and no-silent-swallow rules.
+
+**Context evaporates between sessions.** Hook scripts preserve context across compaction events and session boundaries. Post-commit memory updates capture what was learned. Session-start hooks reload relevant context automatically. Vanilla Claude starts fresh every time.
+
+In short: this workflow adds structure where Claude Code is weakest — exploration before coding, clarification before building, competing designs before committing to one, tests before implementation, and review before shipping. The result is code that works on the first PR, not the third.
+
 ## Install
 
 ```bash
-git clone -b code-creation-workflow https://github.com/sumrae412/claude_flow.git
+git clone https://github.com/sumrae412/claude_flow.git
 cd claude_flow
 ./install.sh
 ```

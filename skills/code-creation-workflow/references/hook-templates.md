@@ -1,6 +1,10 @@
 # Hook Templates Reference
 
-Reference for Phase 0.5 (Bootstrap Project Hooks). Claude consults this to detect the project stack and generate appropriate hooks.
+Reference for Phase 0.5 (Bootstrap Project Hooks). Claude consults this to detect the project stack and select hooks from the registry.
+
+> **Source of truth:** All hook definitions live in `hooks/hook-registry.json`. Phase 0.5 no longer hardcodes inline templates — it reads the registry and uses `install.sh --generate-hooks` to write the project's `.claude/settings.json` hook entries.
+
+---
 
 ## Stack Detection
 
@@ -26,185 +30,77 @@ Check for these signal files/dirs at the project root. Each match adds a tag to 
 | `jest` in package.json deps or `jest.config.*` | `jest` |
 | `tsconfig.json` | `typescript` |
 
-## Tier 1 — Universal Hooks (always generated)
+---
 
-### SessionStart
+## Hook Registry
 
-```json
-{
-  "matcher": "startup",
-  "hooks": [
-    {
-      "type": "command",
-      "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/cleanup-worktrees.sh"
-    },
-    {
-      "type": "command",
-      "command": "[ ! -f \"$CLAUDE_PROJECT_DIR/.env\" ] && echo 'First time setup? Check README for environment setup.' || true"
-    },
-    {
-      "type": "command",
-      "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/session-start-context.sh"
-    }
-  ]
-}
-```
+All Tier 1 and Tier 2 hook templates are defined in **`hooks/hook-registry.json`** (repo root). Do not edit hook definitions here — update the registry instead.
 
-### PreCompact (auto + manual)
+### Registry Schema
 
-Generate two entries (one for `"auto"`, one for `"manual"`), both with the same hook:
+Each entry in the `hooks` array has the following fields:
 
-```json
-{
-  "type": "command",
-  "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/pre-compaction-save.sh"
-}
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique hook identifier (kebab-case) |
+| `tier` | number | `1` = universal, `2` = conditional (requires stack tags) |
+| `trigger` | string | Claude hook event: `PreToolUse`, `PostToolUse`, `SessionStart`, `PreCompact` |
+| `matcher` | array\|null | Tool matchers (e.g. `["Edit", "Write"]`, `["Bash(git commit*)"]`). `null` for session-level triggers. |
+| `script` | string | Path to the hook script, relative to the repo root |
+| `description` | string | Human-readable summary of what the hook does |
+| `stack_tags` | array | *(Tier 2 only)* Stack tags that must be present for this hook to be generated |
 
-### PostToolUse — git commit
+### Tier 1 — Universal Hooks
 
-```json
-{
-  "matcher": "Bash(*git commit*)",
-  "hooks": [
-    {
-      "type": "command",
-      "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/post-commit-memory-update.sh"
-    }
-  ]
-}
-```
+These hooks are generated for every project regardless of stack. Current Tier 1 entries in the registry:
 
-### WorktreeRemove
+| id | trigger | description |
+|----|---------|-------------|
+| `secret-detection` | PreToolUse (Edit, Write) | Blocks edits introducing secrets |
+| `large-file-warning` | PreToolUse (Edit) | Warns when editing files >500 lines |
+| `missing-test-companion` | PostToolUse (Write) | Suggests test file for new source files |
+| `dangerous-git-ops` | PreToolUse (Bash — force push/reset) | Blocks dangerous git commands |
+| `uncommitted-work-guard` | PreToolUse (Bash — git checkout) | Warns on branch switch with uncommitted changes |
+| `build-before-commit` | PreToolUse (Bash — git commit) | Runs lint/typecheck before commit |
+| `todo-cleanup` | PostToolUse (Bash — git commit) | Surfaces TODO/FIXME/HACK after commit |
+| `session-context-loader` | SessionStart | Loads context + handoff on start |
+| `pre-compaction-backup` | PreCompact | Saves transcript before compression |
+| `worktree-cleanup` | SessionStart | Cleans stale worktrees |
 
-```json
-{
-  "hooks": [
-    {
-      "type": "command",
-      "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/guard-worktree-remove.sh"
-    }
-  ]
-}
-```
+### Tier 2 — Conditional Hooks
 
-## Tier 2 — Conditional Hooks
+These hooks are generated only when the detected stack profile includes the required tags. Current Tier 2 entries in the registry:
 
-Each entry lists the required stack tags and the hook definition. Only generate if ALL listed tags are present.
+| id | trigger | required stack_tags | description |
+|----|---------|---------------------|-------------|
+| `lint-on-save-python` | PostToolUse (Edit *.py) | `ruff` OR `flake8` | Runs Python linter on save |
+| `lint-on-save-js` | PostToolUse (Edit *.js/ts/jsx/tsx) | `eslint` | Runs ESLint on save |
+| `test-on-save-python` | PostToolUse (Edit app/**/*.py) | `pytest` | Runs pytest on save |
+| `test-on-save-js` | PostToolUse (Edit src/**/*.js/ts/tsx) | `jest` | Runs Jest on save |
+| `migration-sequence-check` | PostToolUse (Write alembic/versions/*.py) | `alembic` | Checks Alembic migration sequence |
+| `type-check-on-save` | PostToolUse (Edit *.ts/tsx) | `typescript` | Runs TypeScript type check on save |
+| `docker-rebuild-reminder` | PostToolUse (Edit Dockerfile*/docker-compose*) | `docker` | Reminds to rebuild Docker image after config changes |
 
-### .env Protection
+### Generating Hooks for a Project
 
-**Requires:** `has-env`
-**Trigger:** PreToolUse (Edit|Write)
-
-```json
-{
-  "type": "command",
-  "command": "if echo \"$TOOL_INPUT\" | grep -qE '\\.env([^.]|$)' && ! echo \"$TOOL_INPUT\" | grep -q '.example'; then echo 'BLOCKED: Cannot edit .env files directly. Edit .env.example instead.' >&2; exit 1; fi"
-}
-```
-
-### Linter on Save (Python — ruff)
-
-**Requires:** `ruff`
-**Trigger:** PostToolUse (Edit|Write)
-
-```json
-{
-  "type": "command",
-  "command": "FILE=$(echo \"$TOOL_INPUT\" | grep -oE '/[^ ]*\\.py' | head -1); if [ -n \"$FILE\" ] && [ -f \"$FILE\" ]; then ruff check \"$FILE\" 2>&1 | head -20; fi"
-}
-```
-
-### Linter on Save (Python — flake8)
-
-**Requires:** `flake8` AND NOT `ruff`
-**Trigger:** PostToolUse (Edit|Write)
-
-```json
-{
-  "type": "command",
-  "command": "FILE=$(echo \"$TOOL_INPUT\" | grep -oE '/[^ ]*\\.py' | head -1); if [ -n \"$FILE\" ] && [ -f \"$FILE\" ]; then flake8 --select=E9,F63,F7,F82 \"$FILE\" 2>&1 | head -20; fi"
-}
-```
-
-### Linter on Save (JS/TS — eslint)
-
-**Requires:** `eslint`
-**Trigger:** PostToolUse (Edit|Write)
-
-```json
-{
-  "type": "command",
-  "command": "FILE=$(echo \"$TOOL_INPUT\" | grep -oE '/[^ ]*\\.(js|ts|jsx|tsx)' | head -1); if [ -n \"$FILE\" ] && [ -f \"$FILE\" ]; then npx eslint \"$FILE\" 2>&1 | head -20; fi"
-}
-```
-
-### Service Layer Commit Guard
-
-**Requires:** `service-layer` AND `orm`
-**Trigger:** PreToolUse (Edit|Write)
-
-```json
-{
-  "type": "command",
-  "command": "if echo \"$TOOL_INPUT\" | grep -qE '/services/' && echo \"$TOOL_INPUT\" | grep -qE 'db\\.commit\\(|session\\.commit\\(|await\\s+(db|session)\\.commit\\('; then echo 'BLOCKED: db.commit() is not allowed in service files. Routes own transactions. Use db.flush() + db.refresh() instead.' >&2; exit 1; fi"
-}
-```
-
-### UI Skill Reminder
-
-**Requires:** `server-templates` OR `static-assets`
-**Trigger:** PreToolUse (Edit|Write)
-
-```json
-{
-  "type": "command",
-  "command": "echo \"$TOOL_INPUT\" | grep -qE '(templates/|static/css/|static/js/|src/styles/|src/components/)' && echo 'REMINDER: Load UI skills/standards for UI work' >&2 || true"
-}
-```
-
-## Sidecar Config Template
-
-Generate as `scripts/hooks/hook-config.sh`. Scripts source this for project-specific values.
+After stack detection, Phase 0.5 generates hooks by running:
 
 ```bash
-#!/usr/bin/env bash
-# Project hook configuration — generated by code-creation-workflow Phase 0.5
-# Modify this file to customize hook behavior for this project.
-
-PROJECT_NAME="<detected-from-directory-name>"
-STACK_TAGS="<comma-separated-tags>"
-
-# File categories for post-commit memory updates
-# Format: "glob_pattern:category:memory_file"
-FILE_CATEGORIES=(
-  # Examples (populated based on detected structure):
-  # "app/models/*.py:models:models.md"
-  # "src/**/*.ts:source:file-map.md"
-)
-
-# Skill suggestions based on file patterns (session-start)
-# Format: "file_pattern:skill_name"
-SKILL_SUGGESTIONS=(
-  # Examples (populated based on project skills):
-  # "app/models/:project-data"
-  # "src/components/:project-ui"
-)
-
-# Linter config
-LINTER_CMD=""       # e.g., "ruff check", "flake8 --select=E9,F63,F7,F82", "npx eslint"
-LINTER_GLOB=""      # e.g., "*.py", "*.ts"
+./install.sh --generate-hooks
 ```
 
-## Cleanup Worktrees Script
+This reads `hooks/hook-registry.json`, filters Tier 2 hooks against the detected stack tags, and writes the resulting hook entries into the project's `.claude/settings.json`.
 
-The `cleanup-worktrees.sh` script is simple and universal:
+To regenerate after updating the registry or adding stack tags, run the same command again — it is idempotent.
 
-```bash
-#!/usr/bin/env bash
-# Remove orphaned worktrees on session start.
-set -e
-cd "$CLAUDE_PROJECT_DIR" 2>/dev/null || exit 0
-git worktree prune 2>/dev/null || true
-```
+---
+
+## Tier 3 — Project-Specific Hooks
+
+Tier 3 hooks are not in the registry. They are project-specific and user-configured, defined directly in the project's `.claude/settings.json` after bootstrap. Examples include:
+
+- Custom deployment guards (e.g. block edits to production config files)
+- Project-specific commit message format enforcement
+- Team-specific reminder hooks tied to internal tooling
+
+These are outside the scope of Phase 0.5 automation and must be added manually.

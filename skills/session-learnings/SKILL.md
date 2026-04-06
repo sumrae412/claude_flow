@@ -156,6 +156,9 @@ Task tool:
 
     13. **Update metrics:** Run `python3 ~/.claude/scripts/prompt-tracker.py update-metrics`
         to recompute variant scores from all events.
+        Note: `prompt-tracker.py` lives at `~/.claude/scripts/prompt-tracker.py`.
+        If not found, check `~/claude_code/claude_flow/scripts/prompt-tracker.py`
+        (canonical source) and run `./install.sh` to install it.
 
     14. **Check for promotions:** Run `python3 ~/.claude/scripts/prompt-tracker.py report`
         and check if any variant pair is ready for promotion (10+ sessions each,

@@ -1306,6 +1306,9 @@ After learnings capture, run the pipeline's session-end stage:
 | finishing-a-development-branch | Phase 6 (branch completion) |
 | session-learnings | Phase 6 (capture discoveries) |
 | production-readiness-check | Phase 6 (production infra/ops review) |
+| smart-exploration | Phase 2 (task classification + variant selection for explorers) |
+| prompt-optimization | Phase 6 (triggered by session-learnings when exploration events exist) |
+| memory-injection | Phase 2/4/5/6 (gotcha injection into subagent prompts) |
 
 ## Static Analysis Tools (Automatic)
 
@@ -1326,6 +1329,7 @@ After learnings capture, run the pipeline's session-end stage:
 | `rag.py` | All dispatch phases + session end | Embed, store, retrieve, re-rank experience |
 | `causal.py` | All dispatch phases + session end | Controlled skip, quality metric, effect estimation |
 | `federation.py` | Phase 0 (pull) + session end (push) | Anonymized push/pull to Supabase |
+| `prompt-tracker.py` | Phase 2 (select), Phase 5 (record), Phase 6 (record + metrics) | Variant selection, outcome recording, metric computation |
 
 ## Skills Eliminated (Absorbed)
 

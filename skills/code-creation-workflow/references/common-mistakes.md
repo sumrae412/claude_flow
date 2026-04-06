@@ -24,3 +24,4 @@
 | Ignoring constraint violations because tests pass | Tests verify behavior; constraints verify conventions and safety rules. A passing test with a bare `except Exception:` is still a constraint violation that must be fixed |
 | Building skill/workflow improvements into the active project repo | Confirm target repo in Phase 0. Skill work goes to claude_flow, not the open project |
 | Deferring registry/telemetry setup "until there's enough data" | You cannot accumulate data without collection running. Start recording from session 1 with uniform priors (alpha=1, beta=1) |
+| Hardcoding model IDs without verification | Model IDs change across versions (e.g., `claude-sonnet-4-5-20250514` does not exist; correct is `claude-sonnet-4-20250514`). When generating code that references model IDs, verify the exact string against the API or docs first |

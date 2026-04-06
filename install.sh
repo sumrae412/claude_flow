@@ -332,6 +332,22 @@ else
   echo "  ~ failure-events.jsonl (exists, skipped)"
 fi
 
+if [ ! -f "$MEMORY_DIR/prompt-variants.json" ]; then
+  cp "$SCRIPT_DIR/memory/prompt-variants.json" "$MEMORY_DIR/prompt-variants.json"
+  echo "  + prompt-variants.json"
+  memory_count=$((memory_count + 1))
+else
+  echo "  ~ prompt-variants.json (exists, skipped)"
+fi
+
+if [ ! -f "$MEMORY_DIR/exploration-events.jsonl" ]; then
+  touch "$MEMORY_DIR/exploration-events.jsonl"
+  echo "  + exploration-events.jsonl (created empty)"
+  memory_count=$((memory_count + 1))
+else
+  echo "  ~ exploration-events.jsonl (exists, skipped)"
+fi
+
 echo ""
 
 # Install MCP server

@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "explorer": {
+    "endpoint": {
+      "variants": [
+        {
+          "id": "endpoint-A-v1",
+          "role": "A",
+          "label": "Route/service/model chain",
+          "prompt": "think harder about... Trace the route \u2192 service \u2192 model chain for the nearest similar endpoint to [FEATURE]. Find the route definition, the controller or handler that processes it, the service layer it calls, and the model(s) it reads or writes. Note how the response is shaped and what status codes are used. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 1,
+            "total_files_found": 4,
+            "total_files_used": 3,
+            "total_files_needed": 5,
+            "total_retries": 1,
+            "precision_sum": 0.75,
+            "recall_sum": 0.6,
+            "f1_sum": 0.667
+          },
+          "active": true
+        },
+        {
+          "id": "endpoint-B-v1",
+          "role": "B",
+          "label": "Middleware, auth, and error handling",
+          "prompt": "think harder about... Map the middleware, auth, and error handling patterns for routes in this area. Find how authentication and authorization are enforced, what middleware runs before the handler, how validation errors and server errors are returned, and whether there are shared error response formats. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    },
+    "ui": {
+      "variants": [
+        {
+          "id": "ui-A-v1",
+          "role": "A",
+          "label": "Component tree, CSS, and state",
+          "prompt": "think harder about... Map the component tree, CSS architecture, and state management for [AREA]. Find the top-level page or view component, its children, how styles are organized (modules, utility classes, theme tokens), and where state lives (local, context, store). Note any shared UI primitives being reused. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "ui-B-v1",
+          "role": "B",
+          "label": "Data flow from API to rendered template",
+          "prompt": "think harder about... Trace the data flow from API call to rendered template for the nearest similar page to [FEATURE]. Find where the API is called, how loading and error states are handled, how data is transformed before rendering, and how the final values appear in the template or JSX. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    },
+    "data": {
+      "variants": [
+        {
+          "id": "data-A-v1",
+          "role": "A",
+          "label": "Model relationships and cascade behaviors",
+          "prompt": "think harder about... Trace the model relationships, foreign keys, and cascade behaviors for [AREA]. Find the relevant model definitions, their associations (has-many, belongs-to, many-to-many), any soft-delete or audit fields, and what cascades on delete or update. Note any constraints enforced at the DB level vs. application level. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "data-B-v1",
+          "role": "B",
+          "label": "Migration history and query patterns",
+          "prompt": "think harder about... Map the migration history and query patterns used for this data. Find recent migrations that touched the same tables, how schema changes were structured, and how the application queries this data (raw SQL, ORM methods, scopes, indexes). Note any performance-sensitive query patterns. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    },
+    "integration": {
+      "variants": [
+        {
+          "id": "integration-A-v1",
+          "role": "A",
+          "label": "External API call sites and error handling",
+          "prompt": "think harder about... Find all external API call sites, auth patterns, retry logic, and error handling for this integration. Locate where the HTTP client is initialized, how credentials are managed, what headers or tokens are required, how retries and timeouts are configured, and how errors (rate limits, failures, bad responses) are caught and surfaced. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "integration-B-v1",
+          "role": "B",
+          "label": "Data transformation pipeline",
+          "prompt": "think harder about... Map the data transformation pipeline from API response to internal model for [FEATURE]. Trace how raw API responses are parsed, validated, normalized, and mapped to internal types or database records. Note any field renaming, type coercion, or filtering that happens along the way. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    },
+    "refactor": {
+      "variants": [
+        {
+          "id": "refactor-A-v1",
+          "role": "A",
+          "label": "Callers and dependents",
+          "prompt": "think harder about... Map all callers and dependents of [TARGET] across the codebase. Find every file that imports, calls, or otherwise depends on the target code. Note the call signatures being used, any assumptions callers make about return types or side effects, and which callers are in tests vs. production code. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "refactor-B-v1",
+          "role": "B",
+          "label": "Test coverage boundary",
+          "prompt": "think harder about... Identify the test coverage boundary \u2014 what tests exercise the code being refactored in [TARGET]. Find the test files that cover this code, what behaviors they assert, which edge cases are tested, and which are not. Note whether tests are unit, integration, or end-to-end, and whether the refactor will require updating test structure. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    },
+    "bugfix": {
+      "variants": [
+        {
+          "id": "bugfix-A-v1",
+          "role": "A",
+          "label": "Execution path to the bug",
+          "prompt": "think harder about... Trace the execution path that leads to the bug \u2014 inputs, transformations, outputs. Starting from the entry point (route, event, job, etc.), follow the code path step by step until you reach the point of failure. Note every transformation, conditional branch, and external call along the way. Identify where the behavior diverges from what is expected. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "bugfix-B-v1",
+          "role": "B",
+          "label": "Error handling, logging, and monitoring",
+          "prompt": "think harder about... Find all related error handling, logging, and monitoring for this code path. Locate where errors are caught, what gets logged and at what level, whether there are any metrics or alerts tied to this path, and how errors are surfaced to the caller or user. Note any silent failure patterns where errors are swallowed. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    },
+    "config": {
+      "variants": [
+        {
+          "id": "config-A-v1",
+          "role": "A",
+          "label": "Config value flow",
+          "prompt": "think about this... Map how config values flow from environment \u2192 config files \u2192 application code for this area. Find where environment variables are declared (.env.example, docs, CI config), how they are loaded into the application (config modules, framework config, direct process.env), and where in the application they are consumed. Note any validation, defaults, or required vs. optional distinctions. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    },
+    "general": {
+      "variants": [
+        {
+          "id": "general-A-v1",
+          "role": "A",
+          "label": "Similar feature patterns",
+          "prompt": "think harder about... Trace how similar features are implemented \u2014 find patterns, data flow, and key files for [FEATURE]. Look for the closest existing feature in the codebase that resembles what is being built or changed. Map its entry point, data flow, key files, and any conventions it follows. Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "general-B-v1",
+          "role": "B",
+          "label": "Architecture for the area",
+          "prompt": "think harder about... Map architecture for this area \u2014 key files, layers, dependencies for [AREA]. Identify the main modules or packages involved, how they are layered (e.g., routes \u2192 services \u2192 models), what external dependencies they rely on, and any architectural patterns in use (e.g., repository pattern, event-driven, MVC). Return: 5-10 key files (with line ranges), patterns to follow, and constraints discovered.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_files_found": 0,
+            "total_files_used": 0,
+            "total_files_needed": 0,
+            "total_retries": 0,
+            "precision_sum": 0.0,
+            "recall_sum": 0.0,
+            "f1_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best_A": null,
+      "current_best_B": null
+    }
+  }
+}

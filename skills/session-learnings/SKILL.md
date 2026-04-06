@@ -146,6 +146,22 @@ Task tool:
         the manual resolution the user applied, OR a skill update to prevent
         the failure class entirely.
 
+    ## Prompt Optimization (REQUIRED when exploration-events.jsonl has entries)
+
+    Check if this session recorded exploration events:
+
+    13. **Update metrics:** Run `python3 ~/.claude/scripts/prompt-tracker.py update-metrics`
+        to recompute variant scores from all events.
+
+    14. **Check for promotions:** Run `python3 ~/.claude/scripts/prompt-tracker.py report`
+        and check if any variant pair is ready for promotion (10+ sessions each,
+        F1 gap > 0.05). If so, invoke the `prompt-optimization` skill to handle
+        promotion and challenger generation.
+
+    15. **Miss patterns:** Report the top 5 most commonly missed files. If a file
+        type appears 3+ times in misses (e.g., config files, test fixtures),
+        propose adding it as a hint to the relevant explorer prompt variant.
+
     ## Output Format
     For EACH proposed update, write:
 

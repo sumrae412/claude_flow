@@ -106,6 +106,8 @@ After the PR is confirmed merged (or the user explicitly acknowledges unmerged s
 - Sync config/skills/memory repos (commit+push changes from session-learnings)
 - Worktree teardown via `ExitWorktree` tool
 
+Before invoking cleanup (which runs session-learnings), confirm session-learnings is warranted by checking: (1) user corrected approach at least once, (2) 3+ files committed, (3) gotcha hit, (4) new component built, (5) skill modified. If ANY is true, session-learnings must run.
+
 Do not manually run session-learnings, sync repos, or remove worktrees — `/cleanup` handles all of this.
 
 ## Key Principles

@@ -129,6 +129,15 @@ Load project context before any exploration or coding.
 
 Read the workspace `CLAUDE.md` (slim version — identity, terminology, boundaries, skill pointers).
 
+### Step 0.5: Confirm Target Repo
+
+Before any file creation or commits, verify: does this task affect the active project, or a skill/tool repo (e.g., claude_flow)?
+
+- Work on a project feature → stay in active project repo
+- Work on a skill, workflow tool, or code-creation-workflow itself → target is claude_flow at /Users/summerrae/claude_code/claude_flow/ — do NOT commit to active project
+
+If unclear, ask: "Should this work go into [active-project] or claude_flow?"
+
 ### Step 2: Load Core Skill
 
 If workspace has a core skill (e.g. `/courierflow-core`), load it for boundaries, terminology, and the trigger matrix.

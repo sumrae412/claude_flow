@@ -62,7 +62,8 @@ Task tool:
 
     ## Write Access
     You have DIRECT WRITE ACCESS to the project memory repo:
-      MEMORY_DIR=~/.claude/projects/-Users-summerrae-courierflow/memory
+      MEMORY_DIR=$(find ~/.claude/projects/ -name "MEMORY.md" -maxdepth 3 | head -1 | xargs dirname 2>/dev/null)
+      # If not found, ask user for MEMORY_DIR before proceeding
       MEMORY_FILE=$MEMORY_DIR/MEMORY.md
 
     For MEMORY.md updates: READ the file, EDIT it directly, then commit and push:
@@ -87,6 +88,9 @@ Task tool:
     - models/*.py, alembic/ → coding-best-practices
     - tests/ → coding-best-practices (testing section)
     - .claude/skills/ → meta (skills changed directly)
+    - skills/*.md, claude_flow/** → meta (skill/workflow changes — check claude_flow repo, not active project)
+
+    Note: If changes were made to files under `~/.claude/skills/` or `claude_flow/`, the canonical repo is `claude_flow` at `/Users/summerrae/claude_code/claude_flow/`. Run git commands there, not in the active project repo.
 
     ## Available Skills
     Personal: ls ~/.claude/skills/
@@ -208,6 +212,7 @@ For each approved skill/CLAUDE.md proposal:
 | "I only changed one skill" | Other skills may reach the same outcome via a different path. Cross-reference audit catches these. |
 | "The change is self-documenting" | If 3+ files changed for the same reason, it's a policy. Future sessions won't read all those files — they need a memory entry. |
 | "I'll run multiple agents in parallel for speed" | Parallel subagents doing git commits in the same worktree cause conflicts. Serialize commits or use separate worktrees per agent. |
+| "I'll run session-learnings at the end" | "End" never comes if there are more commits. Run it after each significant commit cluster, not at session close. |
 
 ## Example Session Context
 

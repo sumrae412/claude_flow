@@ -17,3 +17,8 @@
 | Ignoring agent signals during implementation | Signals (stuck, diverged, needs-context, complete) change orchestrator behavior; process them immediately |
 | Running full complex-tier swarm on a moderate task | Calibrate tier before Phase 2; over-dispatching wastes budget and adds noise without improving output |
 | Skipping the missed-context audit after exploration or review | Audits surface gaps that agents assumed away; skipping them silently degrades architecture and review quality |
+| Skipping symbolic verification "to save time" | Verification catches constraint violations before they compound; skipping saves seconds but costs rework in Phase 6. Always run at least hard checks |
+| Embedding everything into RAG vector store | Only embed experiential data (findings, failed approaches, discoveries, review patterns). Embedding raw code or config bloats the store and degrades retrieval quality |
+| Running controlled skip experiments on HIGH value agents | Controlled skips are only for MODERATE and LOW value agents. Skipping HIGH value agents risks session quality for minimal learning signal |
+| Enabling federation push without explicit user opt-in | Federation is off by default. Never auto-enable. User must set `federation.enabled: true` and `federation.push: true` in config |
+| Ignoring constraint violations because tests pass | Tests verify behavior; constraints verify conventions and safety rules. A passing test with a bare `except Exception:` is still a constraint violation that must be fixed |

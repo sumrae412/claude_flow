@@ -148,7 +148,7 @@ def compute_explorer_scores(
     files_found: list[str],
     files_used_in_impl: list[str],
     phase5_retries: int = 0,
-    plan_steps: int = 1,
+    
 ) -> dict:
     """Compute precision, recall, F1, and final score for explorer prompts."""
     found_set = set(files_found)
@@ -188,7 +188,7 @@ def compute_architect_scores(
     refinement_rounds: int = 0,
     review_issues_critical: int = 0,
     review_issues_total: int = 0,
-    plan_steps: int = 1,
+    
     user_chose_this: bool = True,
 ) -> dict:
     """Compute score for architect prompts.
@@ -268,7 +268,6 @@ def record_event(payload: dict) -> dict:
             refinement_rounds=payload.get("refinement_rounds", 0),
             review_issues_critical=payload.get("review_issues_critical", 0),
             review_issues_total=payload.get("review_issues_total", 0),
-            plan_steps=payload.get("plan_steps", 1),
             user_chose_this=payload.get("user_chose_this", True),
         )
         event = {
@@ -328,7 +327,7 @@ def _update_explorer_metrics(variant: dict, variant_events: list[dict]) -> None:
     m = variant["metrics"]
     m["sessions"] = len(variant_events)
     m["total_files_found"] = sum(ev.get("files_found_count", len(ev.get("files_found", []))) for ev in variant_events)
-    m["total_files_used"] = sum(len(set(ev.get("files_used_in_impl", [])) & set(ev.get("files_found", []))) for ev in variant_events)
+    m["total_overlap_files"] = sum(len(set(ev.get("files_used_in_impl", [])) & set(ev.get("files_found", []))) for ev in variant_events)
     m["total_files_needed"] = sum(len(ev.get("files_used_in_impl", [])) for ev in variant_events)
     m["total_retries"] = sum(ev.get("phase5_retries", 0) for ev in variant_events)
     m["precision_sum"] = round(sum(ev.get("precision", 0) for ev in variant_events), 3)

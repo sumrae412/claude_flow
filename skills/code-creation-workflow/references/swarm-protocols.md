@@ -87,7 +87,7 @@ Complex tier only. Three rounds + optional gap-fill between Round 1 and Round 2.
 **Round 1** (parallel, all receive full scratchpad):
 - Architect A: optimize for simplicity
 - Architect B: optimize for separation of concerns
-- Architect C: contrarian — challenge assumptions, propose alternative framing
+- Architect C: reuse — challenge assumptions, propose alternative framing
 
 **Gap detection** (between Round 1 and Round 2):
 1. Collect all 3 proposals.
@@ -118,7 +118,7 @@ violation, reference supporting evidence from exploration or gap-fill.
 Format: OBJECTION | EVIDENCE | SEVERITY (blocking/major/minor)
 ```
 
-Repeat for Critic B (separation lens) and Critic C (contrarian lens), adjusting lens description.
+Repeat for Critic B (separation lens) and Critic C (reuse lens), adjusting lens description.
 
 **Round 3 — Synthesis judge** (single Opus agent):
 ```
@@ -127,7 +127,7 @@ You are the synthesis judge. Read all proposals and critiques.
 Architecture proposals: [A, B, C]
 Critiques: [Critic A, B, C rebuttals]
 Gap-fill findings: [results or "none"]
-Historical preference (from registry): simplicity=[weight] separation=[weight] contrarian=[weight]
+Historical preference (from registry): simplicity=[weight] separation=[weight] reuse=[weight]
 
 Produce a final recommendation. For each major decision:
 - State which proposal you adopted and why

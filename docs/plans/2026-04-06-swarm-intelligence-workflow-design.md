@@ -121,14 +121,14 @@ After each explorer completes, audit runs:
    - Explorer disagreements: areas where explorers characterized patterns differently
 3. Dispatch 3 architects with registry-weighted optimization targets
 4. Weight synthesis toward historically preferred style
-5. Sharpen contrarian based on registry data
+5. Sharpen reuse lens based on registry data
 
 ### Complex tier: Adversarial debate + gap detection
 
 **Round 1** (parallel):
 - Architect A: simplicity (receives full scratchpad)
 - Architect B: separation (receives full scratchpad)
-- Architect C: contrarian (receives full scratchpad)
+- Architect C: reuse (receives full scratchpad)
 
 **Gap detection** (between Round 1 and Round 2):
 - Scan all 3 proposals for references to files/patterns not in scratchpad
@@ -142,7 +142,7 @@ After each explorer completes, audit runs:
 **Round 2** (parallel):
 - Critic A: rebuts B and C from simplicity lens (+ gap-fill findings)
 - Critic B: rebuts A and C from separation lens (+ gap-fill findings)
-- Critic C: rebuts A and B from contrarian lens (+ gap-fill findings)
+- Critic C: rebuts A and B from reuse lens (+ gap-fill findings)
 
 **Round 3** (single opus agent):
 - Synthesis judge reads all proposals + all rebuttals + gap-fill findings
@@ -344,7 +344,7 @@ After fixes: log which areas review found issues that exploration didn't flag. T
     "architecture_preferences": {
       "simplicity": 0.33,
       "separation": 0.33,
-      "contrarian": 0.33
+      "reuse": 0.33
     }
   },
   "project_fingerprints": {}

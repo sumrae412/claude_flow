@@ -459,8 +459,8 @@ ALL architects receive the full exploration context (not just orchestrator's sum
 - Explorer disagreements: areas characterized differently by different explorers
 
 1. **Query registry** for user's historical `architecture_preferences` weights.
-2. **Dispatch 3 architects** (simplicity, separation, reuse/contrarian) with registry-weighted optimization targets. Record `dispatched` event per architect.
-3. **Synthesis:** Weight toward historically preferred style. Sharpen contrarian based on registry data.
+2. **Dispatch 3 architects** (simplicity, separation, reuse) with registry-weighted optimization targets. Record `dispatched` event per architect.
+3. **Synthesis:** Weight toward historically preferred style. Sharpen reuse lens based on registry data.
 4. **Record** `architecture_adopted` / `architecture_rejected` events after user chooses.
 
 #### Complex Tier: Adversarial Debate + Gap Detection
@@ -468,7 +468,7 @@ ALL architects receive the full exploration context (not just orchestrator's sum
 Full protocol: `swarm-protocols.md#3-adversarial-architecture`.
 
 **Round 1** (parallel, all receive full scratchpad):
-- Architect A: simplicity | Architect B: separation | Architect C: contrarian
+- Architect A: simplicity | Architect B: separation | Architect C: reuse
 - Record `dispatched` event per architect.
 
 **Gap detection** (between Round 1 and Round 2):
@@ -479,7 +479,7 @@ Full protocol: `swarm-protocols.md#3-adversarial-architecture`.
 5. If no gaps → skip to Round 2.
 
 **Round 2** (parallel critics — each rebuts the other two):
-- Critic A (simplicity lens), Critic B (separation lens), Critic C (contrarian lens)
+- Critic A (simplicity lens), Critic B (separation lens), Critic C (reuse lens)
 - All receive gap-fill findings + all Round 1 proposals. Record `dispatched` event per critic.
 - Prompt template: `swarm-protocols.md#3-adversarial-architecture`
 

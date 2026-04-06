@@ -12,7 +12,7 @@
           "metrics": {
             "sessions": 1,
             "total_files_found": 4,
-            "total_files_used": 3,
+            "total_overlap_files": 3,
             "total_files_needed": 5,
             "total_retries": 1,
             "precision_sum": 0.75,
@@ -30,7 +30,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -55,7 +55,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -73,7 +73,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -98,7 +98,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -116,7 +116,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -141,7 +141,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -159,7 +159,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -184,7 +184,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -202,7 +202,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -227,7 +227,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -245,7 +245,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -270,7 +270,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -295,7 +295,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -313,7 +313,7 @@
           "metrics": {
             "sessions": 0,
             "total_files_found": 0,
-            "total_files_used": 0,
+            "total_overlap_files": 0,
             "total_files_needed": 0,
             "total_retries": 0,
             "precision_sum": 0.0,
@@ -363,7 +363,7 @@
         },
         {
           "id": "architect-reuse-v1",
-          "role": "contrarian",
+          "role": "reuse",
           "label": "Optimize for maximum reuse",
           "prompt": "ultrathink about... Design an architecture for [FEATURE] optimizing for MAXIMUM REUSE \u2014 leverage every existing abstraction, minimize new code, build on what's already there even if it means bending existing patterns slightly. Propose: files to create/modify (with line counts), component designs, data flow, and trade-off analysis.",
           "created": "2026-04-05T00:00:00Z",

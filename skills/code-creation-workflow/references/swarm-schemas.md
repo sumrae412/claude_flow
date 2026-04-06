@@ -37,7 +37,7 @@
     "architecture_preferences": {
       "simplicity": 0.33,
       "separation": 0.33,
-      "contrarian": 0.33
+      "reuse": 0.33
     }
   },
   "project_fingerprints": {}

@@ -30,10 +30,10 @@ The prompt optimization system A/B tests explorer prompts to find which wording 
 
 ```bash
 # Select variant for Explorer A
-python3 ~/.claude/scripts/prompt-tracker.py select <category> A
+python3 ~/.claude/scripts/prompt-tracker.py select explorer <category> A
 
 # Select variant for Explorer B
-python3 ~/.claude/scripts/prompt-tracker.py select <category> B
+python3 ~/.claude/scripts/prompt-tracker.py select explorer <category> B
 ```
 
 Each returns `{"variant_id": "...", "prompt": "..."}`. Use the returned prompt instead of the one in prompt-library.md. Record the variant_id so outcomes can be attributed later.

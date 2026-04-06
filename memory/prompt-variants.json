@@ -327,5 +327,100 @@
       "current_best_A": null,
       "current_best_B": null
     }
+  },
+  "architect": {
+    "default": {
+      "variants": [
+        {
+          "id": "architect-simplicity-v1",
+          "role": "simplicity",
+          "label": "Optimize for simplicity",
+          "prompt": "ultrathink about... Design an architecture for [FEATURE] optimizing for SIMPLICITY \u2014 reuse existing patterns, minimal new files, least moving parts. Propose: files to create/modify (with line counts), component designs, data flow, and trade-off analysis.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "selection_sum": 0.0,
+            "convergence_sum": 0.0,
+            "quality_sum": 0.0,
+            "score_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "architect-separation-v1",
+          "role": "separation",
+          "label": "Optimize for clean separation",
+          "prompt": "ultrathink about... Design an architecture for [FEATURE] optimizing for CLEAN SEPARATION \u2014 extensibility, testability, clear boundaries between concerns. Propose: files to create/modify (with line counts), component designs, data flow, and trade-off analysis.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "selection_sum": 0.0,
+            "convergence_sum": 0.0,
+            "quality_sum": 0.0,
+            "score_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "architect-reuse-v1",
+          "role": "contrarian",
+          "label": "Optimize for maximum reuse",
+          "prompt": "ultrathink about... Design an architecture for [FEATURE] optimizing for MAXIMUM REUSE \u2014 leverage every existing abstraction, minimize new code, build on what's already there even if it means bending existing patterns slightly. Propose: files to create/modify (with line counts), component designs, data flow, and trade-off analysis.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "selection_sum": 0.0,
+            "convergence_sum": 0.0,
+            "quality_sum": 0.0,
+            "score_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best": null
+    }
+  },
+  "reviewer": {
+    "default": {
+      "variants": [
+        {
+          "id": "reviewer-overshoot-v1",
+          "role": "overshoot",
+          "label": "Overshoot technique (find 30+ issues)",
+          "prompt": "I'm positive there are at least 30 issues in this code \u2014 find them all. Look for bugs, logic errors, security issues, pattern violations, edge cases, and quality gaps.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_issues_found": 0,
+            "total_issues_fixed": 0,
+            "total_false_positives": 0,
+            "tpr_sum": 0.0,
+            "stn_sum": 0.0,
+            "score_sum": 0.0
+          },
+          "active": true
+        },
+        {
+          "id": "reviewer-focused-v1",
+          "role": "focused",
+          "label": "Focused review (targeted analysis)",
+          "prompt": "Review this code for the highest-impact issues only. Focus on correctness, security, and adherence to the project's established patterns. Report only findings you are confident about \u2014 skip style nitpicks and minor suggestions.",
+          "created": "2026-04-05T00:00:00Z",
+          "metrics": {
+            "sessions": 0,
+            "total_issues_found": 0,
+            "total_issues_fixed": 0,
+            "total_false_positives": 0,
+            "tpr_sum": 0.0,
+            "stn_sum": 0.0,
+            "score_sum": 0.0
+          },
+          "active": true
+        }
+      ],
+      "min_sessions": 10,
+      "current_best": null
+    }
   }
 }

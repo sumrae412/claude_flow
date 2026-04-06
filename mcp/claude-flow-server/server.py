@@ -389,16 +389,16 @@ def get_exploration_prompts(task_type: str) -> str:
 
 
 @mcp.tool()
-def get_prompt_performance(category: str = "") -> str:
-    """Get exploration prompt variant performance data.
+def get_prompt_performance(agent_type: str = "", category: str = "") -> str:
+    """Get prompt variant performance data for any agent type.
 
-    Returns per-category variant comparison with F1 scores, miss patterns,
-    and promotion readiness. Optionally filter to a single category.
+    Returns per-category variant comparison with scores, miss patterns,
+    and promotion readiness. Covers explorer, architect, and reviewer agents.
 
-    category: optional task category (endpoint, ui, data, integration, refactor, bugfix, config, general)
+    agent_type: optional filter — explorer, architect, or reviewer (default: all)
+    category: optional task category filter (e.g., endpoint, ui, data, default)
     """
     variants_path = Path.home() / ".claude" / "memory" / "prompt-variants.json"
-    events_path = Path.home() / ".claude" / "memory" / "exploration-events.jsonl"
 
     if not variants_path.exists():
         return json.dumps({"error": "No prompt-variants.json found. Prompt optimization not initialized."})
@@ -408,77 +408,106 @@ def get_prompt_performance(category: str = "") -> str:
     except (json.JSONDecodeError, OSError) as exc:
         return json.dumps({"error": f"Failed to read variants: {exc}"})
 
-    # Load events for miss analysis
-    events: list[dict] = []
-    if events_path.exists():
-        for line in events_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line:
-                try:
-                    events.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+    valid_types = {"explorer", "architect", "reviewer"}
+    types_to_report = [agent_type] if agent_type in valid_types else sorted(valid_types)
 
-    explorer = variants_data.get("explorer", {})
-    categories = [category] if category else sorted(explorer.keys())
+    # Score field mapping per agent type
+    score_fields = {
+        "explorer": {"primary": "f1_sum", "secondary": ["precision_sum", "recall_sum"]},
+        "architect": {"primary": "score_sum", "secondary": ["selection_sum", "quality_sum", "convergence_sum"]},
+        "reviewer": {"primary": "score_sum", "secondary": ["tpr_sum", "stn_sum"]},
+    }
 
-    result: dict = {"categories": {}, "total_events": len(events)}
+    result: dict = {"agent_types": {}}
 
-    for cat in categories:
-        cat_data = explorer.get(cat)
-        if not cat_data:
+    for at in types_to_report:
+        at_data = variants_data.get(at, {})
+        if not at_data:
             continue
 
-        cat_report: dict = {"variants": [], "ready_for_promotion": False}
-        min_sessions = cat_data.get("min_sessions", 10)
+        categories = [category] if category else sorted(at_data.keys())
+        at_report: dict = {"categories": {}}
 
-        role_groups: dict[str, list] = {}
-        for v in cat_data.get("variants", []):
-            if not v.get("active"):
+        # Load events for this type
+        events_path = Path.home() / ".claude" / "memory"
+        event_file = {
+            "explorer": "exploration-events.jsonl",
+            "architect": "architect-events.jsonl",
+            "reviewer": "reviewer-events.jsonl",
+        }.get(at, "exploration-events.jsonl")
+        events_full_path = events_path / event_file
+
+        events: list[dict] = []
+        if events_full_path.exists():
+            for line in events_full_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+
+        at_report["total_events"] = len(events)
+
+        for cat in categories:
+            cat_data = at_data.get(cat)
+            if not cat_data:
                 continue
-            m = v["metrics"]
-            s = m.get("sessions", 0)
-            avg_f1 = round(m.get("f1_sum", 0) / s, 3) if s > 0 else 0
-            avg_p = round(m.get("precision_sum", 0) / s, 3) if s > 0 else 0
-            avg_r = round(m.get("recall_sum", 0) / s, 3) if s > 0 else 0
 
-            entry = {
-                "id": v["id"],
-                "role": v["role"],
-                "label": v.get("label", ""),
-                "sessions": s,
-                "avg_precision": avg_p,
-                "avg_recall": avg_r,
-                "avg_f1": avg_f1,
-                "needs_data": s < min_sessions,
-            }
-            cat_report["variants"].append(entry)
-            role_groups.setdefault(v["role"], []).append((avg_f1, s))
+            cat_report: dict = {"variants": [], "ready_for_promotion": False}
+            min_sessions = cat_data.get("min_sessions", 10)
+            sf = score_fields.get(at, score_fields["explorer"])
 
-        # Check promotion readiness per role
-        for role, scores in role_groups.items():
-            if len(scores) >= 2:
-                all_sufficient = all(s >= min_sessions for _, s in scores)
+            role_groups: dict[str, list] = {}
+            for v in cat_data.get("variants", []):
+                if not v.get("active"):
+                    continue
+                m = v["metrics"]
+                s = m.get("sessions", 0)
+
+                primary_avg = round(m.get(sf["primary"], 0) / s, 3) if s > 0 else 0
+                entry: dict = {
+                    "id": v["id"],
+                    "role": v["role"],
+                    "label": v.get("label", ""),
+                    "sessions": s,
+                    "avg_score": primary_avg,
+                    "needs_data": s < min_sessions,
+                }
+                # Add secondary metrics
+                for sec in sf["secondary"]:
+                    entry[f"avg_{sec.replace('_sum', '')}"] = round(m.get(sec, 0) / s, 3) if s > 0 else 0
+
+                cat_report["variants"].append(entry)
+                role_groups.setdefault(v["role"], []).append((primary_avg, s))
+
+            # Check promotion readiness
+            all_roles_scores = list(role_groups.values())
+            if len(all_roles_scores) >= 2:
+                all_scores = [item for sublist in all_roles_scores for item in sublist]
+                all_sufficient = all(s >= min_sessions for _, s in all_scores)
                 if all_sufficient:
-                    f1_values = [f for f, _ in scores]
-                    gap = max(f1_values) - min(f1_values)
+                    score_values = [sc for sc, _ in all_scores]
+                    gap = max(score_values) - min(score_values)
                     if gap >= 0.05:
                         cat_report["ready_for_promotion"] = True
 
-        result["categories"][cat] = cat_report
+            at_report["categories"][cat] = cat_report
 
-    # Miss pattern analysis
-    missed_files: dict[str, int] = {}
-    cat_events = [e for e in events if not category or e.get("task_category") == category]
-    for ev in cat_events:
-        for f in ev.get("files_needed_not_found", []):
-            missed_files[f] = missed_files.get(f, 0) + 1
+        # Explorer-specific: miss pattern analysis
+        if at == "explorer" and events:
+            missed_files: dict[str, int] = {}
+            cat_events = [e for e in events if not category or e.get("task_category") == category]
+            for ev in cat_events:
+                for f in ev.get("files_needed_not_found", []):
+                    missed_files[f] = missed_files.get(f, 0) + 1
+            if missed_files:
+                at_report["top_missed_files"] = sorted(
+                    [{"file": f, "miss_count": c} for f, c in missed_files.items()],
+                    key=lambda x: -x["miss_count"],
+                )[:10]
 
-    if missed_files:
-        result["top_missed_files"] = sorted(
-            [{"file": f, "miss_count": c} for f, c in missed_files.items()],
-            key=lambda x: -x["miss_count"],
-        )[:10]
+        result["agent_types"][at] = at_report
 
     return json.dumps(result, indent=2)
 

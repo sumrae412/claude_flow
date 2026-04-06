@@ -281,11 +281,27 @@ Launch 2-3 **code-explorer** subagents in parallel to understand the codebase:
    Present summary of codebase understanding to user
 ```
 
+**Variant selection (before dispatch):** Select optimized prompts via the prompt tracker. This enables A/B testing of explorer prompts across sessions:
+
+```bash
+# Select variant for Explorer A (returns {"variant_id": "...", "prompt": "..."})
+python3 scripts/prompt-tracker.py select explorer <category> A
+
+# Select variant for Explorer B
+python3 scripts/prompt-tracker.py select explorer <category> B
+```
+
+Use the returned prompt instead of the default from `prompt-library.md`. Record the `variant_id` — it's needed for outcome tracking after Phase 5.
+
+**Fallback:** If `prompt-tracker.py` is unavailable, use prompts from `prompt-library.md` directly.
+
 **Subagent dispatch:** Use the Agent tool with `subagent_type: "feature-dev:code-explorer"` or `"Explore"` and **`model: "opus"`**. Each agent gets a focused prompt describing what to find.
 
 **Serena integration:** When agents identify symbols to trace, use `find_symbol` / `find_referencing_symbols` instead of grep chains. Use `write_memory` to persist discoveries for cross-session continuity.
 
 **Minimum output per explorer:** 5-10 key files, the patterns they follow, and any concerns or constraints discovered.
+
+**After explorers return — record files_found:** Collect the list of files each explorer identified. Store these lists (keyed by variant_id) — they will be compared against files actually used in Phase 5 to compute exploration quality scores.
 
 ### Post-Exploration: Context Hydration
 
@@ -405,6 +421,32 @@ Launch 3 **code-architect** subagents in parallel with deliberately different op
 ```
 
 **Subagent dispatch:** Use the Agent tool with `subagent_type: "feature-dev:code-architect"` and **`model: "opus"`**. Each gets the exploration findings + clarification answers + a clear optimization directive. Include PROJECT GOTCHAS from memory-injection in each architect's prompt.
+
+**Architect variant tracking:** Select architect prompts via the optimization system to track which optimization target produces the best outcomes:
+
+```bash
+# Select variant for each architect role
+python3 scripts/prompt-tracker.py select architect default simplicity
+python3 scripts/prompt-tracker.py select architect default separation
+python3 scripts/prompt-tracker.py select architect default contrarian
+```
+
+Record which variant_id the user chose. After Phase 6 review completes, record the outcome:
+
+```bash
+python3 scripts/prompt-tracker.py record '{
+  "agent_type": "architect",
+  "variant_id": "<chosen_variant_id>",
+  "role": "<simplicity|separation|contrarian>",
+  "user_chose_this": true,
+  "refinement_rounds": <number>,
+  "review_issues_critical": <count>,
+  "review_issues_total": <count>,
+  "plan_steps": <count>
+}'
+```
+
+This measures: which optimization target users prefer (selection rate), how quickly the plan converges (fewer refinement rounds = better), and how many review issues the resulting code produces (fewer = better architecture).
 
 **Synthesis step:** After all 3 return, present a "best-of-all-worlds" recommendation that blends the strongest ideas from each. Be intellectually honest about which architect had the better approach for each aspect.
 
@@ -724,6 +766,31 @@ MEDIUM/LOW findings defer to Phase 6 review. Agents that ran in Phase 5 are **sk
 | Data migrations | defensive-backend-flows: copy before delete, reversible ops |
 | Cross-module calls | defensive-backend-flows: respect encapsulation, public wrappers |
 
+### Post-Implementation: Record Exploration Outcomes
+
+After Phase 5 completes, record which files were actually used in implementation. This closes the feedback loop for explorer prompt optimization:
+
+```bash
+# For each explorer that ran in Phase 2, record the outcome
+python3 scripts/prompt-tracker.py record '{
+  "agent_type": "explorer",
+  "session_id": "<session>",
+  "task_category": "<category>",
+  "variant_id": "<variant_id_from_phase2>",
+  "explorer_role": "<A or B>",
+  "files_found": ["file1.py", "file2.py"],
+  "files_used_in_impl": ["file1.py", "file3.py", "file4.py"],
+  "phase5_retries": <retry_count>,
+  "plan_steps": <total_steps>
+}'
+```
+
+Where:
+- `files_found` = files listed in explorer output (Phase 2)
+- `files_used_in_impl` = all files read/edited during Phase 5 implementation
+- `phase5_retries` = total retry loop iterations across all steps
+- `plan_steps` = number of plan steps executed
+
 ---
 
 ## Phase 6: Quality + Finish
@@ -935,6 +1002,39 @@ ast-grep scan app/
 ```
 
 Fix any ERROR-level issues. Warnings/hints can be addressed later.
+
+### Post-Review: Record Reviewer and Architect Outcomes
+
+After all review tiers complete and fixes are applied, record outcomes for the prompt optimization system:
+
+**Reviewer outcomes** — For each reviewer variant used, record signal quality:
+
+```bash
+python3 scripts/prompt-tracker.py record '{
+  "agent_type": "reviewer",
+  "variant_id": "<reviewer_variant_id>",
+  "role": "<overshoot|focused>",
+  "issues_found": <total_issues_reported>,
+  "issues_fixed": <issues_that_were_actually_fixed>,
+  "issues_dismissed": <issues_skipped_as_not_worth_fixing>,
+  "false_positives": <issues_that_were_wrong_or_not_real>
+}'
+```
+
+**Architect outcomes** — Record final quality signal for the chosen architecture:
+
+```bash
+python3 scripts/prompt-tracker.py record '{
+  "agent_type": "architect",
+  "variant_id": "<chosen_architect_variant_id>",
+  "role": "<simplicity|separation|contrarian>",
+  "user_chose_this": true,
+  "refinement_rounds": <rounds_in_phase4>,
+  "review_issues_critical": <critical_issues_from_phase6>,
+  "review_issues_total": <total_issues_from_phase6>,
+  "plan_steps": <total_plan_steps>
+}'
+```
 
 ### Verification Gate
 

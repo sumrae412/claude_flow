@@ -220,3 +220,21 @@ raise HTTPException(
 # For validation errors, FastAPI returns:
 # {"detail": [{"loc": ["body", "email"], "msg": "invalid email", "type": "value_error"}]}
 ```
+
+---
+
+## CLI Enum Arg Validation with Migration Hints
+
+When changing a CLI's positional argument count or semantics, validate enum-like arguments immediately at parse time. If the value is not in the valid set, print the valid options AND a one-line migration note:
+
+```python
+VALID_TYPES = {"explorer", "architect", "reviewer"}
+
+if sys.argv[2] not in VALID_TYPES:
+    print(f"Error: agent_type must be one of {sorted(VALID_TYPES)}")
+    print(f"  Got: '{sys.argv[2]}'")
+    print("  Hint: the CLI changed — agent_type is now required as the first arg")
+    sys.exit(1)
+```
+
+Without this, old callers silently pass wrong values to wrong positions and get confusing results instead of a clear error.

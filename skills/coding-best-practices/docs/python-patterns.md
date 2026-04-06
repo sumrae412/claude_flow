@@ -407,3 +407,46 @@ def _percent_enabled(user_id: str, flag_name: str, percent: int) -> bool:
 - Store `allowed_user_ids` as JSON array for USER_LIST type
 - Default `enabled=False` for new flags (safety)
 - Batch-load flags to avoid N+1 queries in `get_all_flags_for_user`
+
+---
+
+## Defensive Numeric Boundaries
+
+When computing ratios, rates, or normalized scores from user-supplied or event data, always clamp to the valid range with `min()`/`max()`:
+
+```python
+# WRONG - can exceed 1.0 when numerator > denominator
+rate = fixed_count / total_count
+
+# CORRECT - clamped to valid range
+rate = min(fixed_count / total_count, 1.0)
+signal = max(0.0, min((found - false_pos) / found, 1.0))
+```
+
+Unclamped ratios that exceed their logical bounds corrupt any downstream ranking or comparison that depends on them. The bug produces plausible-looking results until the corruption is large enough to notice.
+
+---
+
+## Type-Dispatch Over Hardcoded Keys
+
+When generalizing a function from one entity type to N types with different schemas, replace every hardcoded field reference with a dispatch map:
+
+```python
+# WRONG - hardcoded key from original type, crashes for new types
+def avg_score(v):
+    return v["metrics"]["f1_sum"] / v["metrics"]["sessions"]
+
+# CORRECT - dispatch map for per-type primary metric
+_PRIMARY_METRIC = {
+    "explorer": "f1_sum",
+    "architect": "score_sum",
+    "reviewer": "score_sum",
+}
+
+def avg_score(v, agent_type):
+    key = _PRIMARY_METRIC.get(agent_type, "f1_sum")
+    s = v["metrics"]["sessions"]
+    return v["metrics"].get(key, 0) / s if s > 0 else 0.0
+```
+
+Grep for all field-name literals from the original type when generalizing — they are all candidates for breakage. The bug is delayed: it only surfaces when the new types accumulate enough data to trigger the code path that references the old key.

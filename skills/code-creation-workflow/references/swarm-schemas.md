@@ -381,6 +381,173 @@ Add to `.gitignore` in any project using swarm:
 
 ---
 
+## Expert Config (in Registry)
+
+Stored under `expert_configs` key in registry. See `references/moe-expert-configs.md` for full format and starter configs.
+
+```json
+{
+  "expert_configs": {
+    "python-api-with-migrations": {
+      "fingerprint_match": {"languages": ["python"], "has_migrations": true},
+      "explorer_experts": ["endpoint:route-chain", "data:migration-queries"],
+      "architect_bias": "separation",
+      "reviewer_priority": ["migration-reviewer", "security-reviewer"],
+      "thinking_budget_override": {"data": "think harder"},
+      "constraint_sets": ["defensive-backend", "alembic-safety"],
+      "prior": {"alpha": 2, "beta": 1},
+      "created_from": "session_2026-04-06T14:00:00Z"
+    }
+  }
+}
+```
+
+---
+
+## Constraint Set (Compiler Output)
+
+Produced by `constraint_compiler.py`. Consumed by `symbolic_verifier.py`.
+
+```json
+{
+  "schema_version": 2,
+  "session_id": "...",
+  "compiled_at": "2026-04-06T14:23:00Z",
+  "constraints": [
+    {"id": "c1", "type": "hard", "check": "grep", "pattern": "@auth_required", "scope": "routes/*.py", "message": "All routes must have @auth_required", "source": "CLAUDE.md"},
+    {"id": "c2", "type": "soft", "rule": "All data access through repository classes", "source": "architecture-decision", "violation_count": 0}
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | `hard` (deterministic check) or `soft` (LLM judgment) |
+| `check` | For hard: `grep`, `ast-grep`, or `regex` |
+| `source` | Origin: `CLAUDE.md`, `defensive-skill`, `architecture-decision`, `build-state`, `MEMORY.md`, `rag-failed-approach` |
+| `violation_count` | Tracked across sessions; at 5+ a soft constraint is flagged for promotion to hard |
+
+---
+
+## Vector Store Index
+
+**Path:** `~/.claude/swarm/vectors/index.json` (global) or `.claude/swarm/vectors/index.json` (project).
+
+```json
+{
+  "schema_version": 2,
+  "chunks": [
+    {
+      "chunk_id": "chunk_001",
+      "text": "Raw SQL bypasses ORM event hooks — use ORM for all writes",
+      "source_phase": 5,
+      "source_type": "failed_approach",
+      "timestamp": "2026-04-06T14:25:00Z",
+      "project_fingerprint": {"languages": ["python"], "frameworks": ["fastapi"]},
+      "outcome_quality": 0.82
+    }
+  ]
+}
+```
+
+Companion file: `embeddings.npy` — Float32 vectors, 1536-dim (text-embedding-3-small). Row index matches `chunks` array index.
+
+---
+
+## Federated Contribution
+
+Pushed to / pulled from Supabase `federated_priors` table.
+
+```json
+{
+  "fingerprint": {"languages": ["python"], "frameworks": ["fastapi"], "has_migrations": true},
+  "contributions": {
+    "explorer:broad": {"alpha_delta": 3, "beta_delta": 1},
+    "reviewer:security": {"alpha_delta": 5, "beta_delta": 2}
+  },
+  "expert_configs": {
+    "python-api-with-migrations": {"prior": {"alpha": 8, "beta": 3}, "sessions": 11}
+  },
+  "complexity_weights": {"reasoning_depth": 1.2, "ambiguity": 0.9},
+  "contributor_hash": "sha256:abc123...",
+  "version": 1
+}
+```
+
+**Privacy:** No file paths, task descriptions, code, or project content. Only alpha/beta deltas, config performance, and calibration weights.
+
+---
+
+## Intervention Entry
+
+Stored in registry under `interventions` key. Created by `causal.py`.
+
+```json
+{
+  "timestamp": "2026-04-06T15:00:00Z",
+  "description": "Updated security-reviewer prompt to check JWT storage",
+  "affected_agents": ["reviewer:security"],
+  "pre_quality": 0.72,
+  "post_quality": 0.81,
+  "sessions_since": 8,
+  "estimated_effect": 0.09,
+  "confidence": "moderate"
+}
+```
+
+| `confidence` | Meaning |
+|-------------|---------|
+| `low` | < 5 sessions since intervention |
+| `moderate` | 5-15 sessions |
+| `high` | > 15 sessions |
+
+---
+
+## Session Quality Metric
+
+Computed by `causal.py` at session end.
+
+```json
+{
+  "session_id": "2026-04-06T14:23:00Z",
+  "quality": 0.78,
+  "components": {
+    "test_pass_rate": 0.95,
+    "review_severity_inverse": 0.70,
+    "retry_count_inverse": 0.80,
+    "violation_count_inverse": 0.85,
+    "user_satisfaction": 0.60
+  },
+  "weights": [0.3, 0.25, 0.2, 0.15, 0.1]
+}
+```
+
+---
+
+## Causal Effect Estimate
+
+Produced by `causal.py` after 20+ controlled skips for an agent.
+
+```json
+{
+  "agent": "reviewer:security",
+  "effect": 0.12,
+  "p_value": 0.04,
+  "significant": true,
+  "sample_size_with": 45,
+  "sample_size_without": 23,
+  "recommendation": "keep"
+}
+```
+
+| `recommendation` | Criteria |
+|-----------------|----------|
+| `keep` | Significant positive effect (p < 0.1, effect > 0) |
+| `remove` | Neutral or negative effect (p neutral or effect <= 0) |
+| `insufficient_data` | < 20 controlled skip samples |
+
+---
+
 ## Schema Versioning Protocol
 
 1. All swarm files include `"schema_version": N` at the top level.

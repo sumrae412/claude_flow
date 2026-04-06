@@ -92,6 +92,17 @@ Schemas for all swarm data: `swarm-schemas.md`
 
 **Registry event recording:** Every agent dispatch, finding, and outcome across all phases records events to the agent registry (see `swarm-schemas.md#registry-events-jsonl`). This is a cross-cutting concern noted at each dispatch point below.
 
+### Unified Dispatch Pipeline
+
+Every agent dispatch (Phases 2, 4, 5, 6) flows through a six-stage pipeline: MoE Router, Constraint Compiler, RAG Context Injection, Agent Dispatch, Symbolic Verifier, Post-Dispatch Recording. Components degrade independently -- partial pipeline is always better than no pipeline.
+
+Full pipeline protocol, phase activation matrix, and component data flows: `references/dispatch-pipeline.md`
+Expert config format and starter configs: `references/moe-expert-configs.md`
+Constraint extraction rules and promotion protocol: `references/constraint-sources.md`
+New schemas (expert config, constraint set, vector store, federated contribution, intervention, quality metric, causal effect): `swarm-schemas.md`
+
+**Scripts:** `moe_router.py`, `constraint_compiler.py`, `symbolic_verifier.py`, `rag.py`, `causal.py`, `federation.py` (all in `scripts/`).
+
 ### Compaction Recovery Protocol
 
 Long sessions trigger context compression (compaction). After compaction, the agent loses awareness of project rules, current plan state, and workflow position. This protocol prevents post-compaction drift.
@@ -161,11 +172,16 @@ Load **only** what matches. Don't dump everything into context.
 - `ast-grep` — AST-based code search (more precise than grep)
 - `pyright` — Fast type checking (augments mypy)
 
-### Step 6: Git Check
+### Step 6: Pipeline Init (Federation Pull + Constraint Compiler)
+
+1. **Federation pull** (if enabled): Query Supabase for matching federated priors. Blend into local registry per `references/dispatch-pipeline.md` blending ratios.
+2. **Constraint Compiler init**: Compile initial constraint set from CLAUDE.md, loaded defensive skills, and MEMORY.md gotchas. This set is refreshed after Phase 4 architecture decisions and during Phase 5 build-state updates. See `references/constraint-sources.md`.
+
+### Step 7: Git Check
 
 Verify you're on a feature branch. If on main, create one before proceeding.
 
-### Step 7: Bootstrap MEMORY.md (One-Time)
+### Step 8: Bootstrap MEMORY.md (One-Time)
 
 <SKIP-CONDITION>
 Skip if a project-scoped `MEMORY.md` already exists. Check these locations in order:
@@ -284,6 +300,8 @@ python scripts/generate_repo_outline.py app/services/ --max-depth 2
 This provides function/class signatures WITHOUT implementation bodies — dramatically reduces tokens while preserving structure awareness. Share this outline with explorer agents.
 
 ### Launch Explorers
+
+**Pipeline active:** All explorer dispatches go through the unified dispatch pipeline. MoE Router selects explorer experts from the matched expert config (see `references/moe-expert-configs.md`). RAG injects relevant past exploration findings into explorer prompts. Causal controlled skip applies at 5% rate for MODERATE/LOW value explorers.
 
 #### Simple Tier (fast-path)
 
@@ -417,6 +435,8 @@ If not triggered, skip — most single-session features don't need this.
 ---
 
 ## Phase 4: Architecture (Multi-Model Competition + Iterative Refinement)
+
+**Pipeline active:** Architect dispatches go through the unified dispatch pipeline. MoE Router selects architect bias from expert config. RAG injects past architecture decisions for similar fingerprints. After the user chooses an architecture, the Constraint Compiler refreshes -- architecture rules become constraints for Phase 5 verification.
 
 ### Step 1: Competing Architecture Proposals
 
@@ -574,6 +594,8 @@ If not triggered: Skip. The multi-model competition + iterative refinement alrea
 ---
 
 ## Phase 5: Implementation (TDD + Defensive Patterns)
+
+**Pipeline active:** Full dispatch pipeline with all stages. MoE Router selects thinking budgets per domain. Constraint Compiler provides the full constraint set (CLAUDE.md + skills + architecture + build-state). Symbolic Verifier runs hard + soft checks after each agent produces code. RAG injects failed approaches from past sessions. Causal controlled skip applies at 5% rate for MODERATE/LOW agents. Build-state decisions feed back to the Constraint Compiler as new consistency constraints.
 
 <HARD-GATE>
 User must approve the plan before any implementation begins.
@@ -897,6 +919,8 @@ Where:
 
 ## Phase 6: Quality + Finish
 
+**Pipeline active:** MoE Router selects reviewer priority from expert config. Symbolic Verifier runs hard checks on reviewer-proposed fixes. Causal controlled skip applies at 5% rate for MODERATE/LOW reviewers. Full constraint verification ensures all hard constraints pass before the verification gate.
+
 ### Swarm Tier: Moderate — Registry-Selective Dispatch
 
 Classify reviewers by registry data before dispatch:
@@ -1202,6 +1226,15 @@ Invoke `session-learnings` skill:
 - What defensive rules were applied or should be added?
 - Any Serena memories to persist?
 
+### Pipeline Session-End Actions
+
+After learnings capture, run the pipeline's session-end stage:
+
+1. **RAG write:** Extract embeddable chunks from exploration-log (findings, failed approaches, discoveries, review patterns). Embed via OpenAI text-embedding-3-small. Append to vector store.
+2. **Federation push** (if enabled and this is every 5th session): Anonymize registry deltas. Push to Supabase `federated_priors` table. See `references/dispatch-pipeline.md`.
+3. **Intervention recording:** If any skill files, prompts, or protocols changed during this session, record an intervention entry in the registry for causal tracking.
+4. **Session quality metric:** Compute composite quality score from test pass rate, review severity, retry count, violation count, and user satisfaction. Store in registry for causal inference.
+
 ---
 
 ## Quick Reference: All Phases
@@ -1273,6 +1306,17 @@ Invoke `session-learnings` skill:
 | `semgrep` | Phase 5 (per-step), Phase 6 (gate) | Semantic analysis, security checks |
 | `ast-grep` | Phase 5 (per-step), Phase 6 (gate) | Structural anti-pattern detection |
 | `pyright` | Phase 6 (gate) | Fast type checking |
+
+## Pipeline Scripts
+
+| Script | Where Used | Purpose |
+|--------|------------|---------|
+| `moe_router.py` | All dispatch phases | Fingerprint matching, expert config selection |
+| `constraint_compiler.py` | Phase 0 (init), Phase 4-5 (refresh) | Rule extraction, constraint set assembly |
+| `symbolic_verifier.py` | Phase 5-6 (post-agent) | Hard checks (grep/ast-grep) + soft checks (LLM) |
+| `rag.py` | All dispatch phases + session end | Embed, store, retrieve, re-rank experience |
+| `causal.py` | All dispatch phases + session end | Controlled skip, quality metric, effect estimation |
+| `federation.py` | Phase 0 (pull) + session end (push) | Anonymized push/pull to Supabase |
 
 ## Skills Eliminated (Absorbed)
 

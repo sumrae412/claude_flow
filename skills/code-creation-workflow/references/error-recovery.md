@@ -28,4 +28,10 @@
 | Tier classified as moderate mid-session but task is clearly complex | PAUSE | Re-run complexity classifier with current evidence; upgrade tier before next phase; do not continue on wrong tier |
 | available_in_prompt context causes explorer to miss key files | RETRY | Broaden context window or re-dispatch with explicit file list; log miss type in missed-context log |
 
+| Constraint compilation fails (bad CLAUDE.md parse or missing source) | DEGRADE | Skip soft constraints, keep any hard constraints that compiled successfully. Log gap for manual review |
+| RAG embedding API fails (OpenAI unavailable) | DEGRADE | Skip RAG context injection — memory-injection still provides PROJECT GOTCHAS. Note "RAG unavailable" in session log |
+| Symbolic verifier times out (soft check LLM call hangs) | DEGRADE | Accept agent output unchecked. Log unverified output for post-session review. Hard checks still run (no LLM needed) |
+| Federation push fails (Supabase unreachable) | DEGRADE | Local registry unaffected — session data preserved locally. Retry push on next session start |
+| Controlled skip degrades session quality (quality drops > 0.2 vs baseline) | RETRY | Immediately dispatch the skipped agent with full context. Record the quality drop as negative evidence for future skips |
+
 **Resolution types:** RETRY = fix and re-run. PAUSE = stop and ask user. DEGRADE = continue with reduced capability.

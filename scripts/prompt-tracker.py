@@ -121,15 +121,21 @@ def select_variant(agent_type: str, category: str, role: str) -> dict:
         chosen = min(under_threshold, key=lambda v: v["metrics"]["sessions"])
         return {"variant_id": chosen["id"], "prompt": chosen["prompt"]}
 
+    # Primary score metric differs per agent type
+    primary_metric = {
+        "explorer": "f1_sum",
+        "architect": "score_sum",
+        "reviewer": "score_sum",
+    }.get(agent_type, "f1_sum")
+
     # Epsilon-greedy: exploit best 80%, explore random 20%
     if random.random() < EPSILON:
         chosen = random.choice(active)
     else:
-        # Pick variant with highest avg F1
-        def avg_f1(v):
+        def avg_score(v):
             s = v["metrics"]["sessions"]
-            return v["metrics"]["f1_sum"] / s if s > 0 else 0.0
-        chosen = max(active, key=avg_f1)
+            return v["metrics"].get(primary_metric, 0) / s if s > 0 else 0.0
+        chosen = max(active, key=avg_score)
 
     return {"variant_id": chosen["id"], "prompt": chosen["prompt"]}
 
@@ -233,9 +239,8 @@ def compute_reviewer_scores(
     """
     total = issues_found if issues_found > 0 else 1
 
-    true_positive_rate = issues_fixed / total
-    signal_to_noise = (issues_found - false_positives) / total if issues_found > 0 else 0.0
-    signal_to_noise = max(0.0, signal_to_noise)
+    true_positive_rate = min(issues_fixed / total, 1.0)
+    signal_to_noise = max(0.0, min((issues_found - false_positives) / total, 1.0))
 
     score = true_positive_rate * signal_to_noise
 
@@ -527,7 +532,12 @@ def main():
     if cmd == "select":
         if len(sys.argv) < 5:
             print("Usage: prompt-tracker.py select <agent_type> <category> <role>")
-            print("  agent_type: explorer, architect, reviewer")
+            print(f"  agent_type: {', '.join(sorted(VALID_AGENT_TYPES))}")
+            sys.exit(1)
+        if sys.argv[2] not in VALID_AGENT_TYPES:
+            print(f"Error: agent_type must be one of {sorted(VALID_AGENT_TYPES)}")
+            print(f"  Got: '{sys.argv[2]}'")
+            print("  Hint: the CLI changed — agent_type is now required as the first arg")
             sys.exit(1)
         result = select_variant(sys.argv[2], sys.argv[3], sys.argv[4])
         print(json.dumps(result, indent=2))

@@ -75,6 +75,23 @@ Use thinking budget keywords in subagent prompts to control how deeply Claude re
 
 **Rule:** Default to the phase mapping above. Escalate one level when the specific step is more complex than typical for that phase. Never under-think architecture (Phase 4) or security reviews.
 
+### Swarm Tiers
+
+Non-simple tasks get tiered swarm behavior. The complexity classifier (Phase 1) sets the tier; all subsequent phases adapt.
+
+| Tier | Trigger | Behavior |
+|------|---------|----------|
+| **simple** | Fast-path (existing) | Single agent, no swarm overhead |
+| **moderate** | Classifier score 4-6 | Registry-informed dispatch — agents work independently, registry selects best variants and budgets |
+| **complex** | Classifier score 7+ | Shared scratchpad, staggered exploration, adversarial debate, build-state, staged review, meta-reviewer |
+
+**User override:** `--tier=simple|moderate|complex` at any point bypasses the classifier.
+
+Full classifier protocol: `swarm-protocols.md#1-complexity-classifier`
+Schemas for all swarm data: `swarm-schemas.md`
+
+**Registry event recording:** Every agent dispatch, finding, and outcome across all phases records events to the agent registry (see `swarm-schemas.md#registry-events-jsonl`). This is a cross-cutting concern noted at each dispatch point below.
+
 ### Compaction Recovery Protocol
 
 Long sessions trigger context compression (compaction). After compaction, the agent loses awareness of project rules, current plan state, and workflow position. This protocol prevents post-compaction drift.
@@ -241,6 +258,17 @@ User says "implement X"
 
 **Fast path criteria:** Typo fix, one-line change, config tweak, single-file edit with no ripple effects. If in doubt, use the full workflow.
 
+### Complexity Classification (After Fast-Path)
+
+If not fast-path and not plan-path, classify complexity to set the swarm tier for all subsequent phases.
+
+1. **Static scoring** — Score 4 axes (1-3 each) per `swarm-protocols.md#1-complexity-classifier`:
+   - Reasoning depth, Ambiguity, Context dependency, Novelty
+   - Sum: 4-6 = `moderate`, 7-9 = `complex`, 10-12 = `complex+` (reserved)
+2. **Degradation probe** — At Phase 2 boundary (moderate/complex only): dispatch one Sonnet explorer with minimal context. If it succeeds → downgrade tier. If it fails → confirm tier.
+3. **Record** `complexity_calibration` history entry (see `swarm-schemas.md#complexity-calibration-history-entry`). Record `dispatched` registry event for probe agent.
+4. **Propagate** the tier to all subsequent phases. Announce: "Complexity tier: [moderate/complex]. Swarm protocols active."
+
 ---
 
 ## Phase 2: Exploration (Parallel Subagents)
@@ -257,51 +285,51 @@ This provides function/class signatures WITHOUT implementation bodies — dramat
 
 ### Launch Explorers
 
-Launch 2-3 **code-explorer** subagents in parallel to understand the codebase:
+#### Simple Tier (fast-path)
 
-```
-┌─────────────────────────────────────────────────────┐
-│ Explorer A: "Trace how similar features are         │
-│              implemented — find patterns, data flow" │
-│                                                      │
-│ Explorer B: "Map architecture for [feature area] —  │
-│              key files, layers, dependencies"        │
-│                                                      │
-│ Explorer C: "Analyze test patterns and UI patterns   │
-│              used in this area" (if relevant)        │
-└─────────────────────────────────────────────────────┘
-                    │
-                    ▼
-   Each agent returns key files + structured findings
-                    │
-                    ▼
-   ◆ CONTEXT HYDRATION (see below) ◆
-                    │
-                    ▼
-   Present summary of codebase understanding to user
-```
+Not applicable — simple tasks skip exploration entirely.
 
-**Variant selection (before dispatch):** Select optimized prompts via the prompt tracker. This enables A/B testing of explorer prompts across sessions:
+#### Moderate Tier: Registry-Informed Dispatch
+
+1. **Query registry:** For `[task_category]` in `[project_type]`, rank explorer prompt variants by `findings_used_rate`. Record `dispatched` event per explorer.
+2. **Dispatch top 2 variants** (registry-selected, not hardcoded) in parallel as **opus** subagents.
+3. **Run missed-context audit** after each explorer completes — see `swarm-protocols.md#7-missed-context-audit`. Log to `missed-context-log/SESSION_ID.json`.
+4. **Record** `files_found` per explorer (keyed by variant_id) for outcome tracking.
+
+**Fallback (no registry data):** Use prompts from `prompt-library.md` directly. Treat as UNKNOWN agents (dispatch with default budget).
+
+#### Complex Tier: Staggered Exploration with Scratchpad
+
+Explorers build on each other's findings via staggered (not parallel) dispatch. Full protocol: `swarm-protocols.md#2-exploration-scratchpad`.
+
+1. **Create** empty `exploration-scratchpad.json` (schema: `swarm-schemas.md#exploration-scratchpad-ephemeral`).
+2. **Dispatch Explorer A** (broadest prompt, no scratchpad yet). Record `dispatched` event.
+3. **Explorer A writes** findings to scratchpad: `key_files`, `patterns_found`, `gaps_identified`.
+4. **Run missed-context audit** on Explorer A output.
+5. **Dispatch Explorer B** with scratchpad injected — prompt template in `swarm-protocols.md#2`. Record `dispatched` event.
+6. **Explorer B appends** its findings, fills gaps where possible.
+7. **Run missed-context audit** on Explorer B output.
+8. **If unresolved gaps remain:** dispatch Explorer C (targeted, narrow scope). Run missed-context audit.
+9. **Record** `files_found` per explorer (keyed by variant_id).
+
+**Cost:** ~30s per staggered explorer, but eliminates redundant exploration and catches gaps.
+
+#### Common (All Tiers)
+
+**Variant selection (before dispatch):** Select optimized prompts via the prompt tracker for A/B testing:
 
 ```bash
-# Select variant for Explorer A (returns {"variant_id": "...", "prompt": "..."})
 python3 scripts/prompt-tracker.py select explorer <category> A
-
-# Select variant for Explorer B
 python3 scripts/prompt-tracker.py select explorer <category> B
 ```
 
-Use the returned prompt instead of the default from `prompt-library.md`. Record the `variant_id` — it's needed for outcome tracking after Phase 5.
+Use returned prompt instead of `prompt-library.md` default. Record `variant_id` for Phase 5 outcome tracking.
 
-**Fallback:** If `prompt-tracker.py` is unavailable, use prompts from `prompt-library.md` directly.
+**Subagent dispatch:** Use Agent tool with `subagent_type: "feature-dev:code-explorer"` or `"Explore"` and **`model: "opus"`**.
 
-**Subagent dispatch:** Use the Agent tool with `subagent_type: "feature-dev:code-explorer"` or `"Explore"` and **`model: "opus"`**. Each agent gets a focused prompt describing what to find.
+**Serena integration:** Use `find_symbol` / `find_referencing_symbols` instead of grep chains. Use `write_memory` to persist discoveries.
 
-**Serena integration:** When agents identify symbols to trace, use `find_symbol` / `find_referencing_symbols` instead of grep chains. Use `write_memory` to persist discoveries for cross-session continuity.
-
-**Minimum output per explorer:** 5-10 key files, the patterns they follow, and any concerns or constraints discovered.
-
-**After explorers return — record files_found:** Collect the list of files each explorer identified. Store these lists (keyed by variant_id) — they will be compared against files actually used in Phase 5 to compute exploration quality scores.
+**Minimum output per explorer:** 5-10 key files, patterns, concerns/constraints.
 
 ### Post-Exploration: Context Hydration
 
@@ -323,6 +351,8 @@ After explorers return, the **main session** (not a subagent) must:
 **What to pass forward:** The hydrated file contents stay in the main session's context and naturally inform Phases 3 and 4. When dispatching architect subagents in Phase 4, reference specific file paths and patterns you observed — don't just forward explorer summaries.
 
 **Memory injection:** After exploration completes, invoke the `memory-injection` skill with the deduplicated list of key files identified. Append the returned PROJECT GOTCHAS block to all subsequent subagent prompts (Phases 4, 5, and 6).
+
+**Exploration persistence (moderate + complex):** After hydration, write exploration log to `.claude/swarm/exploration-log/SESSION_ID.json` (schema: `swarm-schemas.md#exploration-log`). Record `finding_used` / `finding_ignored` registry events per explorer based on which files were hydrated vs skipped.
 
 ---
 
@@ -390,70 +420,81 @@ If not triggered, skip — most single-session features don't need this.
 
 ### Step 1: Competing Architecture Proposals
 
-Launch 3 **code-architect** subagents in parallel with deliberately different optimization targets. The third "contrarian" perspective prevents groupthink and surfaces approaches the other two miss.
+Launch 3 **code-architect** subagents in parallel with deliberately different optimization targets. The third "reuse" perspective prevents groupthink and surfaces approaches the other two miss.
+
+#### Moderate Tier: Registry-Weighted Architects
+
+ALL architects receive the full exploration context (not just orchestrator's summary):
+- Full exploration scratchpad (if exists) or deduplicated explorer findings
+- Gap chain: gaps found, which were resolved, which remain
+- Explorer disagreements: areas characterized differently by different explorers
+
+1. **Query registry** for user's historical `architecture_preferences` weights.
+2. **Dispatch 3 architects** (simplicity, separation, reuse/contrarian) with registry-weighted optimization targets. Record `dispatched` event per architect.
+3. **Synthesis:** Weight toward historically preferred style. Sharpen contrarian based on registry data.
+4. **Record** `architecture_adopted` / `architecture_rejected` events after user chooses.
+
+#### Complex Tier: Adversarial Debate + Gap Detection
+
+Full protocol: `swarm-protocols.md#3-adversarial-architecture`.
+
+**Round 1** (parallel, all receive full scratchpad):
+- Architect A: simplicity | Architect B: separation | Architect C: contrarian
+- Record `dispatched` event per architect.
+
+**Gap detection** (between Round 1 and Round 2):
+1. Scan all 3 proposals for references to files/patterns NOT in scratchpad.
+2. Detect unverified assumptions and open questions.
+3. If gaps found → dispatch one Sonnet gap-fill explorer (narrow scope). Record `dispatched` event.
+4. Append gap-fill findings to scratchpad. Log gap detections as exploration misses in `missed-context-log`.
+5. If no gaps → skip to Round 2.
+
+**Round 2** (parallel critics — each rebuts the other two):
+- Critic A (simplicity lens), Critic B (separation lens), Critic C (contrarian lens)
+- All receive gap-fill findings + all Round 1 proposals. Record `dispatched` event per critic.
+- Prompt template: `swarm-protocols.md#3-adversarial-architecture`
+
+**Round 3** (single Opus synthesis judge):
+- Reads all proposals + all rebuttals + gap-fill findings + registry `architecture_preferences` weights
+- Produces recommendation with per-decision reasoning: adopted from whom, rejected which objection and why
+- Record `dispatched` event. Record `critique_changed_outcome` / `critique_ignored` per critic.
+
+**Cost:** 3 extra sonnet calls (critics) + 1 opus call (synthesis) + optional 1 sonnet (gap-fill).
+
+#### Common (All Tiers)
 
 ```
-┌──────────────────────────────────────────────────────┐
-│ Architect A: "Design optimizing for SIMPLICITY —     │
-│  reuse existing patterns, minimal new files,         │
-│  least moving parts"                                 │
-│                                                       │
-│ Architect B: "Design optimizing for CLEAN            │
-│  SEPARATION — extensibility, testability,            │
-│  clear boundaries between concerns"                  │
-│                                                       │
-│ Architect C: "Design optimizing for MAXIMUM REUSE —  │
-│  leverage every existing abstraction, minimize new   │
-│  code, build on what's already there even if it      │
-│  means bending existing patterns slightly"           │
-└──────────────────────────────────────────────────────┘
-                    │
-                    ▼
-   Present ALL THREE architectures to user:
-   - Files to create/modify (with line counts)
-   - Component designs and responsibilities
-   - Data flow (how data moves through the system)
-   - Trade-off analysis (what each approach sacrifices)
-   - Best-of-all-worlds synthesis recommendation
-                    │
-                    ▼
-   ◆ USER CHOOSES architecture (A, B, C, or hybrid) ◆
+Present ALL THREE architectures to user:
+- Files to create/modify (with line counts)
+- Component designs and responsibilities
+- Data flow, trade-off analysis
+- Best-of-all-worlds synthesis recommendation
+        │
+        ▼
+◆ USER CHOOSES architecture (A, B, C, or hybrid) ◆
 ```
 
-**Subagent dispatch:** Use the Agent tool with `subagent_type: "feature-dev:code-architect"` and **`model: "opus"`**. Each gets the exploration findings + clarification answers + a clear optimization directive. Include PROJECT GOTCHAS from memory-injection in each architect's prompt.
+**Subagent dispatch:** Use Agent tool with `subagent_type: "feature-dev:code-architect"` and **`model: "opus"`**. Each gets exploration findings + clarification answers + PROJECT GOTCHAS from memory-injection.
 
-**Architect variant tracking:** Select architect prompts via the optimization system to track which optimization target produces the best outcomes:
+**Architect variant tracking:**
 
 ```bash
-# Select variant for each architect role
 python3 scripts/prompt-tracker.py select architect default simplicity
 python3 scripts/prompt-tracker.py select architect default separation
-python3 scripts/prompt-tracker.py select architect default contrarian
+python3 scripts/prompt-tracker.py select architect default reuse
 ```
 
-Record which variant_id the user chose. After Phase 6 review completes, record the outcome:
+Record `variant_id` of user's choice. After Phase 6, record outcome:
 
 ```bash
 python3 scripts/prompt-tracker.py record '{
-  "agent_type": "architect",
-  "variant_id": "<chosen_variant_id>",
-  "role": "<simplicity|separation|contrarian>",
-  "user_chose_this": true,
-  "refinement_rounds": <number>,
-  "review_issues_critical": <count>,
-  "review_issues_total": <count>,
-  "plan_steps": <count>
+  "agent_type": "architect", "variant_id": "<chosen>",
+  "role": "<simplicity|separation|reuse>", "user_chose_this": true,
+  "refinement_rounds": <N>, "review_issues_critical": <N>, "review_issues_total": <N>
 }'
 ```
 
-This measures: which optimization target users prefer (selection rate), how quickly the plan converges (fewer refinement rounds = better), and how many review issues the resulting code produces (fewer = better architecture).
-
-**Synthesis step:** After all 3 return, present a "best-of-all-worlds" recommendation that blends the strongest ideas from each. Be intellectually honest about which architect had the better approach for each aspect.
-
-**Architect C rotation:** The third target should vary based on what matters most for this feature. Options beyond "maximum reuse":
-- "FUTURE EXTENSIBILITY — design for the next 3 features, not just this one"
-- "PERFORMANCE — minimize allocations, queries, and round-trips"
-- "MINIMAL RISK — fewest changes to existing code, safest migration path"
+**Architect C rotation:** Vary the third target by feature: "FUTURE EXTENSIBILITY", "PERFORMANCE", "MINIMAL RISK".
 
 ### Step 2: Write Implementation Plan
 
@@ -538,6 +579,56 @@ If not triggered: Skip. The multi-model competition + iterative refinement alrea
 User must approve the plan before any implementation begins.
 </HARD-GATE>
 
+### Swarm Tier: Moderate — Registry-Informed Execution
+
+Per plan step:
+1. **Query registry** for historical failure rate and thinking budget by domain.
+2. **Set thinking budget:** <10% failure → `think about`, 10-30% → `think harder`, >30% → `ultrathink`.
+3. **Skip specialist reviewers** with zero findings across 5+ dispatches (re-enable every 10th session).
+4. Record `dispatched` event per implementation agent. Record `step_passed` / `step_failed` on completion.
+
+### Swarm Tier: Complex — Build-State + Agent Signals
+
+Full protocols: `swarm-protocols.md#4-build-state`, `swarm-protocols.md#5-agent-signals`.
+
+**Build-state** (`.claude/swarm/build-state.json`, schema: `swarm-schemas.md#build-state-ephemeral`):
+- Before first step: create empty build-state.
+- After each step: agent writes `files_created`, `files_modified`, `interfaces_exposed`, `patterns_used`, `decisions_made`, `gotchas_encountered`, `failed_approaches`, `test_files`, `signal`.
+- Next agent reads build-state → knows interfaces, patterns, and what NOT to try.
+
+**Full context chain per implementation agent** (inject all 8 items):
+
+| # | Item | Source |
+|---|------|--------|
+| 1 | Plan step | Phase 4 plan |
+| 2 | Architecture decision | Chosen approach + trade-offs |
+| 3 | Exploration scratchpad | Phase 2 scratchpad or explorer findings |
+| 4 | Build-state | Interfaces, patterns, decisions from prior steps |
+| 5 | Failed-approach log | Extracted from build-state |
+| 6 | Gap-fill findings | Phase 4 gap-fill (if relevant area) |
+| 7 | Registry priors | Historical failure rate + recommended thinking budget |
+| 8 | Missed-context flags | `available_in_*` misses from prior steps in this area |
+
+**Agent signals** — implementation agents return structured signals (not just pass/fail):
+
+| Signal | Orchestrator action |
+|--------|-------------------|
+| `completed` | Dispatch next step normally |
+| `completed_with_deviation` | Run architecture deviation check immediately |
+| `completed_with_discovery` | Update build-state, re-evaluate downstream steps |
+| `blocked` | PAUSE — surface to user, do not retry |
+
+**Architecture deviation detection** (after every 3 steps, or immediately on deviation signal):
+- Compare build-state against architecture decision (patterns, interfaces, assumptions).
+- >50% steps deviated → PAUSE, surface to user.
+- Single critical assumption violated → PAUSE immediately.
+
+**Collaborative rescue** (before retry loop):
+1. Package failure context: error + build-state + failed-approach log.
+2. Query registry: highest success rate agent type for `[error_class]` in `[domain]`?
+3. Different type with >20% higher rate AND >5 dispatches → dispatch that type. Record `rescue_succeeded` / `rescue_failed`.
+4. No better type → fall back to standard retry loop.
+
 ### Pre-Implementation: Fetch External API Docs
 
 <HARD-GATE>
@@ -611,7 +702,11 @@ RETRY LOOP (max 3 attempts):
          "resolution": null
        }'
 
-    2. MATCH against failure catalog:
+    2. COMPLEX TIER: Check for collaborative rescue (swarm-protocols.md#5)
+       before diagnosis — if registry shows a better agent type for this
+       error_class, dispatch it with full failure context + build-state.
+
+    3. MATCH against failure catalog:
        - Load catalog entries for matched domains (via memory-injection mapping)
        - Compare error output against each entry's Signal field
        - If match with high/medium confidence:
@@ -621,6 +716,7 @@ RETRY LOOP (max 3 attempts):
            → Dispatch DIAGNOSIS SUBAGENT (see references/diagnosis-subagent.md)
            → Model: sonnet (attempt 1-2), opus (attempt 3)
            → Thinking: thinking_levels[attempt - 1]
+           → Complex tier: include build-state + failed-approach log in diagnosis context
            → Apply the returned fix_strategy / fix_code
            → If recurrence_likelihood is medium or high:
                → Draft new catalog entry
@@ -629,7 +725,7 @@ RETRY LOOP (max 3 attempts):
                → Run: hooks/tier1/failure-catalog-push.sh
            → EMIT resolution:novel event
 
-    3. RE-RUN verification (test or static analysis)
+    4. RE-RUN verification (test or static analysis)
        If PASS → EMIT resolution event, EXIT loop, continue to next step
        If FAIL → increment attempt, CONTINUE loop
 
@@ -717,6 +813,12 @@ Use subagent-driven-development skill:
 
 Only parallelize truly independent work — shared state or sequential dependencies must stay sequential.
 
+**Complex tier parallel dispatch with build-state:**
+1. All parallel agents receive same build-state snapshot.
+2. All write to build-state on completion.
+3. Orchestrator merges entries before dispatching next sequential step.
+4. Conflicting pattern decisions flagged as `parallel_conflicts` — resolve before proceeding.
+
 **Swarm coordination protocol** (when dispatching 3+ parallel agents):
 
 1. **Stagger dispatch** — Wait 2-3 seconds between agent launches. Sending all at once causes the "thundering herd" problem where agents pick the same work.
@@ -794,6 +896,44 @@ Where:
 ---
 
 ## Phase 6: Quality + Finish
+
+### Swarm Tier: Moderate — Registry-Selective Dispatch
+
+Classify reviewers by registry data before dispatch:
+
+| Category | Criteria | Action |
+|----------|----------|--------|
+| HIGH VALUE | >20% finding rate AND >50% accepted | Full thinking budget |
+| MODERATE VALUE | Findings exist, mixed acceptance | Reduced thinking budget |
+| LOW VALUE | <5% finding rate across 5+ dispatches | Skip (re-enable every 10th session) |
+| UNKNOWN | <5 dispatches | Default budget (building priors) |
+
+Dispatch order: HIGH → MODERATE + UNKNOWN → skip LOW. Record `dispatched` event per reviewer. Record `review_finding_accepted` / `review_finding_dismissed` per finding.
+
+### Swarm Tier: Complex — Wave Protocol + Meta-Reviewer
+
+Full protocol: `swarm-protocols.md#6-staged-review`.
+
+**Wave 1** (parallel — highest-value reviewers from registry):
+- Code Reviewer A, Security Reviewer, Silent Failure Hunter
+- Each writes to `review-findings.json` (schema: `swarm-schemas.md#review-findings-ephemeral`): `areas_reviewed`, `findings[]`, `patterns_noticed`
+- Record `dispatched` event per reviewer.
+
+**Wave 2** (parallel — receives Wave 1 findings):
+- Code Reviewer B: check if Wave 1 patterns extend to uncovered areas.
+- QA Edge-Case Reviewer: verify tests cover Wave 1 bugs + adjacent edge cases.
+- Production Readiness: verify Wave 1 security fixes are production-safe.
+- Prompt templates: `swarm-protocols.md#6-staged-review`. Record `dispatched` event per reviewer.
+
+**Wave 3 — Meta-Reviewer** (single agent, receives ALL findings + build-state):
+1. **Pattern escalation:** findings across different files/reviewers with shared root cause → mark SYSTEMIC.
+2. **Deduplication:** merge overlapping findings, keep highest-severity.
+3. **Priority synthesis:** re-rank by actual production impact.
+4. **Gap detection:** areas in build-state with high complexity that no reviewer examined.
+5. **Contradiction resolution:** investigate, pick side, show reasoning.
+- Record `dispatched` event. Record `meta_escalation_led_to_fix` / `meta_escalation_was_noise` per escalation.
+
+**Both tiers:** Run missed-context audit on reviewers — was each bug catchable by implementation agent, fresh-eyes review, or documented in CLAUDE.md/MEMORY.md? Log to `missed-context-log`. Feed review-found issues back to exploration scope for future sessions.
 
 ### 4-Tier Parallel Review
 
@@ -1027,12 +1167,11 @@ python3 scripts/prompt-tracker.py record '{
 python3 scripts/prompt-tracker.py record '{
   "agent_type": "architect",
   "variant_id": "<chosen_architect_variant_id>",
-  "role": "<simplicity|separation|contrarian>",
+  "role": "<simplicity|separation|reuse>",
   "user_chose_this": true,
   "refinement_rounds": <rounds_in_phase4>,
   "review_issues_critical": <critical_issues_from_phase6>,
-  "review_issues_total": <total_issues_from_phase6>,
-  "plan_steps": <total_plan_steps>
+  "review_issues_total": <total_issues_from_phase6>
 }'
 ```
 
@@ -1067,38 +1206,46 @@ Invoke `session-learnings` skill:
 
 ## Quick Reference: All Phases
 
-| Phase | Name | Model | Key Pattern | Gate |
-|-------|------|-------|-------------|------|
-| 0 | Context | — | Trigger matrix → load relevant skills only | None |
-| 1 | Discovery | — | Fast-path escape for small changes | Auto |
-| 2 | Exploration | **opus** | 2-3 parallel code-explorer subagents + context hydration | **Context hydration** |
-| 3 | Clarification | — | Surface all ambiguities + optional PRP export | **User answers** |
-| 4 | Architecture | **opus** | 3 competing architects + iterative refinement with convergence detection | **User chooses + approves plan** |
-| 5 | Implementation | **sonnet** | TDD per step + fresh eyes self-review + drift detection + swarm coordination | Tests pass |
-| 6 | Quality + Finish | **sonnet/opus** | 5-tier + production readiness review (overshoot technique) + random exploration + UX polish + de-slopification → verify → commit | **Verification** |
+| Phase | Name | Model | Tier Behavior | Gate |
+|-------|------|-------|--------------|------|
+| 0 | Context | — | Same for all tiers | None |
+| 1 | Discovery | — | Fast-path + complexity classifier (sets tier) | Auto |
+| 2 | Exploration | **opus** | **mod:** registry-informed dispatch, parallel. **cx:** staggered scratchpad, gap-filling | **Context hydration** |
+| 3 | Clarification | — | Same for all tiers | **User answers** |
+| 4 | Architecture | **opus** | **mod:** registry-weighted synthesis. **cx:** adversarial debate (3 rounds) + gap detection | **User chooses + approves plan** |
+| 5 | Implementation | **sonnet** | **mod:** registry-informed budgets. **cx:** build-state, agent signals, deviation detection, rescue | Tests pass |
+| 6 | Quality + Finish | **sonnet/opus** | **mod:** registry-selective dispatch. **cx:** wave protocol + meta-reviewer | **Verification** |
+
+**Legend:** mod = moderate tier, cx = complex tier.
 
 ## Agents Used Within This Workflow
 
-| Agent | `subagent_type` | Phase | Trigger | Model |
-|-------|-----------------|-------|---------|-------|
-| Code Explorer (x2-3) | `feature-dev:code-explorer` | 2 | Always | opus |
-| Code Architect (x3) | `feature-dev:code-architect` | 4 | Always | opus |
-| Plan Refiner (x2-3 rounds) | `general-purpose` | 4 | Complex features | opus |
-| Migration Reviewer | `migration-reviewer` | 5, 6 | Alembic files | sonnet |
-| Google API Reviewer | `google-api-reviewer` | 5, 6 | Google API code | sonnet |
-| Async Reviewer | `async-reviewer` | 5, 6 | async I/O code | sonnet |
-| Code Reviewer (x2) | `feature-dev:code-reviewer` | 6 | Always (overshoot prompts) | sonnet |
-| Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | 6 | Always (overshoot prompts) | sonnet |
-| Security Reviewer | `security-reviewer` | 6 | Always (overshoot prompts) | sonnet |
-| QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | 6 | Always (overshoot prompts) | sonnet |
-| Production Readiness | `general-purpose` | 6 | Always (hybrid trigger) | sonnet |
-| Design Reviewer | `general-purpose` | 6 | UI files modified | sonnet |
-| Type Design Analyzer | `pr-review-toolkit:type-design-analyzer` | 6 | New types/models | sonnet |
-| API Doc Auditor | `api-doc-auditor` | 6 | New/modified routes | sonnet |
-| Invariant Checker | `courierflow-invariant-checker` | 6 | Always (CF projects) | sonnet |
-| Defensive Verifier | `defensive-pattern-verifier` | 6 | Always (CF projects) | sonnet |
-| UX Polish Reviewer | `general-purpose` | 6 | UI files modified | opus |
-| Random Code Explorer | `general-purpose` | 6 | Always (complex features) | opus |
+| Agent | `subagent_type` | Phase | Trigger | Tier | Model |
+|-------|-----------------|-------|---------|------|-------|
+| Degradation Probe | `feature-dev:code-explorer` | 1 | moderate/complex | mod+cx | sonnet |
+| Code Explorer (x2-3) | `feature-dev:code-explorer` | 2 | Always | all | opus |
+| Gap-Fill Explorer | `feature-dev:code-explorer` | 2, 4 | Unresolved gaps (complex) | cx | sonnet |
+| Code Architect (x3) | `feature-dev:code-architect` | 4 | Always | all | opus |
+| Critic (x3) | `feature-dev:code-architect` | 4 | Complex tier | cx | sonnet |
+| Synthesis Judge | `general-purpose` | 4 | Complex tier | cx | opus |
+| Plan Refiner (x2-3 rounds) | `general-purpose` | 4 | Complex features | all | opus |
+| Rescue Agent | (registry-selected type) | 5 | Failure + better agent type in registry | cx | varies |
+| Migration Reviewer | `migration-reviewer` | 5, 6 | Alembic files | all | sonnet |
+| Google API Reviewer | `google-api-reviewer` | 5, 6 | Google API code | all | sonnet |
+| Async Reviewer | `async-reviewer` | 5, 6 | async I/O code | all | sonnet |
+| Code Reviewer (x2) | `feature-dev:code-reviewer` | 6 | Always (overshoot prompts) | all | sonnet |
+| Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | 6 | Always (overshoot prompts) | all | sonnet |
+| Security Reviewer | `security-reviewer` | 6 | Always (overshoot prompts) | all | sonnet |
+| QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | 6 | Always (overshoot prompts) | all | sonnet |
+| Production Readiness | `general-purpose` | 6 | Always (hybrid trigger) | all | sonnet |
+| Meta-Reviewer | `general-purpose` | 6 | Complex tier Wave 3 | cx | opus |
+| Design Reviewer | `general-purpose` | 6 | UI files modified | all | sonnet |
+| Type Design Analyzer | `pr-review-toolkit:type-design-analyzer` | 6 | New types/models | all | sonnet |
+| API Doc Auditor | `api-doc-auditor` | 6 | New/modified routes | all | sonnet |
+| Invariant Checker | `courierflow-invariant-checker` | 6 | Always (CF projects) | all | sonnet |
+| Defensive Verifier | `defensive-pattern-verifier` | 6 | Always (CF projects) | all | sonnet |
+| UX Polish Reviewer | `general-purpose` | 6 | UI files modified | all | opus |
+| Random Code Explorer | `general-purpose` | 6 | Always (complex features) | all | opus |
 | Code Simplifier | `code-simplifier:code-simplifier` | 6 | After review fixes | opus |
 
 ## Skills Invoked Within This Workflow
@@ -1148,6 +1295,14 @@ Invoke `session-learnings` skill:
 | Plan refinement oscillating | Two rounds alternating — pick one and commit, don't keep refining |
 | Plan refinement expanding | Output growing instead of shrinking — step back, simplify |
 | Strategic drift detected mid-implementation | Stop, report to user, revise remaining steps before continuing |
+| Scratchpad write fails | Explorer continues without scratchpad — log warning, next explorer dispatches without prior context |
+| Gap-fill returns nothing useful | Proceed to Round 2 without gap-fill — note in synthesis judge prompt |
+| No registry data available | Treat all agents as UNKNOWN — default budgets, build priors from this session |
+| Build-state parallel conflicts | Surface conflicting patterns to user, resolve before next sequential step |
+| Meta-reviewer finds systemic pattern | Escalate as SYSTEMIC — fix root cause, not individual symptoms |
+| Rescue agent fails | Fall back to standard retry loop with increased thinking budget |
+| Tier seems wrong mid-session | User can override with `--tier=X` at any time; orchestrator re-adjusts |
+| `available_in_prompt` miss rate >20% | Flag for prompt quality review after session (see periodic review) |
 | Post-compaction confusion | Run Compaction Recovery Protocol immediately |
 | Parallel agents touching same files | Review file claims, split work more granularly |
 
@@ -1159,7 +1314,7 @@ Invoke `session-learnings` skill:
 | Exploring sequentially instead of parallel | Use 2-3 explorer subagents |
 | Proceeding to clarification with only explorer summaries | Context hydration is a hard gate — main session must read top 5-10 files firsthand before Phase 3 |
 | Coding before clarification | Phase 3 is a hard gate — resolve ambiguities first |
-| Only 2 architecture proposals | Always present 3 competing perspectives (simplicity vs separation vs contrarian) |
+| Only 2 architecture proposals | Always present 3 competing perspectives (simplicity vs separation vs reuse) |
 | Skipping plan refinement | Complex features need 2-3 refinement rounds with fresh subagents |
 | Implementing without polishing the plan | "Check your plan N times, implement once" — planning is 85% of the work |
 | Writing tests after code | TDD — test first, then implement |

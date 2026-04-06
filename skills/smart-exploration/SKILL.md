@@ -61,6 +61,19 @@ If 2 prompts are listed for a category, dispatch both in parallel. If only 1 is 
 
 ---
 
+## Registry-Informed Variant Selection
+
+When the swarm registry exists at `.claude/swarm/agent-registry.json`, rank prompt variants by `findings_used_rate` before selecting which to dispatch.
+
+1. Check for registry file. If absent, skip to step 4.
+2. For each candidate variant in the target category, look up its `variant_id` in the registry (variant IDs are tagged in `prompt-library.md` under each explorer heading).
+3. Sort candidates by `findings_used_rate` descending. Dispatch the top-ranked variant as Explorer A and the second-ranked as Explorer B.
+4. **Fallback:** If the registry file does not exist, has no entries for this category, or errors on read, use the default ordering from `prompt-library.md` (Explorer A first, Explorer B second).
+
+Registry lookups are read-only during variant selection. Record `dispatched` events after dispatch using the variant_id returned — this is what feeds the registry data used in future selections.
+
+---
+
 ## Task Categories
 
 | Category | When to Use |

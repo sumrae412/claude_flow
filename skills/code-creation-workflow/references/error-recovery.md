@@ -19,5 +19,13 @@
 | Context window pressure | DEGRADE | Compress completed phases into structured summary; keep plan + current step |
 | Plan references missing files | RETRY | Grep for actual paths before assuming the plan is wrong |
 | Batch review times out or fails | DEGRADE | Proceed with subagent reviewers only. Note "batch unavailable" in deduplication. No blocking |
+| Scratchpad write fails or is unreadable by Explorer B/C | RETRY | Re-dispatch Explorer A with explicit write instruction; confirm file exists before dispatching dependents |
+| Gap-fill explorer returns nothing useful | DEGRADE | Proceed with existing findings; note the gap in architecture context; flag for missed-context audit |
+| Registry has no data for current task type | DEGRADE | Fall back to default variant selection and thinking budgets; log dispatches so future sessions benefit |
+| Build-state conflict detected between parallel specialists | RETRY | Halt parallel work; merge conflicting state entries manually; re-dispatch affected specialist with resolved state |
+| Meta-reviewer identifies systemic pattern across all reviewers | PAUSE | Stop. The pattern indicates a Phase 4 architecture problem, not implementation drift. Re-evaluate before proceeding |
+| Collaborative rescue agent also fails | PAUSE | Two failures on same step = structural blocker. Stop, summarize what's been tried, ask user for direction |
+| Tier classified as moderate mid-session but task is clearly complex | PAUSE | Re-run complexity classifier with current evidence; upgrade tier before next phase; do not continue on wrong tier |
+| available_in_prompt context causes explorer to miss key files | RETRY | Broaden context window or re-dispatch with explicit file list; log miss type in missed-context log |
 
 **Resolution types:** RETRY = fix and re-run. PAUSE = stop and ask user. DEGRADE = continue with reduced capability.

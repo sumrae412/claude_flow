@@ -13,3 +13,6 @@ If you catch yourself thinking any of these, you're rationalizing. STOP and foll
 | "One more implementation attempt" (after 2+ failures) | 3 failures = wrong architecture, not wrong code. See 3-Strike Rule. |
 | "I'll fix the review findings later" | CRITICAL/WARNING findings block shipping. Fix now or escalate. |
 | "Skip the evidence gathering, I can see the problem" | Seeing symptoms ≠ understanding root cause. Gather evidence first. |
+| "Registry doesn't have enough data to be useful" | That's always true the first time. Record events anyway — cold-start data is how the registry learns. |
+| "Scratchpad is overkill for this exploration" | Scratchpad isn't about size, it's about sequencing. Without it, Explorer B runs blind. Use it. |
+| "I'll merge the agent findings manually instead of using the synthesis judge" | Manual merging loses adversarial signal and skips gap detection. Run the protocol. |

@@ -30,6 +30,8 @@ Before starting:
 
 **v2 subagent model:** In code-creation-workflow v2, shipping-workflow is invoked directly (not as a subagent) since it's the final pipeline stage. Context from Phase 6A findings is available in the session.
 
+**Self-debugging context:** When invoked from code-creation-workflow Phase 6B, review fixes that fail verification should use the Phase 6 retry loop (failure catalog matching + diagnosis subagent). The shipping-workflow's own CI retry is a separate, complementary mechanism.
+
 ## The 4-Stage Pipeline
 
 ### Stage 1: Commit

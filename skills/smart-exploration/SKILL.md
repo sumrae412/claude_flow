@@ -19,9 +19,43 @@ The result is exploration that surfaces the exact context each task type needs �
 `code-creation-workflow` dispatches **2–3 explorer subagents** in parallel during Phase 2. Before constructing those subagent prompts, consult this skill to:
 
 1. **Classify** the task into one of the categories below.
-2. **Select** the matching prompts from `prompt-library.md`.
+2. **Select variants** using the prompt optimization system (see Variant Selection below). If the tracker is unavailable, fall back to `prompt-library.md` directly.
 3. **Substitute** any `[FEATURE]`, `[AREA]`, or `[TARGET]` placeholders with specifics from the user's request.
 4. **Dispatch** those prompts as the Phase 2 Agent tool calls.
+5. **Record** which variant IDs were dispatched (needed for outcome tracking).
+
+### Variant Selection
+
+The prompt optimization system A/B tests explorer prompts to find which wording produces the best exploration results. Before dispatching:
+
+```bash
+# Select variant for Explorer A
+python3 ~/.claude/scripts/prompt-tracker.py select <category> A
+
+# Select variant for Explorer B
+python3 ~/.claude/scripts/prompt-tracker.py select <category> B
+```
+
+Each returns `{"variant_id": "...", "prompt": "..."}`. Use the returned prompt instead of the one in prompt-library.md. Record the variant_id so outcomes can be attributed later.
+
+**After Phase 2 completes:** Record which files each explorer found. Store this list — it will be compared against files actually used in Phase 5 to compute the exploration quality score.
+
+**After Phase 5 completes:** Record outcome via:
+
+```bash
+python3 ~/.claude/scripts/prompt-tracker.py record '{
+  "session_id": "<session>",
+  "task_category": "<category>",
+  "variant_id": "<variant_id>",
+  "explorer_role": "<A or B>",
+  "files_found": ["file1.py", "file2.py"],
+  "files_used_in_impl": ["file1.py", "file3.py", "file4.py"],
+  "phase5_retries": 2,
+  "plan_steps": 8
+}'
+```
+
+**Fallback:** If `prompt-tracker.py` is not available or errors, use the prompts from `prompt-library.md` directly. The optimization system is additive — the workflow works without it.
 
 If 2 prompts are listed for a category, dispatch both in parallel. If only 1 is listed, dispatch it as a single explorer.
 

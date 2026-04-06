@@ -388,6 +388,101 @@ def get_exploration_prompts(task_type: str) -> str:
     return hint
 
 
+@mcp.tool()
+def get_prompt_performance(category: str = "") -> str:
+    """Get exploration prompt variant performance data.
+
+    Returns per-category variant comparison with F1 scores, miss patterns,
+    and promotion readiness. Optionally filter to a single category.
+
+    category: optional task category (endpoint, ui, data, integration, refactor, bugfix, config, general)
+    """
+    variants_path = Path.home() / ".claude" / "memory" / "prompt-variants.json"
+    events_path = Path.home() / ".claude" / "memory" / "exploration-events.jsonl"
+
+    if not variants_path.exists():
+        return json.dumps({"error": "No prompt-variants.json found. Prompt optimization not initialized."})
+
+    try:
+        variants_data = json.loads(variants_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return json.dumps({"error": f"Failed to read variants: {exc}"})
+
+    # Load events for miss analysis
+    events: list[dict] = []
+    if events_path.exists():
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+    explorer = variants_data.get("explorer", {})
+    categories = [category] if category else sorted(explorer.keys())
+
+    result: dict = {"categories": {}, "total_events": len(events)}
+
+    for cat in categories:
+        cat_data = explorer.get(cat)
+        if not cat_data:
+            continue
+
+        cat_report: dict = {"variants": [], "ready_for_promotion": False}
+        min_sessions = cat_data.get("min_sessions", 10)
+
+        role_groups: dict[str, list] = {}
+        for v in cat_data.get("variants", []):
+            if not v.get("active"):
+                continue
+            m = v["metrics"]
+            s = m.get("sessions", 0)
+            avg_f1 = round(m.get("f1_sum", 0) / s, 3) if s > 0 else 0
+            avg_p = round(m.get("precision_sum", 0) / s, 3) if s > 0 else 0
+            avg_r = round(m.get("recall_sum", 0) / s, 3) if s > 0 else 0
+
+            entry = {
+                "id": v["id"],
+                "role": v["role"],
+                "label": v.get("label", ""),
+                "sessions": s,
+                "avg_precision": avg_p,
+                "avg_recall": avg_r,
+                "avg_f1": avg_f1,
+                "needs_data": s < min_sessions,
+            }
+            cat_report["variants"].append(entry)
+            role_groups.setdefault(v["role"], []).append((avg_f1, s))
+
+        # Check promotion readiness per role
+        for role, scores in role_groups.items():
+            if len(scores) >= 2:
+                all_sufficient = all(s >= min_sessions for _, s in scores)
+                if all_sufficient:
+                    f1_values = [f for f, _ in scores]
+                    gap = max(f1_values) - min(f1_values)
+                    if gap >= 0.05:
+                        cat_report["ready_for_promotion"] = True
+
+        result["categories"][cat] = cat_report
+
+    # Miss pattern analysis
+    missed_files: dict[str, int] = {}
+    cat_events = [e for e in events if not category or e.get("task_category") == category]
+    for ev in cat_events:
+        for f in ev.get("files_needed_not_found", []):
+            missed_files[f] = missed_files.get(f, 0) + 1
+
+    if missed_files:
+        result["top_missed_files"] = sorted(
+            [{"file": f, "miss_count": c} for f, c in missed_files.items()],
+            key=lambda x: -x["miss_count"],
+        )[:10]
+
+    return json.dumps(result, indent=2)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------

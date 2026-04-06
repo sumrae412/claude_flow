@@ -72,7 +72,7 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 | 5 Implementation | TDD per step, parallel dispatch for independent work |
 | 6 Quality | 4-tier parallel review, static analysis, verification |
 
-### Bundled skills (17 total)
+### Bundled skills (18 total)
 
 **Enforcement:**
 - `coding-best-practices` — Python, JS, API, testing, performance standards
@@ -95,6 +95,7 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 - `smart-exploration` — Task-typed exploration prompts for Phase 2 (feature/bug/refactor variants)
 - `hook-doctor` — Diagnose hook health: missing files, bad exit codes, env issues
 - `memory-injection` — Inject project gotchas and constraints into subagent system prompts
+- `prompt-optimization` — A/B test and promote subagent prompts across explorers, architects, and reviewers
 
 ### Self-debugging agents
 
@@ -108,6 +109,29 @@ Autonomous failure detection, diagnosis, and retry for Phases 5-6. When a test, 
 6. All events are logged to `memory/failure-events.jsonl` for trend analysis
 
 Fully autonomous — user only sees failures that survive 3 retry attempts.
+
+### Prompt optimization
+
+Closed-loop A/B testing for subagent prompts. The system measures whether the prompts dispatched to subagents actually produce good results, then promotes winners and generates challengers for losers.
+
+**Three agent types tracked:**
+
+| Agent Type | Phase | What's Measured | Score |
+|-----------|-------|----------------|-------|
+| Explorer | 2 | Were discovered files actually used in implementation? | F1(precision, recall) * (1 - retry_rate) |
+| Architect | 4 | Was this proposal chosen? Did it converge quickly? Few review issues? | Weighted: selection + quality + convergence |
+| Reviewer | 6 | Were reported issues real and worth fixing? | true_positive_rate * signal_to_noise |
+
+**How it works:**
+
+1. Before dispatching subagents, `prompt-tracker.py select` picks a variant via epsilon-greedy (80% exploit best, 20% explore)
+2. After the phase completes, outcomes are recorded to per-type JSONL event files
+3. After 10+ sessions per variant, the system compares scores and promotes winners (gap > 0.05)
+4. Losing variants get rewritten by an LLM to address their specific blind spots (requires user approval)
+
+**Manual review:** Run `/prompt-optimization` to see current variant performance across all agent types.
+
+**MCP tool:** `get_prompt_performance` returns JSON performance data, filterable by agent type and category.
 
 ### Hook system
 
@@ -186,6 +210,7 @@ Add to `.github/workflows/pr-review.yml` — the action posts review comments di
 **Analysis:**
 - `generate_repo_outline.py` — Extract function/class signatures without bodies (token-efficient codebase context)
 - `plancraft_review.py` — Multi-model AI plan review (DeepSeek + Codex)
+- `prompt-tracker.py` — Prompt variant selection, outcome recording, and performance reporting
 
 **Universal hooks (Tier 1 — always installed):**
 - `hooks/session-start-context.sh` — Load context + skill suggestions on session start

@@ -1,6 +1,6 @@
 ---
 name: prompt-optimization
-description: Analyze exploration prompt performance, promote winners, and generate challenger variants. Triggered by session-learnings after sessions that used Phase 2 exploration.
+description: Analyze prompt performance across explorers, architects, and reviewers. Promote winners, generate challengers. Triggered by session-learnings or manually.
 user-invocable: true
 ---
 
@@ -8,7 +8,13 @@ user-invocable: true
 
 ## Overview
 
-Closed-loop optimization for Phase 2 explorer prompts. Compares A/B variants using F1 scores (precision + recall), promotes winners, and generates challenger prompts for losers. The goal: exploration prompts get measurably better over time.
+Closed-loop optimization for subagent prompts across three agent types:
+
+- **Explorers** (Phase 2) — A/B tested using F1 scores (precision + recall of discovered files)
+- **Architects** (Phase 4) — Tracked by selection rate, plan convergence speed, and review issue count
+- **Reviewers** (Phase 6) — Tracked by true positive rate and signal-to-noise ratio
+
+Each agent type has its own variant pool, event log, and scoring model. The goal: prompts get measurably better over time across the entire workflow.
 
 **Invoke:** After session-learnings, or manually with `/prompt-optimization`.
 
@@ -25,7 +31,7 @@ Closed-loop optimization for Phase 2 explorer prompts. Compares A/B variants usi
 
 ### Step 1: Update Metrics
 
-Run the tracker to recompute all variant metrics from event history:
+Run the tracker to recompute all variant metrics from event history across all agent types:
 
 ```bash
 python3 ~/.claude/scripts/prompt-tracker.py update-metrics
@@ -34,13 +40,20 @@ python3 ~/.claude/scripts/prompt-tracker.py update-metrics
 ### Step 2: Generate Report
 
 ```bash
+# Full report (all agent types)
 python3 ~/.claude/scripts/prompt-tracker.py report
+
+# Or filter to a specific type
+python3 ~/.claude/scripts/prompt-tracker.py report explorer
+python3 ~/.claude/scripts/prompt-tracker.py report architect
+python3 ~/.claude/scripts/prompt-tracker.py report reviewer
 ```
 
 Present the report to the user. Key things to highlight:
-- Which variants are winning per category
-- Whether any variants are ready for promotion (10+ sessions, F1 gap > 0.05)
-- Most commonly missed files (indicates prompt blind spots)
+
+**Explorers:** Which variants have highest F1, promotion readiness, most commonly missed files
+**Architects:** Which optimization target users prefer (selection rate), convergence speed, resulting code quality
+**Reviewers:** Which review style finds more real issues (true positive rate) vs noise (false positives)
 
 ### Step 3: Check for Promotions
 
@@ -97,13 +110,17 @@ Output:
 
 | File | Purpose |
 |------|---------|
-| `memory/prompt-variants.json` | Variant definitions + aggregate metrics |
-| `memory/exploration-events.jsonl` | Raw per-session outcome data |
+| `memory/prompt-variants.json` | Variant definitions + aggregate metrics (all agent types) |
+| `memory/exploration-events.jsonl` | Explorer outcome data (Phase 2 → Phase 5) |
+| `memory/architect-events.jsonl` | Architect outcome data (Phase 4 → Phase 6) |
+| `memory/reviewer-events.jsonl` | Reviewer outcome data (Phase 6) |
 | `scripts/prompt-tracker.py` | CLI for selection, recording, metrics, reporting |
 
 ---
 
 ## Score Definitions
+
+### Explorers
 
 ```
 precision = files_found_and_used / files_found        (less noise)
@@ -113,6 +130,27 @@ score     = f1 * (1 - retry_rate)                      (penalize bad exploration
 ```
 
 **Good exploration:** High precision (found files were useful) AND high recall (didn't miss critical files). The F1 score balances both.
+
+### Architects
+
+```
+selection   = 1.0 if user chose this proposal, 0.0 otherwise
+convergence = 1.0 - (refinement_rounds / 3.0)         (fewer rounds = better)
+quality     = 1.0 - critical_penalty - total_penalty   (fewer review issues = better)
+score       = (selection * 0.4) + (quality * 0.35) + (convergence * 0.25)
+```
+
+**Good architecture:** Users choose it, the plan converges quickly, and Phase 6 review finds few critical issues.
+
+### Reviewers
+
+```
+true_positive_rate = issues_fixed / issues_found       (found real problems)
+signal_to_noise    = (found - false_positives) / found (not just noise)
+score              = true_positive_rate * signal_to_noise
+```
+
+**Good review:** High signal — issues found are real and worth fixing, not noise that wastes time.
 
 ---
 
@@ -129,7 +167,10 @@ score     = f1 * (1 - retry_rate)                      (penalize bad exploration
 
 ## Integration
 
-- **smart-exploration** calls `prompt-tracker.py select` before dispatching explorers
-- **code-creation-workflow** records files_found after Phase 2, files_used after Phase 5
-- **session-learnings** triggers this skill when exploration events exist
-- **MCP server** exposes `get_prompt_performance` tool for on-demand reporting
+- **smart-exploration** calls `prompt-tracker.py select explorer <category> <role>` before dispatching explorers
+- **code-creation-workflow** Phase 2: selects explorer variants, records files_found
+- **code-creation-workflow** Phase 4: selects architect variants, records user choice
+- **code-creation-workflow** Phase 5: records files_used_in_impl for explorer scoring
+- **code-creation-workflow** Phase 6: records reviewer outcomes (issues found/fixed/dismissed), architect quality signal
+- **session-learnings** triggers this skill when any event files have new entries
+- **MCP server** exposes `get_prompt_performance` tool (accepts optional `agent_type` filter)

@@ -63,7 +63,9 @@ Task tool:
     ## Write Access
     You have DIRECT WRITE ACCESS to the project memory repo:
       MEMORY_DIR=$(find ~/.claude/projects/ -name "MEMORY.md" -maxdepth 3 | head -1 | xargs dirname 2>/dev/null)
-      # If not found, ask user for MEMORY_DIR before proceeding
+      # If not found, ask user for MEMORY_DIR before proceeding.
+      # Note: MEMORY.md should already exist — code-creation-workflow Phase 0 Step 8 bootstraps it.
+      # Do not duplicate bootstrap logic here; if missing, it indicates the workflow was skipped.
       MEMORY_FILE=$MEMORY_DIR/MEMORY.md
 
     For MEMORY.md updates: READ the file, EDIT it directly, then commit and push:

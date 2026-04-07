@@ -32,6 +32,32 @@ Use **Opus** for thinking-heavy phases (exploration, architecture, planning) and
 
 When dispatching subagents, pass `model: "opus"` or `model: "sonnet"` on the Agent tool call to enforce this.
 
+### Self-Modification Engine
+
+Patterns that recur across sessions (same failure class 3+ times, domains retrying >50%, etc.) should become skill updates. The pattern detector scans event history and queues proposals for manual review.
+
+```bash
+# Detect new patterns from accumulated event data
+python3 scripts/pattern-detector.py
+
+# Review pending proposals
+python3 scripts/review-proposals.py list
+
+# Inspect one
+python3 scripts/review-proposals.py show <id>
+
+# Draft content (in a file), then attach + apply
+python3 scripts/review-proposals.py set-content <id> draft.md
+python3 scripts/review-proposals.py apply <id>
+
+# Reject with reason
+python3 scripts/review-proposals.py reject <id> "already covered"
+```
+
+**Safety:** Nothing is auto-applied. Every `apply` backs up the target file to `memory/skill-backups/`. Proposals with `confidence < 0.3` show `[low]` in the list.
+
+Run `scripts/pattern-detector.py` periodically (e.g., after `session-learnings`) to refresh the queue.
+
 ### Phase Timing Events
 
 At the end of each phase, emit a timing event for the performance dashboard:

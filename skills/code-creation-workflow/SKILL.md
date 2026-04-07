@@ -32,48 +32,33 @@ Use **Opus** for thinking-heavy phases (exploration, architecture, planning) and
 
 When dispatching subagents, pass `model: "opus"` or `model: "sonnet"` on the Agent tool call to enforce this.
 
-### Thinking Budget Control
+### Auto-Tuned Thinking Budgets
 
-Use thinking budget keywords in subagent prompts to control how deeply Claude reasons at each step. This prevents over-thinking simple tasks and ensures critical decisions get adequate analysis.
+Thinking budgets are selected per-dispatch by `scripts/thinking-budget.py` based on (a) the complexity classifier tier from Phase 1 and (b) per-domain historical retry rates in the registry.
 
-| Keyword | Budget | Use When |
+| Keyword | Budget | Used For |
 |---------|--------|----------|
-| `think about this...` | ~4K tokens (fast) | Simple file reads, straightforward edits, config changes |
-| `think harder about...` | ~10K tokens (deep) | Multi-step logic, debugging, integration analysis |
-| `ultrathink about...` | ~32K tokens (max) | Architecture decisions, security review, complex refactors |
+| `think about this...` | ~4K tokens | Simple steps, straightforward edits |
+| `think harder about...` | ~10K tokens | Multi-step logic, integration analysis |
+| `ultrathink about...` | ~32K tokens | Architecture, security, complex refactors |
 
-**Phase-to-thinking mapping:**
+**Resolution:** At each dispatch site, resolve `{{budget}}` via:
 
-| Phase | Default Thinking | Escalate When |
-|-------|-----------------|---------------|
-| 0 Context | `think about` | — (always lightweight) |
-| 1 Discovery | `think about` | Complex triage with many branching paths → `think harder` |
-| 2 Exploration | `think harder` | Unfamiliar codebase or 10+ integration points → `ultrathink` |
-| 3 Clarification | `think about` | Conflicting requirements or subtle edge cases → `think harder` |
-| 4 Architecture | `ultrathink` | — (always max for architecture decisions) |
-| 5 Implementation | `think about` | Complex business logic or concurrency → `think harder` |
-| 6 Review | `think harder` | Security-sensitive code or auth flows → `ultrathink` |
-
-**How to apply:** Prefix subagent prompts with the keyword. Examples:
-
-```
-# Phase 2 explorer — default
-"think harder about... Trace how authentication middleware is implemented — find patterns, data flow, and key files"
-
-# Phase 4 architect — always max (3 competing perspectives)
-"ultrathink about... Design an architecture for the multi-tenant permission system optimizing for SIMPLICITY — reuse existing patterns, minimal new files"
-
-# Phase 5 implementation — simple step
-"think about this... Add the new column to the User model following the existing pattern in models/client.py"
-
-# Phase 5 implementation — complex step
-"think harder about... Implement the rate limiting middleware with sliding window algorithm and Redis backend"
-
-# Phase 6 security review — escalated
-"ultrathink about... Review this authentication flow for JWT vulnerabilities, token storage issues, and session fixation risks"
+```bash
+python3 scripts/thinking-budget.py \
+  --phase <phase_name> \
+  --tier <tier_from_classifier> \
+  --domain <task_domain> \
+  --registry memory/agent-registry.json
 ```
 
-**Rule:** Default to the phase mapping above. Escalate one level when the specific step is more complex than typical for that phase. Never under-think architecture (Phase 4) or security reviews.
+Returns one of `think` / `think harder` / `ultrathink`. Prefix the subagent prompt with `{{budget}} about...`.
+
+**Safety floor:** Architecture phase is never below `think harder` regardless of tier or retry rate.
+
+**Override:** Pass `--override ultrathink` to force a specific budget, or `--budget=` at the top level to skip auto-selection for an entire run.
+
+Full table and rationale: `docs/plans/2026-04-07-auto-tuning-thinking-budgets-design.md`
 
 ### Swarm Tiers
 
@@ -914,7 +899,8 @@ python3 scripts/prompt-tracker.py record '{
   "files_found": ["file1.py", "file2.py"],
   "files_used_in_impl": ["file1.py", "file3.py", "file4.py"],
   "phase5_retries": <retry_count>,
-  "plan_steps": <total_steps>
+  "plan_steps": <total_steps>,
+  "domain": "<task_domain: routes|migrations|tests|ui|auth|...>"
 }'
 ```
 
@@ -923,6 +909,7 @@ Where:
 - `files_used_in_impl` = all files read/edited during Phase 5 implementation
 - `phase5_retries` = total retry loop iterations across all steps
 - `plan_steps` = number of plan steps executed
+- `domain` = task domain from smart-exploration; used by thinking-budget auto-tuning to track per-domain retry rates
 
 ---
 

@@ -35,6 +35,36 @@ Record result to `complexity_calibration.history` (see `swarm-schemas.md#complex
 
 ---
 
+## 1b. Thinking Budget Auto-Tuning
+
+Runs at every phase dispatch. Replaces the static phase→thinking mapping.
+
+**Inputs:**
+- `phase` — discovery | exploration | clarification | architecture | implementation | review
+- `tier` — from classifier (simple/moderate/complex)
+- `domain` — task type from smart-exploration (routes, migrations, tests, auth, ui, etc.)
+- `registry` — `memory/agent-registry.json`
+
+**Resolution:**
+```bash
+python3 scripts/thinking-budget.py --phase <phase> --tier <tier> --domain <domain> --registry memory/agent-registry.json
+```
+
+Returns one of `think` | `think harder` | `ultrathink`.
+
+**Escalation rules:**
+- `< 10%` retry rate for (phase, domain) → use base budget
+- `10-30%` → escalate one level
+- `> 30%` → escalate two levels (capped at ultrathink)
+
+**Safety floor:** Architecture phase never below `think harder`.
+
+**Override:** `--override <budget>` forces a specific value, skipping auto-selection.
+
+Full table: `docs/plans/2026-04-07-auto-tuning-thinking-budgets-design.md`
+
+---
+
 ## 2. Exploration Scratchpad
 
 Complex tier only. Staggered (not parallel) dispatch — each explorer builds on the previous.

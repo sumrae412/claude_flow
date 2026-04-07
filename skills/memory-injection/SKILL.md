@@ -21,7 +21,7 @@ Check these locations in order:
 1. `$PROJECT/.claude/memory/MEMORY.md`
 2. `$PROJECT/MEMORY.md`
 
-If neither exists → **graceful no-op**: skip injection entirely, return nothing. Do not error.
+If neither exists → **graceful no-op**: skip injection entirely, return nothing. Do not error. (Bootstrap is owned by `code-creation-workflow` Phase 0 Step 8 — do not duplicate it here.)
 
 ### Step 2: Accept Input
 

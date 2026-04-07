@@ -3,6 +3,9 @@
 > **Maintenance:** Update this file when gotcha semantic keys are added/removed in MEMORY.md.
 > Domain tags map file patterns to relevant project gotchas. When a new gotcha is added to MEMORY.md,
 > add its semantic key to the appropriate domain(s) below.
+>
+> **Bootstrap:** MEMORY.md is created by `code-creation-workflow` Phase 0 Step 8 if missing.
+> If MEMORY.md does not exist at injection time, the system gracefully no-ops — do not duplicate bootstrap logic here.
 
 ## How It Works
 

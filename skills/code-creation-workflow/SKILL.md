@@ -32,6 +32,26 @@ Use **Opus** for thinking-heavy phases (exploration, architecture, planning) and
 
 When dispatching subagents, pass `model: "opus"` or `model: "sonnet"` on the Agent tool call to enforce this.
 
+### Phase Timing Events
+
+At the end of each phase, emit a timing event for the performance dashboard:
+
+```bash
+scripts/emit-phase-event.sh <phase> $TIER $DURATION_S $RETRIES [$DOMAIN]
+```
+
+Example: `scripts/emit-phase-event.sh exploration moderate 127 0 routes`
+
+Appends to `memory/phase-events.jsonl`. View the dashboard with:
+
+```bash
+python3 scripts/dashboard.py              # text, last 30 days
+python3 scripts/dashboard.py --html memory/dashboard.html   # also write HTML
+python3 scripts/dashboard.py --days 0     # all time
+```
+
+Emitting is best-effort — missed events just reduce the dashboard's data.
+
 ### Auto-Tuned Thinking Budgets
 
 Thinking budgets are selected per-dispatch by `scripts/thinking-budget.py` based on (a) the complexity classifier tier from Phase 1 and (b) per-domain historical retry rates in the registry.

@@ -334,6 +334,24 @@ def _update_explorer_metrics(variant: dict, variant_events: list[dict]) -> None:
     m["recall_sum"] = round(sum(ev.get("recall", 0) for ev in variant_events), 3)
     m["f1_sum"] = round(sum(ev.get("f1", 0) for ev in variant_events), 3)
 
+    # Per-domain retry rates for thinking-budget auto-tuning
+    from collections import defaultdict
+    domain_stats: dict[str, dict[str, int]] = defaultdict(lambda: {"attempts": 0, "retries": 0})
+    for ev in variant_events:
+        dom = ev.get("domain")
+        if not dom:
+            continue
+        domain_stats[dom]["attempts"] += 1
+        domain_stats[dom]["retries"] += ev.get("phase5_retries", 0)
+    m["retry_rates_by_domain"] = {
+        dom: {
+            "attempts": s["attempts"],
+            "retries": s["retries"],
+            "rate": round(s["retries"] / s["attempts"], 3) if s["attempts"] else 0.0,
+        }
+        for dom, s in domain_stats.items()
+    }
+
 
 def _update_architect_metrics(variant: dict, variant_events: list[dict]) -> None:
     m = variant["metrics"]

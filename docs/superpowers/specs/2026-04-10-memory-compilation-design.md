@@ -20,8 +20,8 @@ All three integrate into the existing session-learnings skill. No new hooks requ
 
 ## Scope
 
-- Project-scoped compilation (each project compiles its own memories)
-- Shared cross-project layer at `~/.claude/knowledge/` for patterns appearing in 2+ projects
+- **v1 (this spec):** Project-scoped compilation only. Each project compiles its own memories.
+- **v2 (future):** Shared cross-project layer at `~/.claude/knowledge/` for patterns appearing in 2+ projects. Deferred because concurrent compilation across projects requires a concurrency model (file locking, conflict resolution) that adds complexity without proven value yet.
 - Approach A (compile-on-write): compilation runs as an extension of session-learnings, not a separate pipeline
 
 ---
@@ -36,21 +36,12 @@ All three integrate into the existing session-learnings skill. No new hooks requ
 ├── feedback_*.md                # Existing raw memory files (untouched)
 ├── reference_*.md               # Existing raw memory files (untouched)
 ├── knowledge/                   # NEW — compiled articles
-│   ├── concepts/                # Consolidated knowledge per topic
-│   │   ├── sqlalchemy-gotchas.md
-│   │   └── auth-middleware-patterns.md
-│   └── connections/             # Cross-cutting insights linking 2+ concepts
-│       └── auth-and-session-management.md
+│   └── concepts/                # Consolidated knowledge per topic
+│       ├── sqlalchemy-gotchas.md
+│       └── auth-middleware-patterns.md
 ```
 
-### Shared cross-project layer
-
-```
-~/.claude/knowledge/             # NEW — cross-project patterns
-├── index.md                     # Shared knowledge index
-├── concepts/                    # Patterns valid across all projects
-└── connections/                 # Cross-project insights
-```
+> **v2:** Shared cross-project layer at `~/.claude/knowledge/` with its own `index.md`. Deferred — see Scope.
 
 ### Compiled article format (concept)
 
@@ -75,29 +66,7 @@ updated: 2026-04-10
 - [[concepts/auth-middleware-patterns]] — shares session handling concerns
 ```
 
-### Connection article format
-
-```markdown
----
-title: "Auth and Session Management"
-connects:
-  - concepts/auth-middleware-patterns
-  - concepts/sqlalchemy-gotchas
-sources:
-  - feedback_auth_patterns.md
-  - feedback_session_handling.md
-compiled: 2026-04-10
-updated: 2026-04-10
----
-
-# Auth and Session Management
-
-## The Connection
-[What links these concepts — the non-obvious relationship]
-
-## Key Insight
-[Actionable takeaway]
-```
+> **Note:** Connection articles (cross-cutting insights linking 2+ concepts) are deferred to v2. In v1, concept articles use `## Related` cross-links to reference each other.
 
 ### MEMORY.md evolution
 
@@ -115,26 +84,59 @@ Runs as an extension of the session-learnings background agent, after it writes/
 
 ### Algorithm
 
-1. **Inventory** — Read all `*.md` files in `memory/` (excluding MEMORY.md and the `knowledge/` dir). Read existing `knowledge/concepts/*.md` and `knowledge/connections/*.md`.
+1. **Inventory** — Read all `feedback_*.md` and `reference_*.md` files in `memory/` (ignoring MEMORY.md, `knowledge/` dir, `*.jsonl`, `*.json`, and `failure-catalog.md`). Read existing `knowledge/concepts/*.md`.
 
-2. **Cluster** — Group memory files by topic similarity. The agent uses semantic keys from MEMORY.md plus file content to identify clusters. Example: `feedback_silent_failures.md` + `feedback_error_handling.md` + try/catch pattern entries → single "error-handling-patterns" concept.
+2. **Cluster (LLM judgment)** — The agent reads the inventory and groups memory files into topic clusters. This is an LLM judgment step, not a deterministic algorithm. The agent is prompted with:
+
+   ```
+   Given these memory files and their contents, group them into topic clusters.
+   Each cluster should represent a single coherent concept (e.g., "error handling patterns",
+   "data model gotchas", "deployment procedures").
+
+   Rules:
+   - A memory file can belong to at most ONE cluster
+   - If a file doesn't fit any cluster, leave it unclustered (it stays as a standalone memory)
+   - Prefer fewer, broader clusters over many narrow ones
+   - Name each cluster with a kebab-case slug (e.g., "error-handling-patterns")
+
+   Output format (JSON):
+   {
+     "clusters": [
+       {"slug": "error-handling-patterns", "files": ["feedback_silent_failures.md", "feedback_error_handling.md"], "summary": "..."},
+       ...
+     ],
+     "unclustered": ["reference_api_keys.md", ...]
+   }
+   ```
+
+   Example: `feedback_silent_failures.md` + `feedback_error_handling.md` + try/catch pattern entries → cluster "error-handling-patterns".
 
 3. **Merge or update** — For each cluster:
-   - If a matching `knowledge/concepts/` article exists → update it with new information, add source to frontmatter
+   - If a matching `knowledge/concepts/<slug>.md` article exists → update it with new information, add source to frontmatter
    - If no match → create new concept article
-   - If the cluster spans 2+ existing concepts → create a `knowledge/connections/` article
+   - Cross-references: if two concept articles share overlapping source files or related topics, add `## Related` links between them
 
-4. **Promote to shared** — If a concept appears in 2+ projects (check `~/.claude/knowledge/index.md`), copy/merge to `~/.claude/knowledge/concepts/`. Shared layer contains only project-agnostic patterns.
+4. **Update index** — Add links to new/updated compiled articles in MEMORY.md.
 
-5. **Update index** — Add links to new/updated compiled articles in MEMORY.md. Update `~/.claude/knowledge/index.md` if shared articles changed.
+5. **Commit** — See commit sequencing below.
 
-6. **Commit** — Single commit covering raw memory files + compiled articles.
+### Commit Sequencing
+
+```
+1. Write raw memory files (session-learnings existing behavior)
+2. Attempt compilation (steps 1-4 above)
+3. git add . && git commit   (covers both raw + compiled)
+4. If compilation errored at any step:
+   - git add only raw memory files
+   - git commit with "[partial] session-learnings: <summary>"
+   - Log compilation error to stderr
+```
 
 ### Constraints
 
 - Compilation is **additive** — never deletes or modifies raw memory files
 - Raw files are source of truth; compiled articles are derived
-- If compilation fails or times out, raw memory files are still committed (graceful degradation)
+- If compilation fails or times out, raw memory files are still committed (graceful degradation — see commit sequencing above)
 
 ---
 
@@ -152,7 +154,7 @@ Runs as an extension of the session-learnings background agent, after it writes/
 Scan MEMORY.md and all `knowledge/*.md` for markdown links and `[[wikilinks]]`. Verify each target file exists. **Severity:** error. **Fix:** remove dead links.
 
 #### Check 2: Orphan Memories (auto, auto-fixable)
-Find `memory/*.md` files with no entry in MEMORY.md and not referenced by any compiled article. **Severity:** warning. **Fix:** add index entry to MEMORY.md.
+Find `memory/*.md` files matching `feedback_*.md` or `reference_*.md` patterns that have no entry in MEMORY.md and aren't referenced by any compiled article. Excludes operational data files (`*.jsonl`, `*.json`, `failure-catalog.md`, `prompt-variants.json`). **Severity:** warning. **Fix:** add index entry to MEMORY.md.
 
 #### Check 3: Stale Entries (manual only)
 For memories referencing specific files/functions (detected by code-like patterns), grep the codebase to check references still exist. Example: memory says "model file is `property.py`" but file was renamed. **Severity:** warning. **Fix:** flag for human review.
@@ -168,27 +170,51 @@ Markdown report printed to terminal. Non-auto-fixable issues listed with file pa
 
 ## 4. Pre-Compaction Knowledge Extraction
 
-### Current behavior (unchanged trigger)
+### Current behavior (unchanged trigger, unchanged hook)
 
-`pre-compaction-backup.sh` fires on PreCompact, writes `.claude/pre-compaction-<timestamp>.md`.
+`pre-compaction-backup.sh` fires on PreCompact, writes `.claude/pre-compaction-<timestamp>.md`. **The hook script itself is not modified** — it continues to capture git state (branch, commits, status, recent diff).
 
-### Enhanced snapshot format
+### What changes: session-learnings processes snapshots
 
-```markdown
-## Git State
-(existing: branch, commits, status)
+The hook captures what a bash script can see (filesystem/git state). The knowledge extraction happens later, when session-learnings runs:
 
-## Session Context Markers
-- Files touched this session: [list from git diff]
-- Key decisions made: [extracted from conversation if available]
-- Unfinished work: [task list state if available]
+1. Session-learnings background agent checks for any `.claude/pre-compaction-*.md` files created since the last compilation
+2. It reads the git state from those snapshots (files touched, branches, diffs) and incorporates this context into its knowledge extraction — giving it visibility into work that happened before context compaction
+3. After processing, it deletes the consumed snapshot files
+
+No separate Agent SDK call from the hook. No new conversation context needed by the hook. The hook captures git state; session-learnings adds the intelligence.
+
+---
+
+## 5. Memory-Injection Integration
+
+The existing memory-injection skill maps file-path domains (models, services, ui, routes, etc.) to specific semantic keys in MEMORY.md. Compiled articles need equivalent treatment.
+
+### Selection criteria
+
+When memory-injection resolves a domain (e.g., "models"), it:
+1. Collects matching 1-line gotcha entries from MEMORY.md (existing behavior, unchanged)
+2. **NEW:** Checks if any `knowledge/concepts/*.md` articles list matching source files in their `sources:` frontmatter. If a source file's semantic key maps to the resolved domain, the concept article is selected.
+
+### Injection format
+
+Compiled articles are injected differently from raw gotchas:
+
+```
+PROJECT GOTCHAS (from MEMORY.md):
+- model-file-name: Model file is `property.py` not `household.py`
+- synonym-aliases: `property_id = synonym("household_id")` used throughout
+
+COMPILED KNOWLEDGE (from knowledge/concepts/):
+- [sqlalchemy-gotchas]: Key Points section (truncated to first 500 chars)
 ```
 
-### Integration with session-learnings
+### Priority rules
 
-When the session-learnings background agent runs after a commit, it also checks for any `.claude/pre-compaction-*.md` files created since the last compilation. It incorporates their context markers into knowledge extraction, then deletes the processed snapshot files.
-
-No separate Agent SDK call from the hook. The hook enriches data; session-learnings processes it.
+- Raw gotchas are always injected first (they're terse, high-signal)
+- Compiled articles supplement, never replace, raw gotchas
+- If total injection exceeds 2000 chars, truncate compiled article excerpts (not raw gotchas)
+- Max 3 compiled articles per injection to avoid context bloat
 
 ---
 
@@ -196,18 +222,22 @@ No separate Agent SDK call from the hook. The hook enriches data; session-learni
 
 | Component | Change |
 |-----------|--------|
-| `session-learnings/SKILL.md` | Extended: compilation step after writing memories, lint checks 1-2 before commit |
-| `memory/knowledge/` | New directory: compiled concept and connection articles |
-| `~/.claude/knowledge/` | New directory: shared cross-project patterns |
-| `pre-compaction-backup.sh` | Enhanced: structured context markers in snapshot |
+| `session-learnings/SKILL.md` | Extended: compilation step after writing memories, lint checks 1-2 before commit, pre-compaction snapshot processing |
+| `memory/knowledge/concepts/` | New directory: compiled concept articles |
 | New skill: `/lint-memory` | Runs all 4 lint checks on demand |
-| `memory-injection/SKILL.md` | Updated: also injects relevant compiled articles into subagent prompts |
+| `memory-injection/SKILL.md` | Updated: injects compiled article excerpts alongside raw gotchas (see Section 5) |
 | `MEMORY.md` format | Extended: links to compiled articles alongside existing entries |
 
 ## What Doesn't Change
 
 - Raw memory file creation (session-learnings still writes individual files)
 - MEMORY.md semantic key format
-- Hook triggers (no new hooks)
+- Hook triggers and hook scripts (no new hooks, no hook modifications)
 - Memory-injection domain mapping (extended, not replaced)
 - Failure catalog (separate system, untouched)
+- `pre-compaction-backup.sh` (unchanged — session-learnings processes its output)
+
+## Deferred to v2
+
+- Shared cross-project layer (`~/.claude/knowledge/`) — requires concurrency model
+- Connection articles (`knowledge/connections/`) — concept `## Related` links sufficient for v1

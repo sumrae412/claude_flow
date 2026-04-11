@@ -708,10 +708,34 @@ For integration points:
     check for breaking changes in shared interfaces
 ```
 
+### Requirements Coverage Validation
+
+Cross-reference `$requirements` (from Phase 3) against `$plan` to catch gaps before implementation:
+
+```
+ACCEPTANCE CRITERIA COVERAGE:
+  For each acceptance criterion in $requirements:
+    → Is there at least one plan step that addresses it?
+    → Is there a test skeleton (Phase 4d) or test note for it?
+    → If not: flag as UNCOVERED CRITERION
+
+SCOPE BOUNDARY ENFORCEMENT:
+  For each scope boundary (OUT items) in $requirements:
+    → Does any plan step implement something marked OUT?
+    → If yes: flag as SCOPE CREEP
+
+EDGE CASE COVERAGE:
+  For each edge case in $requirements:
+    → Is it addressed in the plan (either in a step or as a test)?
+    → If not: flag as UNTESTED EDGE CASE
+```
+
 **Outcome:**
-- **All claims verified** → Proceed to Phase 4d (test skeletons) or Phase 5.
+- **All claims verified + all requirements covered** → Proceed to Phase 4d (test skeletons) or Phase 5.
 - **Minor mismatches** (renamed variable, moved function) → Fix the plan silently. Log the corrections.
+- **Minor coverage gaps** (1-2 criteria clearly handled implicitly by existing plan steps) → Log and proceed.
 - **Material mismatches** (deleted file, changed API contract, restructured module) → Re-present the affected plan steps to the user with corrections. Get re-approval before proceeding.
+- **Material coverage gaps** (uncovered acceptance criteria, scope creep detected, untested edge cases) → Present gaps to user, revise plan to address them, get re-approval before proceeding.
 
 **Why this exists:** Plans are drafted against Phase 2 exploration findings. Between exploration and implementation, the codebase can drift (especially in multi-session work or when other contributors merge changes). A 30-60 second mechanical check prevents building on false assumptions — the most expensive kind of bug to find in Phase 6.
 

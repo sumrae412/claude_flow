@@ -3,9 +3,6 @@
 > **Maintenance:** Update this file when gotcha semantic keys are added/removed in MEMORY.md.
 > Domain tags map file patterns to relevant project gotchas. When a new gotcha is added to MEMORY.md,
 > add its semantic key to the appropriate domain(s) below.
->
-> **Bootstrap:** MEMORY.md is created by `code-creation-workflow` Phase 0 Step 8 if missing.
-> If MEMORY.md does not exist at injection time, the system gracefully no-ops — do not duplicate bootstrap logic here.
 
 ## How It Works
 
@@ -45,26 +42,3 @@ If domain filtering produces more than 10 entries:
 3. Cross-cutting concern (gotcha applies broadly, e.g., `no-aliases`) — lowest
 
 Truncate at 10 with a note: `[N more gotchas omitted — see MEMORY.md]`
-
-## Domain → Failure Catalog Mapping
-
-When dispatching subagents, also load matching failure catalog sections from `memory/failure-catalog.md` to prevent known-bad approaches.
-
-| Domain | Catalog sections loaded |
-|--------|----------------------|
-| routes | `missing_pattern`, `assertion_mismatch` |
-| services | `import_missing`, `type_error` |
-| models | `regression`, `architectural_drift` |
-| ui | `lint_violation`, `missing_pattern` |
-| testing | `assertion_mismatch`, `regression` |
-| `*` (all) | `syntax_error`, `import_missing` |
-
-Injection follows the same template as gotchas, appended after the PROJECT GOTCHAS block:
-
-```
-KNOWN FAILURE PATTERNS (from failure catalog — avoid these approaches):
-- [Pattern]: [Signal] → [Fix strategy]
-- [... max 5 entries, highest confidence first]
-```
-
-If no catalog entries match the current domains, omit this block entirely (same as gotchas).

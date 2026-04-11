@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Auto-tuning thinking budget selector.
 
 Maps (phase, tier) to a base thinking budget, then optionally escalates

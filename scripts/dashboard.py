@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Performance dashboard — aggregates phase timings, retry rates, reviewer hit rates.
 
 Reads:
-  memory/phase-events.jsonl       — phase durations + retries
-  memory/exploration-events.jsonl — explorer outcomes
-  memory/prompt-variants.json     — reviewer hit rates
+  memory/episodic/phase-events.jsonl       — phase durations + retries
+  memory/episodic/exploration-events.jsonl — explorer outcomes
+  memory/procedural/prompt-variants.json   — reviewer hit rates
 
 Outputs text report by default. Pass --html PATH to also write an HTML file.
 """
@@ -19,9 +20,9 @@ REPO_DIR = Path(os.environ.get(
     "CLAUDE_FLOW_DIR",
     Path(__file__).resolve().parent.parent,
 ))
-PHASE_EVENTS = REPO_DIR / "memory" / "phase-events.jsonl"
-EXPLORER_EVENTS = REPO_DIR / "memory" / "exploration-events.jsonl"
-VARIANTS_FILE = REPO_DIR / "memory" / "prompt-variants.json"
+PHASE_EVENTS = REPO_DIR / "memory" / "episodic" / "phase-events.jsonl"
+EXPLORER_EVENTS = REPO_DIR / "memory" / "episodic" / "exploration-events.jsonl"
+VARIANTS_FILE = REPO_DIR / "memory" / "procedural" / "prompt-variants.json"
 
 PHASES = ["discovery", "exploration", "clarification", "architecture", "implementation", "review"]
 

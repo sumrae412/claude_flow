@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Pattern detector — scans event files for recurring patterns and queues proposals.
 
-Emits proposals to memory/proposed-skill-updates.jsonl for manual review.
+Emits proposals to memory/procedural/proposed-skill-updates.jsonl for manual review.
 Never auto-applies.
 
 Triggers:
@@ -21,9 +22,9 @@ REPO_DIR = Path(os.environ.get(
     "CLAUDE_FLOW_DIR",
     Path(__file__).resolve().parent.parent,
 ))
-FAILURE_EVENTS = REPO_DIR / "memory" / "failure-events.jsonl"
-EXPLORER_EVENTS = REPO_DIR / "memory" / "exploration-events.jsonl"
-PROPOSALS_FILE = REPO_DIR / "memory" / "proposed-skill-updates.jsonl"
+FAILURE_EVENTS = REPO_DIR / "memory" / "episodic" / "failure-events.jsonl"
+EXPLORER_EVENTS = REPO_DIR / "memory" / "episodic" / "exploration-events.jsonl"
+PROPOSALS_FILE = REPO_DIR / "memory" / "procedural" / "proposed-skill-updates.jsonl"
 
 # Minimum thresholds
 REPEATED_FAILURE_MIN_COUNT = 3

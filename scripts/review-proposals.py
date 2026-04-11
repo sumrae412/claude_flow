@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Review CLI for skill-update proposals produced by pattern-detector.py.
 
 Commands:
@@ -23,7 +24,7 @@ REPO_DIR = Path(os.environ.get(
     "CLAUDE_FLOW_DIR",
     Path(__file__).resolve().parent.parent,
 ))
-PROPOSALS_FILE = REPO_DIR / "memory" / "proposed-skill-updates.jsonl"
+PROPOSALS_FILE = REPO_DIR / "memory" / "procedural" / "proposed-skill-updates.jsonl"
 BACKUP_DIR = REPO_DIR / "memory" / "skill-backups"
 
 

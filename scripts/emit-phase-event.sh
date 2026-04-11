@@ -1,5 +1,5 @@
 #!/bin/bash
-# Emit a phase-timing event to memory/phase-events.jsonl
+# Emit a phase-timing event to memory/episodic/phase-events.jsonl
 # Usage: emit-phase-event.sh <phase> <tier> <duration_s> <retries> [domain]
 
 set -euo pipefail
@@ -14,7 +14,7 @@ SESSION_ID="${SESSION_ID:-unknown}"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-EVENTS_FILE="$REPO_DIR/memory/phase-events.jsonl"
+EVENTS_FILE="$REPO_DIR/memory/episodic/phase-events.jsonl"
 
 if [[ -n "$DOMAIN" ]]; then
   DOMAIN_JSON=", \"domain\": \"$DOMAIN\""

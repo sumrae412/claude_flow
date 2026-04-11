@@ -5,11 +5,11 @@
 #   emit-failure-event.sh <json-payload>
 #
 # The payload is a single JSON object. This script adds the timestamp and
-# appends it as one line to memory/failure-events.jsonl.
+# appends it as one line to memory/episodic/failure-events.jsonl.
 
 set -euo pipefail
 
-EVENTS_FILE="${CLAUDE_FLOW_DIR:-$(cd "$(dirname "$0")/.." && pwd)}/memory/failure-events.jsonl"
+EVENTS_FILE="${CLAUDE_FLOW_DIR:-$(cd "$(dirname "$0")/.." && pwd)}/memory/episodic/failure-events.jsonl"
 PAYLOAD="$1"
 
 # Inject timestamp

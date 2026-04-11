@@ -11,7 +11,9 @@ from pathlib import Path
 def _load_with_tmpdir(tmpdir: Path):
     """Load pattern-detector with CLAUDE_FLOW_DIR set to tmpdir."""
     os.environ["CLAUDE_FLOW_DIR"] = str(tmpdir)
-    (tmpdir / "memory").mkdir(parents=True, exist_ok=True)
+    (tmpdir / "memory" / "episodic").mkdir(parents=True, exist_ok=True)
+    (tmpdir / "memory" / "semantic").mkdir(parents=True, exist_ok=True)
+    (tmpdir / "memory" / "procedural").mkdir(parents=True, exist_ok=True)
     # Force reload to pick up env var
     spec = importlib.util.spec_from_file_location(
         "pd", Path(__file__).parent / "pattern-detector.py"
@@ -116,7 +118,7 @@ def test_detect_all_dedupes():
             "evidence_fingerprint": "repeated_failure:foo",
             "status": "pending",
         }
-        (tmpdir / "memory" / "proposed-skill-updates.jsonl").write_text(json.dumps(existing) + "\n")
+        (tmpdir / "memory" / "procedural" / "proposed-skill-updates.jsonl").write_text(json.dumps(existing) + "\n")
 
         # Write failure events matching the existing fingerprint
         failures = [
@@ -124,7 +126,7 @@ def test_detect_all_dedupes():
             {"session_id": "b", "error_class": "foo"},
             {"session_id": "c", "error_class": "foo"},
         ]
-        (tmpdir / "memory" / "failure-events.jsonl").write_text(
+        (tmpdir / "memory" / "episodic" / "failure-events.jsonl").write_text(
             "\n".join(json.dumps(e) for e in failures)
         )
 
@@ -142,7 +144,7 @@ def test_detect_all_emits_new_proposals():
             {"session_id": "b", "error_class": "novel_error"},
             {"session_id": "c", "error_class": "novel_error"},
         ]
-        (tmpdir / "memory" / "failure-events.jsonl").write_text(
+        (tmpdir / "memory" / "episodic" / "failure-events.jsonl").write_text(
             "\n".join(json.dumps(e) for e in failures)
         )
 

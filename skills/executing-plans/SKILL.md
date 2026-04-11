@@ -29,6 +29,7 @@ For each task:
 2. Follow each step exactly (plan has bite-sized steps)
 3. Run verifications as specified
 4. Mark as completed
+5. **Inter-task verification gate:** Before starting the next task, run the full test suite + lint + build check to catch regressions early. If any fail, fix before proceeding. Skip the full suite for the first task in a batch or trivial tasks (config, docs). See `subagent-driven-development` for the full gate protocol.
 
 ### Step 3: Report
 When batch complete:

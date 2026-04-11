@@ -4,8 +4,6 @@
 # Tracks unique files touched in the session. When the count exceeds a
 # threshold without a compaction or summary, warns about context rot.
 # Uses a lightweight temp file per session to accumulate file paths.
-set -e
-
 FILE="${CLAUDE_FILE_PATH:-}"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
 SESSION_ID="${CLAUDE_SESSION_ID:-default}"

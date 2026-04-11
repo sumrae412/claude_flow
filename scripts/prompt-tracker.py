@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Prompt optimization tracker — records outcomes and computes scores for any agent type.
 
 Supports explorer, architect, and reviewer agent types. Each has its own

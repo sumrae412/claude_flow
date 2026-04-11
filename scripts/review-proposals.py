@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Review CLI for skill-update proposals produced by pattern-detector.py.
 
 Commands:

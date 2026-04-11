@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 Generate a concise repository outline using tree-sitter AST parsing.
 

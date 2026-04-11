@@ -103,7 +103,7 @@ def test_cli_returns_budget():
     result = subprocess.run(
         [sys.executable, "scripts/thinking-budget.py",
          "--phase", "exploration", "--tier", "moderate"],
-        cwd=os.path.expanduser("~/claude_code/claude_flow"),
+        cwd=str(Path(__file__).parent.parent),
         capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr
@@ -115,7 +115,7 @@ def test_cli_override():
         [sys.executable, "scripts/thinking-budget.py",
          "--phase", "implementation", "--tier", "simple",
          "--override", "ultrathink"],
-        cwd=os.path.expanduser("~/claude_code/claude_flow"),
+        cwd=str(Path(__file__).parent.parent),
         capture_output=True, text=True,
     )
     assert result.stdout.strip() == "ultrathink"

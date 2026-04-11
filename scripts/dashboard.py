@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Performance dashboard — aggregates phase timings, retry rates, reviewer hit rates.
 
 Reads:

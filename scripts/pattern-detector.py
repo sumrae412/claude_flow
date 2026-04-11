@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Pattern detector — scans event files for recurring patterns and queues proposals.
 
 Emits proposals to memory/procedural/proposed-skill-updates.jsonl for manual review.

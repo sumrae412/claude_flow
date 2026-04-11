@@ -241,10 +241,18 @@ Output a summary table of generated hooks (trigger → what it does). Ask the us
 Understand the request and decide the workflow path.
 
 ```
-User says "implement X"
+User says "implement X" / "fix Y"
         │
         ▼
    ┌─────────────────────────────────────────────┐
+   │ Is this a BUG FIX?                           │
+   │ (error report, regression, "broken",         │
+   │  stack trace, bug issue reference)            │
+   │                                               │
+   │ YES → BUG PATH                                │
+   │   Invoke /bug-fix skill                       │
+   │   (Reproduce → Diagnose → Fix → Verify)       │
+   │                                               │
    │ Is this a SMALL change?                      │
    │ (single file, no schema, no new endpoints)   │
    │                                               │
@@ -286,6 +294,7 @@ User says "implement X"
 ```
 
 **Path criteria:**
+- **Bug path:** Error report, regression, stack trace, "fix this bug", GitHub issue tagged as bug. Routes to `/bug-fix` skill — the dedicated bug fix orchestrator.
 - **Fast path:** Typo fix, one-line change, config tweak, single-file edit with no ripple effects
 - **Clone path:** Feature X already exists and you're building Feature X' (e.g., "add a delete endpoint" when create/update endpoints already exist)
 - **Lite path:** Contained change touching 1-2 files — doesn't justify 5+ parallel subagents
@@ -297,6 +306,7 @@ Each path produces different artifacts. This table makes explicit what each path
 
 | Path | Files Touched | PRP | Design Doc | Work Plan | Test Skeletons | Review Tiers |
 |------|---------------|-----|------------|-----------|----------------|--------------|
+| **Bug** | 1-5 | No | No | No | No (test in Step 1) | Tier 1-3 (via /bug-fix) |
 | **Fast** | 1 | No | No | No | No | Tests only |
 | **Clone** | 1-3 | No | No | Inline | No | Tier 1-2 |
 | **Lite** | 1-2 | No | Inline | Inline | No | Tier 1-3 |

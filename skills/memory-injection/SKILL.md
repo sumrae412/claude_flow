@@ -48,7 +48,7 @@ Check if `knowledge/concepts/` exists in the memory directory. If so:
 
 1. Read all `knowledge/concepts/*.md` files
 2. For each article, parse the `sources:` frontmatter list
-3. If any source file's semantic key maps to a currently-resolved domain (from Step 3), the article is a match
+3. Map each source file path to domains using the same file-pattern matching from Step 3. If any resolved domain overlaps with the task's resolved domains, the article is a match
 4. Select up to 3 matching articles, prioritized by:
    - Number of matching source files (more matches = higher priority)
    - Recency (`updated:` date in frontmatter)
@@ -74,10 +74,10 @@ COMPILED KNOWLEDGE (from knowledge/concepts/):
 **Priority rules:**
 - Raw gotchas are always injected first (terse, high-signal)
 - Compiled articles supplement, never replace
-- If total injection exceeds 2000 chars, truncate compiled article excerpts (not raw gotchas)
+- If total injection exceeds 2000 chars, truncate compiled article excerpts with `... [truncated]` (not raw gotchas)
 - If no compiled articles match, omit Section 2 entirely
 
-**Priority when more than 10 entries match** (truncate to 10, highest priority first):
+**Priority when more than 10 raw gotcha entries match** (truncate to 10, highest priority first — this applies only to Section 1; compiled articles have their own cap of 3):
 1. Exact file match — the gotcha mentions a specific file being touched
 2. Direct domain match — the file pattern matches the primary domain
 3. Cross-cutting concern — the gotcha applies broadly (e.g., `no-aliases`, `counts-endpoint`)

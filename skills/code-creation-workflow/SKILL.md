@@ -485,6 +485,11 @@ After clarification is complete, optionally save a **Product Requirement Prompt 
 - <performance considerations>
 - <backward compatibility notes>
 
+## Ruled Out
+- <approach/tool/path> — <why it failed or was abandoned>
+- <investigation that hit a dead end> — <what was discovered>
+<!-- Prevents future sessions from re-exploring dead ends -->
+
 ## Implementation Notes
 - <API docs fetched (if applicable)>
 - <defensive patterns required>
@@ -907,6 +912,12 @@ For each plan step:
    Fix any ERROR-level issues before proceeding.
 
 5. Mark TodoWrite item complete
+
+6. Inter-task verification gate (proactive, not just reactive):
+   Run full test suite + lint + build check BEFORE starting next task.
+   Catches regressions early. See subagent-driven-development skill
+   for full gate protocol. Skip full suite for Task 1 or trivial tasks.
+   If gate fails → fix regression → re-verify → then proceed.
 ```
 
 ### Fresh Context for Long Implementation Loops

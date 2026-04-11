@@ -156,6 +156,15 @@
       "script": "hooks/tier2/docker-rebuild-reminder.sh",
       "description": "Reminds to rebuild Docker image after config changes",
       "stack_tags": ["docker"]
+    },
+    {
+      "id": "context-rot-detection",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Read", "Edit", "Write", "Grep", "Glob"],
+      "script": "hooks/tier2/context-rot-detection.sh",
+      "description": "Warns when session touches too many files without compaction or summary",
+      "stack_tags": ["python", "ruff", "flake8", "pytest", "node", "eslint", "jest", "typescript", "alembic", "docker"]
     }
   ]
 }

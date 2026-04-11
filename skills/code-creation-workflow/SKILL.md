@@ -437,11 +437,13 @@ before moving to clarification and architecture?
 
 ---
 
-## Phase 3: Clarification (Hard Gate)
+## Phase 3: Clarification + Requirements (Hard Gate)
 
 <HARD-GATE>
-All ambiguities must be resolved before architecture work begins.
+All ambiguities must be resolved and requirements formalized before architecture work begins.
 </HARD-GATE>
+
+### Step 1: Resolve Ambiguities
 
 Review exploration findings against the original request. Identify **every** underspecified aspect:
 
@@ -454,11 +456,48 @@ Review exploration findings against the original request. Identify **every** und
 
 Present an organized question list to the user. Group questions by category. Wait for answers before proceeding.
 
-**If no ambiguities exist** (rare — usually means the request is very well-specified), state that explicitly and proceed to Phase 4.
+**If no ambiguities exist** (rare — usually means the request is very well-specified), state that explicitly and proceed to Step 2.
+
+### Step 2: Synthesize Structured Requirements
+
+After all ambiguities are resolved, synthesize the answers into a structured requirements document. This is the `$requirements` output contract — it flows downstream to Phase 4 (architecture references it), Phase 4c (validates plan coverage against it), and Phase 6 (reviewers check adherence).
+
+**Format:**
+
+```
+## Requirements: <Feature Name>
+
+### User Stories
+- As a [role], I want [feature], so that [benefit]
+(1-5 stories covering the core functionality)
+
+### Acceptance Criteria (EARS format)
+- WHEN [trigger] IF [condition] THEN [outcome]
+(Every testable behavior — these become the coverage checklist in Phase 4c)
+
+### Scope Boundaries
+- IN: [explicitly included]
+- OUT: [explicitly excluded]
+(OUT items are enforced as scope creep detection in Phase 4c)
+
+### Edge Cases (resolved)
+- [case]: [resolution]
+(Each resolved edge case from Step 1 — checked for test coverage in Phase 4c)
+
+### Non-Functional Requirements (if applicable)
+- Performance: [constraints]
+- Backward compat: [notes]
+```
+
+**Present to user for approval.** The structured requirements are the contract for everything downstream. If the user provides feedback, revise and re-present.
+
+```
+◆ USER APPROVES structured requirements before architecture ◆
+```
 
 ### Optional: Export Context Packet (PRP)
 
-After clarification is complete, optionally save a **Product Requirement Prompt (PRP)** — a reusable context packet that survives across sessions. A PRP is the minimum viable packet an AI needs to ship production-ready code on the first pass: requirements + curated codebase intelligence + implementation constraints.
+After requirements are approved, optionally save a **Product Requirement Prompt (PRP)** — a reusable context packet that survives across sessions.
 
 **Trigger conditions** (export if ANY apply):
 - Feature is complex enough to span multiple sessions
@@ -467,13 +506,12 @@ After clarification is complete, optionally save a **Product Requirement Prompt 
 
 **PRP format** — write to `plans/PRP-<feature-slug>.md`:
 
-```markdown
+```
 # PRP: <Feature Name>
 **Created:** <date> | **Status:** ready-for-implementation
 
 ## Requirements
-- <resolved requirements from clarification>
-- <scope boundaries — what's explicitly OUT>
+(Reference or inline the structured $requirements from Step 2)
 
 ## Codebase Intelligence
 - **Key files:** <5-10 files from exploration with their roles>
@@ -481,9 +519,7 @@ After clarification is complete, optionally save a **Product Requirement Prompt 
 - **Integration points:** <systems this touches>
 
 ## Constraints & Edge Cases
-- <resolved edge cases from Phase 3>
-- <performance considerations>
-- <backward compatibility notes>
+(Reference the Edge Cases section from $requirements)
 
 ## Ruled Out
 - <approach/tool/path> — <why it failed or was abandoned>
@@ -802,7 +838,7 @@ Each phase produces a defined output that downstream phases consume. Inspired by
 | Phase | Output Name | Contains | Consumed By |
 |-------|-------------|----------|-------------|
 | Phase 2 | `$exploration` | Key file paths + roles, patterns discovered, integration points, concerns | Phases 3, 4, advisor prompts |
-| Phase 3 | `$requirements` | Resolved requirements, edge cases, scope boundaries | Phases 4, 5, reviewer prompts |
+| Phase 3 | `$requirements` | Structured document: user stories, acceptance criteria (EARS), scope boundaries (IN/OUT), resolved edge cases, non-functional requirements | Phases 4, 4c, 5, reviewer prompts |
 | Phase 4 | `$architecture` | Chosen architecture summary, component responsibilities, data flow | Phase 5 |
 | Phase 4b | `$plan` | Approved numbered implementation plan with dependencies | Phase 4c, 4d, Phase 5, Phase 6 reviewers |
 | Phase 4c | `$verified_plan` | Plan with all factual claims verified against codebase (or corrections applied) | Phase 4d, Phase 5 |

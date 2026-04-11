@@ -7,9 +7,9 @@ description: Use proactively after committing significant work to capture sessio
 
 ## Overview
 
-After major commits, dispatch a background agent to reflect on what was learned and propose updates to skills and project docs.
+After major commits, dispatch a background agent to reflect on what was learned and propose updates to skills and project docs. The agent analyzes both **code diffs** and **session conversation** to find new patterns, bug lessons, user corrections, and conventions that should be documented.
 
-After writing individual memory files, the agent also runs a **compilation step** that consolidates related memories into concept articles under `memory/knowledge/concepts/`. This reduces fragmentation and creates cross-referenced knowledge. See Step 2b below. The agent analyzes both **code diffs** and **session conversation** to find new patterns, bug lessons, user corrections, and conventions that should be documented.
+After writing individual memory files, the agent also runs a **compilation step** that consolidates related memories into concept articles under `memory/knowledge/concepts/`. This reduces fragmentation and creates cross-referenced knowledge. See Step 2b below.
 
 **Core principle:** The conversation is the richest source of learnings. Code diffs show *what* changed; session events show *why* and *what went wrong first*.
 
@@ -91,12 +91,14 @@ Task tool:
     Read existing `knowledge/concepts/*.md` articles.
     Ignore: MEMORY.md, *.jsonl, *.json, failure-catalog.md, prompt-variants.json.
 
+    **If no `feedback_*.md` or `reference_*.md` files exist, skip Steps 2b.2 through 2b.5.**
+
     ### 2b.2 Cluster (LLM judgment)
     Group memory files into topic clusters. Rules:
     - One cluster per file max (no file in multiple clusters)
     - Leave unclustered if no good fit (do not force)
     - Prefer broader clusters over narrow ones
-    - Use kebab-case slugs for cluster names
+    - Each cluster has a slug (kebab-case) and a human-readable title
 
     Output as JSON:
     ```json
@@ -164,7 +166,8 @@ Task tool:
     ## Pre-Compaction Snapshot Processing
     Before analyzing code, check for pre-compaction snapshots that captured
     context from sessions that were about to compact:
-    1. Check for files: `ls ~/.claude/pre-compaction-*.md 2>/dev/null`
+    1. Check for files: `ls $PROJECT/.claude/pre-compaction-*.md 2>/dev/null`
+       (The pre-compaction-backup hook writes snapshots to `$PROJECT/.claude/`)
     2. For each snapshot found:
        - Read the file to extract git state (branch, recent commits, dirty files)
        - Extract any session context or learnings the prior session captured
@@ -172,7 +175,7 @@ Task tool:
          work-in-progress that the prior session could not finish documenting
     3. Delete consumed snapshots after extraction:
        ```bash
-       rm -f ~/.claude/pre-compaction-*.md
+       rm -f $PROJECT/.claude/pre-compaction-*.md
        ```
 
     ## Code Context

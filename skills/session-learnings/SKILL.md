@@ -9,6 +9,8 @@ description: Use proactively after committing significant work to capture sessio
 
 After major commits, dispatch a background agent to reflect on what was learned and propose updates to skills and project docs. The agent analyzes both **code diffs** and **session conversation** to find new patterns, bug lessons, user corrections, and conventions that should be documented.
 
+After writing individual memory files, the agent also runs a **compilation step** that consolidates related memories into concept articles under `memory/knowledge/concepts/`. This reduces fragmentation and creates cross-referenced knowledge. See Step 2b below.
+
 **Core principle:** The conversation is the richest source of learnings. Code diffs show *what* changed; session events show *why* and *what went wrong first*.
 
 ## When to Use
@@ -68,11 +70,113 @@ Task tool:
       # Do not duplicate bootstrap logic here; if missing, it indicates the workflow was skipped.
       MEMORY_FILE=$MEMORY_DIR/MEMORY.md
 
-    For MEMORY.md updates: READ the file, EDIT it directly, then commit and push:
-      cd $MEMORY_DIR && git add MEMORY.md && git commit -m "session-learnings: <summary>" && git push
+    For MEMORY.md updates: READ the file, EDIT it directly, then commit and push
+    (see commit sequencing below after Step 2b).
 
     For skills and CLAUDE.md updates: PROPOSE only (do not edit). These need
     user approval. Write proposals to your output as structured text.
+
+    ## Step 2b: Memory Compilation
+
+    After writing individual memory files (feedback_*.md, reference_*.md), run
+    this compilation step to consolidate related memories into concept articles.
+
+    ### 2b.0 Create directory
+    ```bash
+    mkdir -p "$MEMORY_DIR/knowledge/concepts"
+    ```
+
+    ### 2b.1 Inventory
+    Read all `feedback_*.md` and `reference_*.md` files in $MEMORY_DIR.
+    Read existing `knowledge/concepts/*.md` articles.
+    Ignore: MEMORY.md, *.jsonl, *.json, failure-catalog.md, prompt-variants.json.
+
+    **If no `feedback_*.md` or `reference_*.md` files exist, skip Steps 2b.2 through 2b.5.**
+
+    ### 2b.2 Cluster (LLM judgment)
+    Group memory files into topic clusters. Rules:
+    - One cluster per file max (no file in multiple clusters)
+    - Leave unclustered if no good fit (do not force)
+    - Prefer broader clusters over narrow ones
+    - Each cluster has a slug (kebab-case) and a human-readable title
+
+    Output as JSON:
+    ```json
+    {
+      "clusters": [
+        { "slug": "error-handling-patterns", "title": "Error Handling Patterns", "files": ["feedback_001.md", "reference_003.md"] },
+        { "slug": "ui-state-management", "title": "UI State Management", "files": ["feedback_004.md"] }
+      ],
+      "unclustered": ["reference_007.md"]
+    }
+    ```
+
+    ### 2b.3 Merge or Update
+    For each cluster, check if `knowledge/concepts/<slug>.md` already exists.
+    - If exists: update it — merge new key points, update `sources` list, set `updated` date.
+    - If new: create `knowledge/concepts/<slug>.md` with this format:
+
+    ```markdown
+    ---
+    title: "<Title>"
+    sources:
+      - <file1.md>
+      - <file2.md>
+    compiled: <date>
+    updated: <date>
+    ---
+    # <Title>
+    ## Key Points
+    - ...
+    ## Related
+    - [[concepts/<other>]] — <why>
+    ```
+
+    Add cross-links (`## Related`) between articles that share sources or topics.
+
+    ### 2b.4 Quick Lint (Checks 1-2 only)
+    Before committing, scan for:
+    1. **Broken links:** Any `[[concepts/<slug>]]` that points to a non-existent file? Fix or remove.
+    2. **Orphan memories:** Any `feedback_*.md` or `reference_*.md` not listed in any concept's `sources`? Note them but do not force-cluster.
+
+    ### 2b.5 Update MEMORY.md Index
+    For each compiled concept article, ensure MEMORY.md contains an index entry:
+    ```
+    **<slug>:** → See [knowledge/concepts/<slug>.md](knowledge/concepts/<slug>.md)
+    ```
+    If the entry already exists, leave it. If missing, append it.
+
+    ## Commit Sequencing
+    After writing raw memory files and running compilation:
+    1. Write raw memory files (existing behavior — feedback_*.md, reference_*.md, MEMORY.md edits)
+    2. Attempt compilation (Step 2b above)
+    3. If compilation succeeded:
+       ```bash
+       cd $MEMORY_DIR && git add . && git commit -m "session-learnings: <summary>"
+       ```
+    4. If compilation errored (partial write, lint failures, etc.):
+       ```bash
+       cd $MEMORY_DIR && git add MEMORY.md feedback_*.md reference_*.md && git commit -m "[partial] session-learnings: <summary>"
+       ```
+    5. Push regardless:
+       ```bash
+       git push || true
+       ```
+
+    ## Pre-Compaction Snapshot Processing
+    Before analyzing code, check for pre-compaction snapshots that captured
+    context from sessions that were about to compact:
+    1. Check for files: `ls $PROJECT/.claude/pre-compaction-*.md 2>/dev/null`
+       (The pre-compaction-backup hook writes snapshots to `$PROJECT/.claude/`)
+    2. For each snapshot found:
+       - Read the file to extract git state (branch, recent commits, dirty files)
+       - Extract any session context or learnings the prior session captured
+       - Incorporate this context into your knowledge extraction — these represent
+         work-in-progress that the prior session could not finish documenting
+    3. Delete consumed snapshots after extraction:
+       ```bash
+       rm -f $PROJECT/.claude/pre-compaction-*.md
+       ```
 
     ## Code Context
     Run these commands to understand what changed:

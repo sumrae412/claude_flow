@@ -42,17 +42,42 @@ Examples:
 
 For each matched domain, look up the gotcha keys listed in the domain table. Find the corresponding 1-line entries in MEMORY.md by semantic key. Extract only the entries whose keys appear in the matched domains' key lists.
 
-### Step 5: Format the PROJECT GOTCHAS Block
+### Step 4b: Select Matching Compiled Articles
 
-Assemble the extracted entries into this format:
+Check if `knowledge/concepts/` exists in the memory directory. If so:
 
+1. Read all `knowledge/concepts/*.md` files
+2. For each article, parse the `sources:` frontmatter list
+3. Map each source file path to domains using the same file-pattern matching from Step 3. If any resolved domain overlaps with the task's resolved domains, the article is a match
+4. Select up to 3 matching articles, prioritized by:
+   - Number of matching source files (more matches = higher priority)
+   - Recency (`updated:` date in frontmatter)
+
+### Step 5: Format the Injection Block
+
+Assemble two sections:
+
+**Section 1 — Raw gotchas (existing format, unchanged):**
 ```
 PROJECT GOTCHAS (verified for this codebase — do not ignore):
-- [1-line entry from MEMORY.md for each matching key]
+- [1-line entry for each matching key]
 - [... up to 10 entries]
 ```
 
-**Priority when more than 10 entries match** (truncate to 10, highest priority first):
+**Section 2 — Compiled knowledge (new):**
+```
+COMPILED KNOWLEDGE (from knowledge/concepts/):
+- [article-slug]: [First 500 chars of Key Points section]
+- [... up to 3 articles]
+```
+
+**Priority rules:**
+- Raw gotchas are always injected first (terse, high-signal)
+- Compiled articles supplement, never replace
+- If total injection exceeds 2000 chars, truncate compiled article excerpts with `... [truncated]` (not raw gotchas)
+- If no compiled articles match, omit Section 2 entirely
+
+**Priority when more than 10 raw gotcha entries match** (truncate to 10, highest priority first — this applies only to Section 1; compiled articles have their own cap of 3):
 1. Exact file match — the gotcha mentions a specific file being touched
 2. Direct domain match — the file pattern matches the primary domain
 3. Cross-cutting concern — the gotcha applies broadly (e.g., `no-aliases`, `counts-endpoint`)
@@ -61,8 +86,7 @@ If truncated, append: `[N more gotchas omitted — see MEMORY.md]`
 
 ### Step 6: Return or Omit
 
-- If matching entries were found → return the formatted `PROJECT GOTCHAS` block. The caller appends it to each subagent's prompt after the task description and exploration findings.
-- If no domains matched, or matched domains have no corresponding entries in MEMORY.md → **omit the block entirely**. Do not include an empty section.
+If matches were found in Step 4 or Step 4b, return the formatted injection block (both `PROJECT GOTCHAS` and `COMPILED KNOWLEDGE` sections, omitting either section if it has no matches). If neither section has matches, omit the entire block — do not return an empty section.
 
 ## Usage Points
 

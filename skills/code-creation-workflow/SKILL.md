@@ -674,7 +674,7 @@ For integration points:
 
 **Why this exists:** Plans are drafted against Phase 2 exploration findings. Between exploration and implementation, the codebase can drift (especially in multi-session work or when other contributors merge changes). A 30-60 second mechanical check prevents building on false assumptions — the most expensive kind of bug to find in Phase 6.
 
-**Skip condition:** Fast path and clone path skip this (the executor reads files immediately before editing them — no drift window).
+**Skip condition:** Fast path, clone path, and lite path skip this (the executor reads files immediately before editing them — no drift window). Only runs on the Full workflow path where there's a meaningful gap between exploration and implementation.
 
 ---
 
@@ -808,9 +808,10 @@ Each phase produces a defined output that downstream phases consume. Inspired by
 
 ```
 Phase 5 subagent receives:
-  $plan          — the specific steps assigned
+  $verified_plan — steps assigned (use $verified_plan when 4c ran, else $plan)
   $exploration   — key file paths + patterns (not full contents)
   $requirements  — resolved edge cases and constraints
+  $test_skeletons — skeleton file paths + criterion mapping (Full path only)
   Defensive patterns to apply
 
 Phase 6 reviewer receives:
@@ -894,6 +895,10 @@ For each plan step:
      Backend → input validation, error handling, no silent swallows
 
 3. Run test → verify green
+   - If test fails and the error is NOT self-explanatory:
+     invoke /investigator with the failure as input.
+     Review the evidence matrix BEFORE attempting a fix.
+     (Prevents fix-retry loops on complex failures.)
 
 4. Run static analysis on changed files (catch issues early):
    semgrep --config=.semgrep.yml <changed-files>

@@ -22,7 +22,7 @@ Each agent type has its own variant pool, event log, and scoring model. The goal
 
 ## When This Skill Triggers
 
-1. **Automatic:** session-learnings detects exploration events in `memory/exploration-events.jsonl` for the current session
+1. **Automatic:** session-learnings detects exploration events in `memory/episodic/exploration-events.jsonl` for the current session
 2. **Manual:** User runs `/prompt-optimization` to review performance data
 
 ---
@@ -110,10 +110,10 @@ Output:
 
 | File | Purpose |
 |------|---------|
-| `memory/prompt-variants.json` | Variant definitions + aggregate metrics (all agent types) |
-| `memory/exploration-events.jsonl` | Explorer outcome data (Phase 2 → Phase 5) |
-| `memory/architect-events.jsonl` | Architect outcome data (Phase 4 → Phase 6) |
-| `memory/reviewer-events.jsonl` | Reviewer outcome data (Phase 6) |
+| `memory/procedural/prompt-variants.json` | Variant definitions + aggregate metrics (all agent types) |
+| `memory/episodic/exploration-events.jsonl` | Explorer outcome data (Phase 2 → Phase 5) |
+| `memory/episodic/architect-events.jsonl` | Architect outcome data (Phase 4 → Phase 6) |
+| `memory/episodic/reviewer-events.jsonl` | Reviewer outcome data (Phase 6) |
 | `scripts/prompt-tracker.py` | CLI for selection, recording, metrics, reporting |
 
 ---

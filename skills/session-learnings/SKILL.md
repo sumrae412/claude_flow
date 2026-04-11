@@ -45,7 +45,7 @@ SESSION CONTEXT:
 - Code quality catches: [N+1 queries, race conditions, duplicate code found in review]
 - Cross-cutting changes: [same rule applied to 3+ files = policy; needs memory entry]
 - Skills modified: [which skills were edited and why — triggers cross-reference audit]
-- Failure events: [read memory/failure-events.jsonl for this session's events —
+- Failure events: [read memory/episodic/failure-events.jsonl for this session's events —
   count by type, note any failure:unresolved, list novel patterns added to catalog]
 ```
 
@@ -240,9 +240,9 @@ Task tool:
        files were updated. Future sessions need this context immediately,
        not buried across individual skill files.
 
-    ## Failure Event Analysis (REQUIRED when failure-events.jsonl has entries)
+    ## Failure Event Analysis (REQUIRED when episodic/failure-events.jsonl has entries)
 
-    Read memory/failure-events.jsonl and analyze:
+    Read memory/episodic/failure-events.jsonl and analyze:
 
     10. **Pattern frequency:** Which error_classes appear most? Should any become
         a defensive pattern in the relevant skill (e.g., defensive-backend-flows)?
@@ -256,7 +256,7 @@ Task tool:
         the manual resolution the user applied, OR a skill update to prevent
         the failure class entirely.
 
-    ## Prompt Optimization (REQUIRED when exploration-events.jsonl has entries)
+    ## Prompt Optimization (REQUIRED when episodic/exploration-events.jsonl has entries)
 
     Check if this session recorded exploration events:
 

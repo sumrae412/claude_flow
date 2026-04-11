@@ -23,7 +23,7 @@ REPO_DIR = Path(os.environ.get(
     "CLAUDE_FLOW_DIR",
     Path(__file__).resolve().parent.parent,
 ))
-PROPOSALS_FILE = REPO_DIR / "memory" / "proposed-skill-updates.jsonl"
+PROPOSALS_FILE = REPO_DIR / "memory" / "procedural" / "proposed-skill-updates.jsonl"
 BACKUP_DIR = REPO_DIR / "memory" / "skill-backups"
 
 

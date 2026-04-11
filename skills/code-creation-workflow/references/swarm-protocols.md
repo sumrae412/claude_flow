@@ -306,7 +306,7 @@ Run after: each explorer completes (Phase 2), each architect round (Phase 4), ea
 |-----------|-------------------|
 | `available_in_prompt` | Agent's own prompt verbatim — was the answer there? |
 | `available_in_project` | CLAUDE.md, README, docs/, config files |
-| `available_in_memory` | MEMORY.md, failure-catalog.md |
+| `available_in_memory` | MEMORY.md, memory/semantic/failure-catalog.md |
 | `not_available` | All sources checked, nothing found — record as gap |
 
 **Severity criteria:**

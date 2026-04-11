@@ -29,13 +29,13 @@ CLAUDE_FLOW_DIR = Path(os.environ.get(
     "CLAUDE_FLOW_DIR",
     Path(__file__).resolve().parent.parent,
 ))
-VARIANTS_FILE = CLAUDE_FLOW_DIR / "memory" / "prompt-variants.json"
+VARIANTS_FILE = CLAUDE_FLOW_DIR / "memory" / "procedural" / "prompt-variants.json"
 
 # Per-agent-type event files
 EVENTS_FILES = {
-    "explorer": CLAUDE_FLOW_DIR / "memory" / "exploration-events.jsonl",
-    "architect": CLAUDE_FLOW_DIR / "memory" / "architect-events.jsonl",
-    "reviewer": CLAUDE_FLOW_DIR / "memory" / "reviewer-events.jsonl",
+    "explorer": CLAUDE_FLOW_DIR / "memory" / "episodic" / "exploration-events.jsonl",
+    "architect": CLAUDE_FLOW_DIR / "memory" / "episodic" / "architect-events.jsonl",
+    "reviewer": CLAUDE_FLOW_DIR / "memory" / "episodic" / "reviewer-events.jsonl",
 }
 
 # Backward compat alias

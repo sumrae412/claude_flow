@@ -291,6 +291,22 @@ User says "implement X"
 - **Lite path:** Contained change touching 1-2 files — doesn't justify 5+ parallel subagents
 - **Full workflow:** Everything else. If in doubt, use the full workflow.
 
+### Artifact Requirements by Scale
+
+Each path produces different artifacts. This table makes explicit what each path requires:
+
+| Path | Files Touched | PRP | Design Doc | Work Plan | Test Skeletons | Review Tiers |
+|------|---------------|-----|------------|-----------|----------------|--------------|
+| **Fast** | 1 | No | No | No | No | Tests only |
+| **Clone** | 1-3 | No | No | Inline | No | Tier 1-2 |
+| **Lite** | 1-2 | No | Inline | Inline | No | Tier 1-3 |
+| **Full** | 3+ | Optional | Yes | Yes | Yes (Phase 4d) | All tiers |
+
+**Reading the table:**
+- "Inline" means the artifact is written directly in the conversation, not as a separate doc.
+- "Test Skeletons" refers to Phase 4d acceptance test generation (Full path only — smaller changes don't benefit from pre-generated skeletons).
+- PRP is optional even on Full path — only export when the feature spans sessions or has 3+ integration points.
+
 ---
 
 ## Phase 2: Exploration (Executor + Advisor)
@@ -485,6 +501,31 @@ If not triggered, skip — most single-session features don't need this.
 
 The **executor (Sonnet)** drafts two competing architecture options. It has full context from Phase 2 exploration — it read the files firsthand, knows the patterns, understands the integration points. No architect subagents needed.
 
+### Step 0: Cross-Document Consistency Check
+
+Before drafting architectures, check if existing plans or PRPs contain decisions that constrain this feature:
+
+```
+1. Glob for existing docs:
+   plans/PRP-*.md
+   docs/plans/*.md
+
+2. For each doc found:
+   - Scan for file paths, service names, or models that overlap
+     with the current feature's scope (from $exploration)
+   - Extract: API contracts, architectural decisions, constraints
+
+3. If overlapping docs exist:
+   - Note constraints the new architecture must respect
+   - Flag contradictions to surface during user presentation
+     ("PRP-X specifies Y for this service — confirm precedence")
+   - If no contradictions: proceed with constraints noted
+
+4. If no existing docs: skip — proceed to Step 1
+```
+
+**Why this matters:** Without this check, the executor might draft an architecture that contradicts a decision from a prior session's PRP. The user then approves the plan, implementation proceeds, and the contradiction surfaces as a bug in Phase 6 (or worse, in production). A 30-second glob-and-scan prevents this.
+
 ### Step 1: Executor Drafts Two Options
 
 The executor writes two architecture proposals with different optimization targets:
@@ -597,6 +638,96 @@ Revise plan to address HIGH+ findings. Present consolidated findings to user alo
 
 ---
 
+## Phase 4c: Pre-Implementation Plan Verification
+
+<HARD-GATE>
+After user approves the plan and before any implementation begins, verify the plan's factual claims against the actual codebase. The Phase 4b stress-test catches logical issues — this step catches factual inaccuracies (stale file paths, renamed functions, changed API contracts).
+</HARD-GATE>
+
+The executor (Sonnet) runs a mechanical verification pass — no subagent needed:
+
+```
+For each file path in the plan:
+  → Does the file exist? (glob/ls)
+  → Are the referenced functions/classes/methods actually in that file? (grep)
+  → If a file is listed as "create new": does a file with that name already exist?
+
+For each pattern claim ("follows existing X pattern"):
+  → Grep to confirm the pattern exists in the referenced location
+  → If the pattern was discovered in Phase 2 but the file has since changed
+    (unlikely but possible in multi-session work), flag it
+
+For each API contract claim (endpoint signatures, model fields, service methods):
+  → Verify the signature/fields exist as described
+  → Check parameter types and return types match
+
+For integration points:
+  → Verify the interface hasn't changed since Phase 2 exploration
+  → If another session's work landed between Phase 2 and now (e.g., a merged PR),
+    check for breaking changes in shared interfaces
+```
+
+**Outcome:**
+- **All claims verified** → Proceed to Phase 4d (test skeletons) or Phase 5.
+- **Minor mismatches** (renamed variable, moved function) → Fix the plan silently. Log the corrections.
+- **Material mismatches** (deleted file, changed API contract, restructured module) → Re-present the affected plan steps to the user with corrections. Get re-approval before proceeding.
+
+**Why this exists:** Plans are drafted against Phase 2 exploration findings. Between exploration and implementation, the codebase can drift (especially in multi-session work or when other contributors merge changes). A 30-60 second mechanical check prevents building on false assumptions — the most expensive kind of bug to find in Phase 6.
+
+**Skip condition:** Fast path and clone path skip this (the executor reads files immediately before editing them — no drift window).
+
+---
+
+## Phase 4d: Acceptance Test Skeleton Generation
+
+<SKIP-CONDITION>
+Skip for Fast path, Clone path, and Lite path. Only run on Full workflow where the plan has explicit acceptance criteria.
+</SKIP-CONDITION>
+
+Before Phase 5 TDD begins, generate test skeletons from the approved plan's acceptance criteria. This pre-seeds the Red phase of TDD — implementers start with a clear contract instead of writing tests from scratch.
+
+### How It Works
+
+```
+1. Extract testable acceptance criteria from the approved plan:
+   - Each plan step's "test requirements" section
+   - Edge cases resolved in Phase 3 ($requirements)
+   - Any "verify that X" statements in the plan
+
+2. For each criterion, generate a skeleton:
+
+   def test_<criterion_slug>():
+       """AC: <acceptance criterion text from plan>"""
+       # Phase 5 will implement this test
+       raise NotImplementedError("Skeleton from Phase 4d — implement in Phase 5")
+
+3. Group skeletons by the test file they belong to:
+   - Match to existing test files when the plan modifies existing code
+   - Create new test files when the plan creates new modules
+
+4. Write skeleton files to the test directory
+   - Use the project's existing test structure and naming conventions
+   - Import the modules referenced in the plan (even if they don't exist yet)
+```
+
+### What Phase 5 Does With Skeletons
+
+Phase 5 TDD treats each skeleton as a pre-seeded Red test:
+1. **Fill in** the skeleton with concrete assertions (the Red test)
+2. **Implement** to make it pass (Green)
+3. **Refactor** as needed
+4. **Delete** any skeleton that turns out to be redundant or incorrectly scoped
+
+The skeletons are a starting point, not a constraint. Phase 5 can modify, split, or remove them as understanding deepens during implementation.
+
+### Why Pre-Generate
+
+- **Coverage contract:** The plan says "test X" — now there's an actual test stub enforcing that. Harder to accidentally skip.
+- **Faster Red phase:** Writing the test function signature, docstring, and imports is mechanical work. Pre-generating it lets Phase 5 focus on the interesting part (what to assert).
+- **Review signal:** Phase 6 reviewers can check whether every skeleton was either implemented or explicitly deleted with justification.
+
+---
+
 ## Context Management Strategy
 
 The full workflow (Phases 0-6) is a long-running agentic session that reads 8-15+ files, dispatches advisor calls, and runs multi-tier reviews. Without active context management, the session will hit limits. This section defines three composable strategies (from the Claude Cookbook's context engineering patterns) plus pruning rules for subagent dispatch.
@@ -668,7 +799,9 @@ Each phase produces a defined output that downstream phases consume. Inspired by
 | Phase 2 | `$exploration` | Key file paths + roles, patterns discovered, integration points, concerns | Phases 3, 4, advisor prompts |
 | Phase 3 | `$requirements` | Resolved requirements, edge cases, scope boundaries | Phases 4, 5, reviewer prompts |
 | Phase 4 | `$architecture` | Chosen architecture summary, component responsibilities, data flow | Phase 5 |
-| Phase 4b | `$plan` | Approved numbered implementation plan with dependencies | Phase 5, Phase 6 reviewers |
+| Phase 4b | `$plan` | Approved numbered implementation plan with dependencies | Phase 4c, 4d, Phase 5, Phase 6 reviewers |
+| Phase 4c | `$verified_plan` | Plan with all factual claims verified against codebase (or corrections applied) | Phase 4d, Phase 5 |
+| Phase 4d | `$test_skeletons` | Test skeleton file paths and criterion-to-test mapping | Phase 5 (TDD pre-seeds) |
 | Phase 5 | `$diff` | Git diff of all changes + files modified list | Phase 6 reviewers |
 
 **How to use:** When dispatching a subagent, reference the contract explicitly. Don't pass raw conversation — pass the named output:
@@ -1200,6 +1333,7 @@ All advisor calls use `model: "opus"`, `subagent_type: "general-purpose"`.
 | defensive-ui-flows | Phase 0 (loaded), Phase 5 (applied) |
 | defensive-backend-flows | Phase 0 (loaded), Phase 5 (applied) |
 | writing-plans | Phase 4 (plan creation) |
+| investigator | Phase 5 (on unexpected TDD failures — evidence-first before retrying) |
 | executing-plans | Phase 5 (plan execution) |
 | test-driven-development | Phase 5 (TDD per step) |
 | subagent-driven-development | Phase 5 (parallel independent steps) |
@@ -1252,6 +1386,7 @@ Tag failures to behavioral categories when they occur. These tags feed into the 
 | `architecture-miss` | Phase 4 options didn't account for a constraint | Neither option handled the existing caching layer |
 | `clarification-skip` | Ambiguity wasn't surfaced in Phase 3 | Edge case discovered during implementation that should have been asked |
 | `plan-gap` | Plan missing a step or misordering dependencies | Migration step listed after the code that depends on it |
+| `plan-verification-miss` | Plan referenced stale file paths, renamed functions, or changed APIs that Phase 4c should have caught | Plan says "modify `get_user()` in `user_service.py`" but the function was renamed to `fetch_user()` |
 | `review-escape` | Bug/issue shipped past Phase 6 review tiers | Silent failure not caught by any reviewer tier |
 | `integration-failure` | Code works in isolation but breaks at integration points | Service call succeeds but caller doesn't handle new response shape |
 | `regression` | Change broke previously working behavior | New route handler shadowed existing route |
@@ -1265,6 +1400,8 @@ Tag failures to behavioral categories when they occur. These tags feed into the 
 |---------|-----|
 | Skipping Phase 0 context loading | Always load project context first |
 | Exploring from scratch without checking prior knowledge | **Step 0:** Check MEMORY.md, PRPs, and Serena memories before exploring — prior sessions may have already mapped this area |
+| Skipping Phase 4c plan verification | Plans reference files and functions from Phase 2 exploration — the codebase can drift between exploration and implementation. Always verify factual claims before coding. |
+| Jumping to fixes without evidence | When Phase 5 TDD hits unexpected failures, use `/investigator` to collect evidence before retrying — the first hypothesis is usually wrong for complex bugs |
 | Dispatching parallel Opus explorer subagents | **Executor/Advisor pattern:** Sonnet explores directly, Opus advises at the end |
 | Dispatching parallel Opus architect subagents | **Executor/Advisor pattern:** Sonnet drafts architectures, Opus critiques |
 | Calling the advisor every turn | Advisor is **on-demand at checkpoints** — 3-5 calls per workflow, not every step |

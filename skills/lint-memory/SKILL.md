@@ -1,7 +1,7 @@
 ---
 name: lint-memory
 description: Run health checks on project memory files — broken links, orphan memories, stale entries, contradictions
-invocation: user
+user-invocable: true
 ---
 
 # Lint Memory
@@ -106,10 +106,13 @@ All `feedback_*.md` and `reference_*.md` files in the memory directory, plus `ME
 
 ### What to look for
 
-Backtick-wrapped code references that point to specific codebase artifacts:
-- **File references** — e.g. `` `src/utils/auth.py` ``, `` `config/settings.yaml` ``
-- **Function references** — e.g. `` `def validate_token` ``, `` `function handleSubmit` ``
-- **Class references** — e.g. `` `class UserService` ``, `` `class PaymentProcessor` ``
+Backtick-wrapped code references that point to specific codebase artifacts. Use these heuristics to distinguish code references from prose:
+
+- **File references** — backtick content contains `/` or ends in a known source extension (`.py`, `.js`, `.ts`, `.yaml`, `.json`, `.css`, `.html`, `.sh`, `.md`). E.g. `` `src/utils/auth.py` ``, `` `config/settings.yaml` ``
+- **Function references** — backtick content starts with `def ` or `function `. E.g. `` `def validate_token` ``, `` `function handleSubmit` ``
+- **Class references** — backtick content starts with `class `. E.g. `` `class UserService` ``, `` `class PaymentProcessor` ``
+
+**Ignore** backtick terms that don't match these patterns (e.g. `` `True` ``, `` `pip install` ``, `` `git rebase` ``).
 
 ### How to check
 

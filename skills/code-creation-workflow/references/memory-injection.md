@@ -42,3 +42,24 @@ If domain filtering produces more than 10 entries:
 3. Cross-cutting concern (gotcha applies broadly, e.g., `no-aliases`) — lowest
 
 Truncate at 10 with a note: `[N more gotchas omitted — see MEMORY.md]`
+
+## Compiled Knowledge Injection
+
+When `knowledge/concepts/` exists in the memory directory, compiled articles are injected after raw gotchas.
+
+### Selection
+
+A compiled article matches a domain when any of its `sources:` files map to that domain via the domain table above.
+
+### Template
+
+```
+COMPILED KNOWLEDGE (from knowledge/concepts/):
+- [sqlalchemy-gotchas]: Property model uses synonyms; always check `synonym()` calls before renaming columns. Session handling requires...
+```
+
+### Limits
+
+- Max 3 articles per injection
+- Each article excerpt: first 500 chars of `## Key Points` section
+- Total injection (raw + compiled): max 2000 chars — truncate compiled excerpts if exceeded

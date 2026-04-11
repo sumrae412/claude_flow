@@ -75,7 +75,13 @@ digraph process {
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
     "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
-    "Mark task complete in TodoWrite" -> "More tasks remain?";
+    "Mark task complete in TodoWrite" -> "Inter-task verification gate";
+    "Inter-task verification gate" [shape=box style=filled fillcolor=lightyellow];
+    "Inter-task verification gate" -> "Verification passes?";
+    "Verification passes?" [shape=diamond];
+    "Verification passes?" -> "More tasks remain?" [label="yes"];
+    "Verification passes?" -> "Fix regressions before next task" [label="no"];
+    "Fix regressions before next task" -> "Inter-task verification gate" [label="re-verify"];
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
     "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers:finishing-a-development-branch";
@@ -228,6 +234,62 @@ Done!
 - Don't try to fix manually (context pollution)
 
 **Self-debugging integration:** When a subagent's work fails verification (test or lint), use the retry loop defined in `code-creation-workflow` Phase 5. Emit failure events, match against the failure catalog, and escalate thinking budget per attempt. Do not silently retry without emitting events.
+
+## Inter-Task Verification Gate
+
+After each task completes (both reviews pass, task marked done), run a proactive verification gate **before** dispatching the next implementer. This catches regressions early instead of discovering them after 3 more tasks have built on a broken foundation.
+
+```
+Mark task complete
+        │
+        ▼
+┌──────────────────────────────────────────┐
+│ INTER-TASK VERIFICATION GATE             │
+│                                          │
+│ 1. Run full test suite (not just the     │
+│    tests for the completed task)         │
+│                                          │
+│ 2. Run linter on all modified files      │
+│    accumulated so far                    │
+│                                          │
+│ 3. Quick build check (does it compile/   │
+│    start without errors?)                │
+│                                          │
+│ ALL PASS → continue to next task         │
+│ ANY FAIL → fix before proceeding         │
+└──────────────────────────────────────────┘
+        │
+        ▼
+  Next task (or final review if done)
+```
+
+### What to run
+
+| Check | Command (adapt to project) | Purpose |
+|-------|---------------------------|---------|
+| Tests | `pytest tests/ -x -q` or `npm test` | Catch regressions from latest task |
+| Lint | `ruff check app/` or `eslint src/` | Catch style/import issues before they compound |
+| Build | `python -c "from app.main import app"` or `npm run build` | Catch import errors, missing deps |
+
+**Adapt commands** to the project's stack. Use whatever the project's CI runs. The goal is a fast smoke check (under 60 seconds), not exhaustive validation.
+
+### When verification fails
+
+1. **Identify** whether the failure is from the just-completed task or a pre-existing issue
+2. **If from current task:** Dispatch a fix subagent with the error output and the task context. Use the Phase 5 retry loop (emit events, match catalog, escalate thinking).
+3. **If pre-existing:** Log it, note it in the handoff, but proceed — don't block on issues that existed before this session.
+4. **Re-run verification** after fix. Only proceed when all checks pass.
+5. **Max 2 fix attempts** per gate. If still failing, surface to user: "Task N introduced a regression I can't auto-fix. Error: [output]. Need guidance."
+
+### When to skip
+
+- **Task 1:** Skip the full test suite run (no prior tasks to regress against). Still run lint and build.
+- **Trivial tasks:** Config changes, documentation-only tasks, or tasks that don't touch executable code can skip the full suite. Still run lint.
+- **Explicitly independent tasks:** If the plan explicitly marks tasks as having zero shared state, the gate can run only the build check.
+
+### Why this matters
+
+Without inter-task verification, a subtle regression in Task 2 compounds silently through Tasks 3-5. By Task 6, the failure is far from its cause and expensive to debug. The gate costs ~30-60 seconds per task but prevents the "everything broke and I don't know when" scenario.
 
 ## Integration
 

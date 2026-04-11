@@ -41,6 +41,9 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Tech Stack:** [Key technologies/libraries]
 
+**Ruled Out:** [Approaches considered and rejected during design — prevents re-exploration]
+- <approach> — <why rejected>
+
 ---
 ```
 

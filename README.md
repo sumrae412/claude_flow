@@ -12,7 +12,7 @@ Claude Code's default mode is a single-pass loop: read a few files, form a menta
 - **Competing architectures.** Two architect agents (simplicity vs. separation) produce proposals you choose between rather than getting a single take-it-or-leave-it design.
 - **Strict TDD with defensive patterns.** Test-first per plan step, with guard clauses, no-silent-swallow rules, and state management injected automatically based on whether the step touches UI or backend.
 - **4-tier parallel review.** 5+ agents (code review, silent failure hunting, security, test coverage analysis) plus conditional specialists (migration, async, API audit) that fire only when relevant file types appear in the diff. This catches entire categories of bugs vanilla Claude misses: swallowed exceptions, missing error states, auth gaps, untested edge cases, and type mismatches.
-- **Context persistence across sessions.** Hook scripts handle pre-compaction transcript backup, post-commit memory updates, and session-start context reloading so the next session doesn't start from scratch.
+- **Context persistence across sessions.** Hook scripts handle pre-compaction transcript backup, post-commit memory updates, and session-start context reloading so the next session doesn't start from scratch. Related memories are compiled into consolidated concept articles for efficient retrieval.
 
 ## How it works
 
@@ -72,7 +72,7 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 | 5 Implementation | TDD per step, parallel dispatch for independent work |
 | 6 Quality | 4-tier parallel review, static analysis, verification |
 
-### Bundled skills (18 total)
+### Bundled skills (19 total)
 
 **Enforcement:**
 - `coding-best-practices` — Python, JS, API, testing, performance standards
@@ -89,12 +89,13 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 **Utilities:**
 - `fetch-api-docs` — Fetch API docs before coding against external services
 - `finishing-a-development-branch` — Branch completion (merge/PR/cleanup)
-- `session-learnings` — Capture discoveries after committing work
+- `session-learnings` — Capture discoveries after committing work, compile related memories into consolidated concept articles
 - `shipping-workflow` — End-to-end shipping pipeline (commit, PR, review, merge)
 - `session-handoff` — Export full session state for pickup in a new context window
 - `smart-exploration` — Task-typed exploration prompts for Phase 2 (feature/bug/refactor variants)
 - `hook-doctor` — Diagnose hook health: missing files, bad exit codes, env issues
-- `memory-injection` — Inject project gotchas and constraints into subagent system prompts
+- `memory-injection` — Inject project gotchas and compiled knowledge articles into subagent system prompts
+- `lint-memory` — 4 health checks for memory files: broken links, orphans, stale entries, contradictions
 - `prompt-optimization` — A/B test and promote subagent prompts across explorers, architects, and reviewers
 
 ### Self-debugging agents
@@ -264,7 +265,8 @@ Remove the installed skills:
 for skill in code-creation-workflow coding-best-practices defensive-ui-flows \
   defensive-backend-flows fetch-api-docs finishing-a-development-branch \
   session-learnings shipping-workflow writing-plans executing-plans \
-  test-driven-development subagent-driven-development verification-before-completion; do
+  test-driven-development subagent-driven-development verification-before-completion \
+  lint-memory; do
   rm -rf ~/.claude/skills/$skill
 done
 

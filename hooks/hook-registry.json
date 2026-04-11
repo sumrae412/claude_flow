@@ -164,7 +164,7 @@
       "matcher": ["Read", "Edit", "Write", "Grep", "Glob"],
       "script": "hooks/tier2/context-rot-detection.sh",
       "description": "Warns when session touches too many files without compaction or summary",
-      "stack_tags": ["python", "node", "typescript", "ruff", "eslint"]
+      "stack_tags": ["python", "ruff", "flake8", "pytest", "node", "eslint", "jest", "typescript", "alembic", "docker"]
     }
   ]
 }

@@ -29,7 +29,7 @@ git diff --cached --name-only
 Also check:
 - **Phase/step**: If code-creation-workflow is active, identify the current phase and step number from TodoWrite state or recent conversation context
 - **Open questions**: Unresolved ambiguities from the conversation (design decisions deferred, unclear requirements)
-- **Ruled out**: Approaches, tools, or paths that were tried and failed or deliberately abandoned — include *why* so the next session doesn't re-explore them
+- **Ruled Out**: Approaches, tools, or paths that were tried and failed or deliberately abandoned — include *why* so the next session doesn't re-explore them
 - **Blockers**: Failing tests, missing dependencies, awaiting external input
 - **Next steps**: If a plan file exists in `docs/plans/`, read the next 3 incomplete steps
 
@@ -47,7 +47,7 @@ Write to `$PROJECT/.claude/handoff.md` (create `.claude/` dir if needed):
 - `app/services/billing.py` — Added invoice generation service
 - `tests/test_billing.py` — Tests for invoice generation
 
-## Ruled out
+## Ruled Out
 - `approach/tool/path` — why it failed or was abandoned
 
 ## Open questions

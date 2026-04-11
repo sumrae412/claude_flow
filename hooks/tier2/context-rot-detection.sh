@@ -16,14 +16,14 @@ fi
 
 # Session-scoped tracker file
 TRACKER_DIR="/tmp/claude-context-rot"
-mkdir -p "$TRACKER_DIR"
+mkdir -p "$TRACKER_DIR" || exit 0
 TRACKER_FILE="$TRACKER_DIR/$SESSION_ID.files"
 
 # Record the file if we have one
 if [[ -n "$FILE" ]] && [[ -f "$FILE" ]]; then
   # Store relative path to reduce noise
   REL_PATH="${FILE#"$PROJECT_DIR"/}"
-  echo "$REL_PATH" >> "$TRACKER_FILE"
+  echo "$REL_PATH" >> "$TRACKER_FILE" || true
 fi
 
 # Count unique files touched

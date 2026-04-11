@@ -4,9 +4,9 @@ Project-specific review rules. Any reviewer (human, AI agent, hook, or CI tool) 
 
 ## Must Check
 
-- Skills are self-contained: no imports from other skills, no assumptions about calling context
-- Hook scripts exit with correct codes (0 = pass, 2 = block) and never silently succeed on error
-- Scripts have proper `set -euo pipefail` (bash) or equivalent error handling (Python)
+- Skills are self-contained: no imports from other skills, no assumptions about calling context. Exception: integration-layer skills (e.g., `fetch-api-docs`) may depend on external CLIs — document the dependency in the skill frontmatter
+- Hook scripts exit with correct codes (0 = pass, 1 = block) and never silently succeed on error
+- Scripts have `set -e` at minimum (bash) or equivalent error handling (Python)
 - No hardcoded paths — use `$HOME/.claude/` or relative paths from script location
 - Subagent prompts include explicit scope boundaries (what to check, what to skip, when to stop)
 - Review agents never auto-fix; they report findings for human/caller decision

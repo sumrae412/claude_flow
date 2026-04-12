@@ -15,7 +15,9 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** This should be run in a dedicated worktree (created by brainstorming skill).
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
+**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md` (project-local, git-tracked)
+
+**Plan location priority:** Check `docs/plans/` in the project first, then `~/.claude/plans/` as fallback. To enable project-local plan storage for Claude Code's built-in plan mode, add `"plansDirectory": "docs/plans"` to your project's `.claude/settings.json`.
 
 ## Bite-Sized Task Granularity
 

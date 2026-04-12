@@ -84,9 +84,30 @@ COMPILED KNOWLEDGE (from knowledge/concepts/):
 
 If truncated, append: `[N more gotchas omitted — see MEMORY.md]`
 
+### Step 5b: Check Abandoned Approaches
+
+Check if `$PROJECT/.claude/abandoned/` exists. If so:
+
+1. Read all `.md` files in the directory
+2. For each file, extract the "What was attempted" and "Why abandoned" sections
+3. Include up to 3 most recent entries (sorted by filename = date order)
+
+Format as a third section:
+
+```
+PREVIOUSLY RULED OUT (from .claude/abandoned/):
+- <topic> (YYYY-MM-DD): <1-line summary of why abandoned>
+- ...
+```
+
+**Priority rules:**
+- Only include entries less than 30 days old (stale abandonments are less relevant)
+- If more than 3 entries match, keep the 3 most recent
+- This section supplements but never replaces Sections 1-2
+
 ### Step 6: Return or Omit
 
-If matches were found in Step 4 or Step 4b, return the formatted injection block (both `PROJECT GOTCHAS` and `COMPILED KNOWLEDGE` sections, omitting either section if it has no matches). If neither section has matches, omit the entire block — do not return an empty section.
+If matches were found in Step 4, Step 4b, or Step 5b, return the formatted injection block (all applicable sections: `PROJECT GOTCHAS`, `COMPILED KNOWLEDGE`, and `PREVIOUSLY RULED OUT`, omitting any section with no matches). If no section has matches, omit the entire block — do not return an empty section.
 
 ## Usage Points
 

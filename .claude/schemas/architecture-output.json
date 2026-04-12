@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Phase 4 architecture output — approach, files, trade-offs",
+  "type": "object",
+  "required": ["approach", "files_to_create", "files_to_modify", "trade_offs"],
+  "properties": {
+    "approach": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Selected architecture approach and rationale"
+    },
+    "files_to_create": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "New file paths to be created"
+    },
+    "files_to_modify": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Existing file paths to be modified"
+    },
+    "trade_offs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "Trade-offs considered and rationale for choices"
+    }
+  }
+}

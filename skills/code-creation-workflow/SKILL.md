@@ -1,6 +1,6 @@
 ---
 name: code-creation-workflow
-description: Use when creating new features, implementing complex changes, or executing implementation plans. Agentic workflow using the Executor/Advisor strategy — Sonnet executes, Opus advises at key decision points.
+description: Use when creating new features, implementing complex changes, or executing implementation plans. Agentic workflow with fast, clone, lite, explore, and full paths. Executor/Advisor strategy — Sonnet executes, Opus advises at key decision points.
 user-invocable: true
 ---
 
@@ -102,11 +102,159 @@ This is a prompt-level technique — not the API-level `thinking` parameter (whi
 
 ---
 
+## Workflow State Machine
+
+The workflow tracks its state in `.claude/workflow-state.json` for phase governance and cross-session resume.
+
+### State File Operations
+
+**Initialize** (Phase 0, after context loading — replace SESSION_TIMESTAMP with actual ISO timestamp, TASK_SUMMARY with the user's request):
+
+```json
+{
+  "schema_version": 1,
+  "workflow_id": "code-creation-workflow",
+  "session_id": "SESSION_TIMESTAMP",
+  "status": "running",
+  "started_at": "SESSION_TIMESTAMP",
+  "current_phase": {
+    "id": "phase-0",
+    "name": "Context Loading",
+    "path": null,
+    "status": "running",
+    "started_at": "SESSION_TIMESTAMP",
+    "step": 1,
+    "step_label": "Load project identity",
+    "agents_spawned": 0,
+    "agents_completed": 0,
+    "agents_failed": 0,
+    "iteration": 1,
+    "max_iterations": 1
+  },
+  "phase_history": [],
+  "iterations": { "phase-0": 1 },
+  "task_summary": "TASK_SUMMARY",
+  "artifacts": {
+    "exploration_summary": null,
+    "architecture_doc": null,
+    "implementation_plan": null,
+    "review_findings": null
+  }
+}
+```
+
+**Transition** (at each phase boundary — use jq to move current phase to history and set new phase):
+
+```bash
+jq '
+  .phase_history += [{
+    id: .current_phase.id,
+    name: .current_phase.name,
+    status: "completed",
+    started_at: .current_phase.started_at,
+    completed_at: (now | todate),
+    iteration: .current_phase.iteration,
+    results: {}
+  }] |
+  .current_phase = {
+    id: "NEXT_PHASE_ID",
+    name: "NEXT_PHASE_NAME",
+    path: .current_phase.path,
+    status: "running",
+    started_at: (now | todate),
+    step: 1,
+    step_label: "FIRST_STEP_LABEL",
+    agents_spawned: 0,
+    agents_completed: 0,
+    agents_failed: 0,
+    iteration: 1,
+    max_iterations: MAX_ITERATIONS
+  } |
+  .iterations["NEXT_PHASE_ID"] = ((.iterations["NEXT_PHASE_ID"] // 0) + 1)
+' .claude/workflow-state.json > .claude/workflow-state.tmp && mv .claude/workflow-state.tmp .claude/workflow-state.json
+```
+
+**Update step** (within a phase):
+```bash
+jq '.current_phase.step = N | .current_phase.step_label = "LABEL"' \
+  .claude/workflow-state.json > .claude/workflow-state.tmp && \
+  mv .claude/workflow-state.tmp .claude/workflow-state.json
+```
+
+**Complete** (workflow done):
+```bash
+jq '.status = "completed"' .claude/workflow-state.json > .claude/workflow-state.tmp && \
+  mv .claude/workflow-state.tmp .claude/workflow-state.json
+```
+
+### Cross-Session Resume
+
+At the very start of Phase 0 (before Step 1), check for existing state:
+
+1. If `.claude/workflow-state.json` exists and `status == "running"`:
+   - Check `started_at` — if >48 hours ago, ask user: "Found workflow state from N days ago. Resume or start fresh?"
+   - If resume: output resume message with phase/step/artifacts, skip to the in-progress phase
+   - If start fresh: archive to `.claude/workflow-state.archived.json`, proceed normally
+2. If `status == "completed"`: archive and start fresh
+3. If file doesn't exist: proceed normally, initialize state after Phase 0 context loading
+
+Resume message format:
+```
+Resuming workflow: "<task_summary>"
+<current_phase.name> was in progress — Step <step> (<step_label>)
+Path: <path>
+Completed: [list from phase_history]
+Artifacts: [which are null vs populated]
+```
+
+### Transition Map
+
+| From | To | Condition |
+|------|----|-----------|
+| phase-0 → phase-0.5 | No hooks.json exists |
+| phase-0 → phase-1 | hooks.json exists |
+| phase-0.5 → phase-1 | Always |
+| phase-1 → EXIT | Fast path |
+| phase-1 → phase-2 | Full or lite path |
+| phase-1 → phase-5 | Clone or plan path |
+| phase-2 → phase-3 | Always |
+| phase-3 → phase-4 | Always |
+| phase-4 → phase-4b | Always |
+| phase-4b → phase-4d | Full path only |
+| phase-4b → phase-5 | Lite path |
+| phase-4d → phase-5 | Always |
+| phase-5 → phase-5 | Retry: tests/lint failed, iteration < 3 |
+| phase-5 → phase-6 | Tests + lint pass |
+| phase-6 → phase-5 | High/critical findings, iteration < 2 |
+| phase-6 → COMPLETE | No high/critical findings |
+
+### Iteration Limits
+
+| Phase | Max | On Exceeded |
+|-------|-----|-------------|
+| phase-5 | 3 | Surface to user |
+| phase-6 | 2 | Ship with known issues |
+| All others | 1 | Forward only |
+
+---
+
 ## Phase 0: Context Loading
 
 <HARD-GATE>
 Load project context before any exploration or coding.
 </HARD-GATE>
+
+### Step 0: Check for Existing Workflow State
+
+Before loading any context, check if a prior session's workflow is in progress:
+
+1. Read `.claude/workflow-state.json`
+2. If found and `status == "running"`:
+   - Check `started_at` age. If >48 hours, ask user to resume or start fresh.
+   - Output resume message (see Workflow State Machine section above)
+   - Skip to the in-progress phase
+3. If found and `status == "completed"`: archive and start fresh
+4. If not found: proceed normally (initialize state after Step 6)
 
 ### Step 1: Load Project Identity
 
@@ -182,6 +330,8 @@ If no MEMORY.md exists, create one to enable cross-session context persistence:
 3. **Announce:** "Created MEMORY.md for cross-session context — I'll populate it as I learn about the project."
 
 **Why this matters:** The memory-injection system (see `references/memory-injection.md`) maps domain-specific gotchas from MEMORY.md into subagent prompts. Without MEMORY.md, that system silently no-ops and gotchas discovered during sessions are lost.
+
+**State transition:** Update `.claude/workflow-state.json` — move current phase to `phase_history`, set `current_phase` to phase-0.5 or phase-1 based on hooks.json existence. Set `path` to null (not yet determined).
 
 ---
 
@@ -289,6 +439,23 @@ User says "implement X" / "fix Y"
    │   3. TDD implementation                       │
    │   4. Run Phase 6 review → done                │
    │                                               │
+   │ Is this EXPLORATORY?                          │
+   │ ("try this", "experiment with", "spike",      │
+   │  "prototype", "proof of concept",             │
+   │  "see if X works")                            │
+   │                                               │
+   │ YES → EXPLORE PATH                            │
+   │   1. Create explorations/<topic>/ directory   │
+   │   2. Write README.md (goal, hypothesis,       │
+   │      success criteria)                        │
+   │   3. Code freely — no TDD, no Phase 6 review │
+   │   4. Defensive patterns still loaded,         │
+   │      secret detection + lint still active     │
+   │   5. At decision point:                       │
+   │      a. Graduate → full workflow from Phase 4 │
+   │         (exploration = Phase 2 input)         │
+   │      b. Archive → /session-handoff --abandon  │
+   │                                               │
    │ NO to all → FULL WORKFLOW (continue)           │
    └─────────────────────────────────────────────┘
 ```
@@ -297,6 +464,7 @@ User says "implement X" / "fix Y"
 - **Bug path:** Error report, regression, stack trace, "fix this bug", GitHub issue tagged as bug. Routes to `/bug-fix` skill — the dedicated bug fix orchestrator.
 - **Fast path:** Typo fix, one-line change, config tweak, single-file edit with no ripple effects
 - **Clone path:** Feature X already exists and you're building Feature X' (e.g., "add a delete endpoint" when create/update endpoints already exist)
+- **Explore path:** User wants to test an idea before committing to the full workflow. Signals: "try this", "experiment with", "spike", "prototype", "proof of concept", "see if X works". Quality bar is 60/100 (no TDD, no Phase 6 review). Graduation: "this works, let's ship it" → exploration findings become Phase 2 input, skip parallel explorers, flow into normal pipeline from Phase 4. Archive: invoke `/session-handoff --abandon` to document what was tried and why it was abandoned.
 - **Lite path:** Contained change touching 1-2 files — doesn't justify 5+ parallel subagents
 - **Full workflow:** Everything else. If in doubt, use the full workflow.
 
@@ -316,6 +484,8 @@ Each path produces different artifacts. This table makes explicit what each path
 - "Inline" means the artifact is written directly in the conversation, not as a separate doc.
 - "Test Skeletons" refers to Phase 4d acceptance test generation (Full path only — smaller changes don't benefit from pre-generated skeletons).
 - PRP is optional even on Full path — only export when the feature spans sessions or has 3+ integration points.
+
+**State transition:** Update `.claude/workflow-state.json` — set `current_phase.path` to selected path (fast/clone/lite/full/plan), then transition to the appropriate next phase.
 
 ---
 
@@ -445,6 +615,8 @@ before moving to clarification and architecture?
 
 **Why this works better than parallel explorers:** The executor has firsthand knowledge of every file it read — naming conventions, error patterns, data shapes, integration seams. This context persists naturally into Phases 3 and 4 without any hydration step. The Opus advisor adds strategic depth without requiring Opus to do the expensive file I/O work.
 
+**State transition:** Write `artifacts.exploration_summary` with key_files/patterns/integration_points/gaps, then transition to phase-3.
+
 ---
 
 ## Phase 3: Clarification + Requirements (Hard Gate)
@@ -546,6 +718,8 @@ After requirements are approved, optionally save a **Product Requirement Prompt 
 
 If not triggered, skip — most single-session features don't need this.
 
+**State transition:** Transition to phase-4.
+
 ---
 
 ## Phase 4: Architecture (Executor Drafts + Advisor Critiques)
@@ -642,6 +816,8 @@ Present both options (post-advisor-refinement) to the user with the advisor's an
 ◆ USER CHOOSES architecture (A, B, or hybrid) ◆
 ```
 
+**State transition:** Write `artifacts.architecture_doc` with approach/files_to_create/files_to_modify/trade_offs, then transition to phase-4b.
+
 ### Step 4: Write Implementation Plan
 
 After user chooses, write a structured plan using the `writing-plans` skill:
@@ -686,6 +862,8 @@ Revise plan to address HIGH+ findings. Present consolidated findings to user alo
 ```
 ◆ USER APPROVES final plan (post-advisor-review) before implementation ◆
 ```
+
+**State transition:** Write `artifacts.implementation_plan` with steps array, then transition to phase-4d (full path) or phase-5 (lite path).
 
 ---
 
@@ -1075,6 +1253,8 @@ MEDIUM/LOW findings defer to Phase 6 review. Agents that ran in Phase 5 are **sk
 | Data migrations | defensive-backend-flows: copy before delete, reversible ops |
 | Cross-module calls | defensive-backend-flows: respect encapsulation, public wrappers |
 
+**State transition:** If tests+lint pass, transition to phase-6. If failed and iteration < 3, increment iteration and retry phase-5. If iteration limit reached, set status to "failed" and surface to user.
+
 ---
 
 ## Phase 5.5: Self-Reflection (RARV Reflect)
@@ -1114,43 +1294,51 @@ A 2-minute self-check catches ~40% of the issues that Tier 1-2 reviewers would f
 
 ## Phase 6: Quality + Finish
 
-### 5-Tier Cascading Review
+### 5-Tier Cascading Review (Registry-Driven)
 
-Reviews are structured as a cascade: CodeRabbit runs first (broad, fast), then specialized agents fill gaps CodeRabbit can't cover. This replaces the previous all-parallel approach — fewer agents, fewer tokens, same coverage.
+Reviews are structured as a cascade: Tier 1 runs first (broad, fast), then specialized agents fill gaps. Reviewer selection is driven by `reviewer-registry.json` — a declarative config file that maps file patterns to reviewer agents.
 
-**Tier 1 — CodeRabbit First Pass (always run):**
+**How it works:**
 
-| Agent | `subagent_type` | Model | Focus |
-|-------|-----------------|-------|-------|
-| CodeRabbit | `coderabbit:code-reviewer` | **sonnet** | Consolidated review: bugs, logic errors, conventions, patterns, plan adherence, code quality |
+1. Read `reviewer-registry.json` (from project `.claude/` first, then global `~/.claude/hooks/claude-flow/`)
+2. Get the diff file list: `git diff --name-only HEAD~1`
+3. Partition reviewers: `always` tier runs unconditionally, `conditional` tier runs when `file_patterns` match files in the diff (and optionally `content_pattern` count exceeds `threshold`)
+4. Group by `cascade_tier` — Tier 1 runs first, wait for results, then Tier 2+ run in parallel within their tier
+5. Reviewers with `dynamic_prompt: true` get context-specific prompts generated by the executor based on the actual diff (see below)
 
-CodeRabbit replaces the previous dual `feature-dev:code-reviewer` agents (Reviewer A + B). It covers bugs, conventions, and patterns in a single pass. Wait for CodeRabbit results before dispatching Tier 2.
+**Registry format** (see `reviewer-registry.json` at repo root):
 
-**Tier 2 — Deep Specialists (parallel, always run):**
+```json
+{
+  "id": "migration-reviewer",
+  "tier": "conditional",
+  "cascade_tier": 3,
+  "file_patterns": ["alembic/**/*.py", "**/migrations/**/*.py"],
+  "subagent_type": "migration-reviewer",
+  "model": "sonnet",
+  "description": "Alembic migration safety checks"
+}
+```
 
-These catch what CodeRabbit doesn't specialize in — dispatch in parallel after Tier 1 completes:
+**Adding project-specific reviewers:** Drop a `reviewer-registry.json` in your project's `.claude/` directory. Project reviewers are merged with (and override by `id`) the global registry.
 
-| Agent | `subagent_type` | Model | Focus |
-|-------|-----------------|-------|-------|
-| Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | **sonnet** | Swallowed errors, empty catches, hidden failures |
-| Security Reviewer | `security-reviewer` | **sonnet** | Auth, data exposure, injection, OWASP |
-| QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | **sonnet** | Test coverage gaps, missing edge cases, untested error paths |
+**Default reviewers (bundled):**
 
-**Tier 3 — Conditional Specialists (parallel, skip if already ran in Phase 5):**
+| Cascade Tier | ID | Model | Condition |
+|--------------|----|-------|-----------|
+| 1 | `coderabbit` | sonnet | Always — consolidated first pass |
+| 2 | `silent-failure-hunter` | sonnet | Always — swallowed errors |
+| 2 | `security-reviewer` | sonnet | Always — auth, injection, OWASP |
+| 2 | `test-coverage-analyzer` | sonnet | Always — test gaps |
+| 3 | `migration-reviewer` | sonnet | Alembic/migration files in diff |
+| 3 | `google-api-reviewer` | sonnet | Google/calendar files + content match |
+| 3 | `async-reviewer` | sonnet | 3+ async patterns in Python files |
+| 3 | `type-design-analyzer` | haiku | Models/schemas/types files |
+| 3 | `api-doc-auditor` | haiku | Route/API/endpoint files |
+| 4 | `invariant-checker` | haiku | Models/services/routes (dynamic prompt) |
+| 4 | `defensive-verifier` | haiku | Templates/static/routes/services (dynamic prompt) |
 
-| Condition | Agent | `subagent_type` | Model |
-|-----------|-------|-----------------|-------|
-| New/modified Alembic migrations | Migration Reviewer | `migration-reviewer` | **sonnet** |
-| Google API integration code | Google API Reviewer | `google-api-reviewer` | **sonnet** |
-| Async code paths | Async Reviewer | `async-reviewer` | **sonnet** |
-| New types/models/Pydantic schemas | Type Design Analyzer | `pr-review-toolkit:type-design-analyzer` | **haiku** |
-| New/modified API routes | API Doc Auditor | `api-doc-auditor` | **haiku** |
-
-**Tier 4 — Lightweight Checks (parallel, haiku with dynamic prompts):**
-
-Pattern-matching checks that don't need deep reasoning — run on **haiku** for cost efficiency. However, instead of static generic prompts, the executor generates **context-specific review prompts** based on what was actually changed (inspired by the Claude Cookbook's Haiku sub-agent pattern where Opus generates targeted extraction prompts for Haiku).
-
-**Dynamic prompt generation:** Before dispatching Tier 4 agents, the executor (Sonnet) generates a focused prompt for each based on the actual diff:
+**Dynamic prompt generation (Tier 4):** Before dispatching reviewers with `dynamic_prompt: true`, the executor generates context-specific review prompts based on the actual diff:
 
 ```
 For Defensive Verifier:
@@ -1160,21 +1348,9 @@ For Defensive Verifier:
    - Try-catch with user feedback in the [modal submit handler]
    - Loading/error/success states in the [form component]
    Skip checking: [unchanged utility files, test files]"
-
-For Invariant Checker (CF projects):
-  "This feature modified [the appointment model and calendar service].
-   Check specifically for:
-   - Column name consistency between [appointment table] and [calendar queries]
-   - Eager loading on the [new relationship added in models.py]
-   Skip checking: [frontend files, migration boilerplate]"
 ```
 
 **Why dynamic prompts:** Static prompts make Haiku scan the entire diff for every possible pattern. Dynamic prompts focus Haiku on the 2-3 specific patterns most likely to appear in *this* diff, reducing false positives and improving signal quality.
-
-| Agent | `subagent_type` | Model | Focus |
-|-------|-----------------|-------|-------|
-| Invariant Checker | `courierflow-invariant-checker` | **haiku** | Client sync, column names, query safety, eager loading (CF projects only) |
-| Defensive Verifier | `defensive-pattern-verifier` | **haiku** | Guard clauses, error handling, UI state management |
 
 **Tier 5 — Design Review (when UI was modified):**
 
@@ -1359,6 +1535,8 @@ After completing a feature, capture structured workflow metrics. This is the "tr
 - The failure tags applied during this run
 - Which phase caught each issue (the "trace")
 - Any workflow-level improvement suggestion (scoped to one change)
+
+**State transition:** Write `artifacts.review_findings` with findings array. If high/critical findings and iteration < 2, transition back to phase-5 with status "fixing". If no high/critical findings, set workflow status to "completed".
 
 ---
 

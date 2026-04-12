@@ -65,12 +65,12 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 |-------|-------------|
 | 0 Context | Load project identity, classify task, load relevant skills |
 | 0.5 Hooks | Auto-detect stack, generate Claude Code hooks (one-time) |
-| 1 Discovery | Triage: fast-path, plan-path, or full workflow |
+| 1 Discovery | Triage: fast-path, plan-path, explore-path, or full workflow |
 | 2 Exploration | 2-3 parallel code-explorer subagents map the codebase |
 | 3 Clarification | Resolve all ambiguities before architecture (hard gate) |
 | 4 Architecture | 2 parallel architect proposals, user picks |
 | 5 Implementation | TDD per step, parallel dispatch for independent work |
-| 6 Quality | 4-tier parallel review, static analysis, verification |
+| 6 Quality | Registry-driven cascading review, static analysis, verification |
 
 ### Bundled skills (19 total)
 
@@ -91,7 +91,7 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 - `finishing-a-development-branch` — Branch completion (merge/PR/cleanup)
 - `session-learnings` — Capture discoveries after committing work, compile related memories into consolidated concept articles
 - `shipping-workflow` — End-to-end shipping pipeline (commit, PR, review, merge)
-- `session-handoff` — Export full session state for pickup in a new context window
+- `session-handoff` — Export session state or abandon/archive dead-end approaches
 - `smart-exploration` — Task-typed exploration prompts for Phase 2 (feature/bug/refactor variants)
 - `hook-doctor` — Diagnose hook health: missing files, bad exit codes, env issues
 - `memory-injection` — Inject project gotchas and compiled knowledge articles into subagent system prompts
@@ -140,7 +140,7 @@ Three-tier hook architecture for automated enforcement and context management:
 
 | Tier | Count | Description |
 |------|-------|-------------|
-| 1 — Universal | 10 | Always-on: secret detection, git safety, session lifecycle, pre-compaction backup, post-commit memory update |
+| 1 — Universal | 11 | Always-on: secret detection, git safety, session lifecycle, pre-compaction backup, post-commit memory update, decision journal |
 | 2 — Stack-specific | 7 | Auto-detected by `install.sh`: lint, test, migration check, type-check (fires only when relevant files change) |
 | 3 — Project-specific | — | User-configured per repo, not bundled |
 
@@ -157,6 +157,18 @@ This detects your stack (Node, Python, Rails, etc.) and writes the relevant Tier
 ```
 
 Checks for missing hook files, bad exit codes, unset env vars, and permission errors, and prints a fix for each.
+
+### Session intelligence
+
+**Decision journal** — A Tier 1 hook that periodically reminds Claude to log design decisions, tradeoffs, and approach changes to `.claude/session-log.md`. Fires every 10 file edits. The session-context-loader surfaces this log when resuming work.
+
+**Abandon/archive workflow** — When an approach fails or a spike doesn't pan out, `/session-handoff --abandon` creates a structured record in `.claude/abandoned/` documenting what was tried, why it was abandoned, and what was learned. Future sessions see this as "previously ruled out" context, preventing re-exploration of dead ends.
+
+**Exploration path** — Phase 1 Discovery now routes experimental work ("try this", "spike", "prototype") to a lightweight sandbox in `explorations/<topic>/`. Quality bar is 60/100 (no TDD, no Phase 6 review). When the experiment succeeds, it graduates into the full workflow. When it fails, it archives via the abandon workflow.
+
+**Reviewer registry** — Phase 6 reviewer selection is now driven by `reviewer-registry.json` instead of hardcoded logic. Add project-specific reviewers by dropping a `reviewer-registry.json` in your project's `.claude/` directory.
+
+**Project-local plans** — Plans save to `docs/plans/` (git-tracked) by default. Add `"plansDirectory": "docs/plans"` to your project's `.claude/settings.json` to also route Claude Code's built-in plan mode there.
 
 ### MCP server
 
@@ -277,6 +289,20 @@ rm -f ~/.claude/scripts/hooks/session-start-context.sh
 rm -f ~/.claude/scripts/hooks/pre-compaction-save.sh
 rm -f ~/.claude/scripts/hooks/post-commit-memory-update.sh
 ```
+
+## Future Work
+
+### Issue-tracker entry point (`from-ticket`)
+
+A skill that takes an issue ID (Linear, Jira, GitHub Issue) and auto-gathers context from the tracker, linked PRs, related discussions, and error monitoring (Sentry) before feeding it into Phase 1 Discovery. Currently the workflow starts from a user prompt — this would let it start from a ticket and pull in structured acceptance criteria, linked conversations, and reproduction steps automatically.
+
+### External knowledge source in Phase 2
+
+Phase 2 Exploration currently only searches the codebase. Adding an optional step to pull context from an external knowledge source (Obsidian vault, Apple Notes, a `docs/` directory, or a notes MCP server) would give subagents richer domain context — especially useful for projects where product decisions, meeting notes, or research live outside the repo.
+
+### Priority-ranked review feedback
+
+Phase 6 currently auto-fixes all findings from the review tier. A severity filter would triage findings into Critical (auto-fix), Medium (present for user decision), and Low (log but skip), reducing unnecessary churn on stylistic or speculative suggestions while still catching real bugs.
 
 ## License
 

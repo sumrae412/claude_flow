@@ -85,6 +85,7 @@ Registry lookups are read-only during variant selection. Record `dispatched` eve
 | `refactor` | Restructuring existing code without changing behavior — moving, renaming, abstracting |
 | `bugfix` | Debugging a defect — tracing an error, unexpected behavior, or regression |
 | `config` | Configuration, environment variables, infrastructure, deployment changes |
+| `exploration` | Spike, prototype, or proof-of-concept — validate a hypothesis with minimal overhead. Lighter prompts focused on feasibility and key risks rather than full production patterns |
 | `general` | Fallback when the task doesn't fit a specific category |
 
 ---
@@ -107,6 +108,8 @@ When both signals agree, classification is confident. When they conflict or the 
 - "Wire up the Stripe webhook handler" → `integration`
 - "Update the dashboard summary card component" → `ui`
 - "Move the DB connection string to an env var" → `config`
+- "Try out a different approach to caching" → `exploration`
+- "Spike whether we can use WebSockets for this" → `exploration`
 - "Help me understand how this feature works" → `general`
 
 ---

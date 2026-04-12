@@ -25,7 +25,7 @@
     },
     {
       "id": "no-overflow-hidden",
-      "pattern": "overflow:\\s*hidden",
+      "pattern": "overflow(-[xy])?:\\s*hidden",
       "file_globs": ["*.css", "*.html"],
       "severity": "caution",
       "message": "overflow:hidden on flex/grid containers clips child scroll areas. Use overflow:clip + min-height:0 instead."

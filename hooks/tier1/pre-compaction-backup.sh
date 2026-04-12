@@ -45,8 +45,13 @@ mkdir -p "$CLAUDE_DIR"
 import json, sys
 try:
     d = json.load(open('$WORKFLOW_STATE'))
-    print(f\"Phase: {d.get('current_phase', 'unknown')} — {d.get('phase_description', '')}\")
-    print(f\"Step: {d.get('current_step', 'unknown')} of {d.get('total_steps', 'unknown')}\")
+    cp = d.get('current_phase', {})
+    if isinstance(cp, dict):
+        print(f\"Phase: {cp.get('id', 'unknown')} ({cp.get('name', '')}) — Step {cp.get('step', '?')} ({cp.get('step_label', '')})\")
+        print(f\"Path: {cp.get('path', 'not set')} | Iteration: {cp.get('iteration', '?')}/{cp.get('max_iterations', '?')}\")
+    else:
+        print(f'Phase: {cp}')
+    print(f\"Task: {d.get('task_summary', 'unknown')}\")
 except Exception:
     print('(unable to parse workflow-state.json)')
 " 2>/dev/null

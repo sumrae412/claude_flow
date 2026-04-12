@@ -136,7 +136,7 @@ This check cannot auto-fix because removing or updating code references requires
 
 ### How it works
 
-1. **Group entries by domain** using the domain mapping defined in `skills/code-creation-workflow/references/memory-injection.md`. Each memory file's semantic key or filename determines its domain.
+1. **Group entries by domain** using the domain mapping defined in `skills/claude-flow/references/memory-injection.md`. Each memory file's semantic key or filename determines its domain.
 
 2. **Filter groups** — only check domains with 3 or more entries. Domains with fewer entries rarely contradict.
 

@@ -1,6 +1,6 @@
 ---
 name: memory-injection
-description: Inject project-specific gotchas from MEMORY.md into subagent prompts. Used internally by code-creation-workflow before dispatching Phase 2/4/5/6 subagents. Prevents known mistakes from recurring.
+description: Inject project-specific gotchas from MEMORY.md into subagent prompts. Used internally by claude-flow before dispatching Phase 2/4/5/6 subagents. Prevents known mistakes from recurring.
 user-invocable: false
 ---
 
@@ -10,7 +10,7 @@ user-invocable: false
 
 Reads the project's MEMORY.md, matches entries to the current task's file scope, and returns a `PROJECT GOTCHAS` block for the caller to append to subagent prompts. This prevents known mistakes from recurring across sessions and agents.
 
-For the full domain → gotcha key mapping table, see `code-creation-workflow/references/memory-injection.md`.
+For the full domain → gotcha key mapping table, see `claude-flow/references/memory-injection.md`.
 
 ## Process
 
@@ -21,7 +21,7 @@ Check these locations in order:
 1. `$PROJECT/.claude/memory/MEMORY.md`
 2. `$PROJECT/MEMORY.md`
 
-If neither exists → **graceful no-op**: skip injection entirely, return nothing. Do not error. (Bootstrap is owned by `code-creation-workflow` Phase 0 Step 8 — do not duplicate it here.)
+If neither exists → **graceful no-op**: skip injection entirely, return nothing. Do not error. (Bootstrap is owned by `claude-flow` Phase 0 Step 8 — do not duplicate it here.)
 
 ### Step 2: Accept Input
 
@@ -31,7 +31,7 @@ The caller provides a list of file paths that will be touched during this task. 
 
 ### Step 3: Match File Paths to Domains
 
-Compare each file path against the domain table in `code-creation-workflow/references/memory-injection.md`. A file can match multiple domains. Collect all matched domains.
+Compare each file path against the domain table in `claude-flow/references/memory-injection.md`. A file can match multiple domains. Collect all matched domains.
 
 Examples:
 - `services/client_service.py` → `services` domain
@@ -111,7 +111,7 @@ If matches were found in Step 4, Step 4b, or Step 5b, return the formatted injec
 
 ## Usage Points
 
-This skill is invoked internally by `code-creation-workflow` at four points:
+This skill is invoked internally by `claude-flow` at four points:
 
 | Phase | When | What's injected into |
 |-------|------|---------------------|

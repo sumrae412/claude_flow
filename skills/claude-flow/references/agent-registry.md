@@ -1,6 +1,6 @@
 # Agent & Skill Registry
 
-Reference documentation for all agents, skills, and tools used within the code-creation-workflow. This file is for documentation — not loaded at runtime.
+Reference documentation for all agents, skills, and tools used within the claude-flow. This file is for documentation — not loaded at runtime.
 
 ## Agents Used Within This Workflow
 

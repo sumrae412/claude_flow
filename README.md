@@ -60,7 +60,7 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 After installing, invoke in Claude Code:
 
 ```
-/code-creation-workflow
+/claude-flow
 ```
 
 Or describe what you want to build — the workflow triggers automatically for complex features. Small single-file changes use a fast path that skips the full pipeline.
@@ -71,7 +71,7 @@ For bug fixes, use `/bug-fix` — a dedicated 4-step pipeline (Reproduce, Diagno
 
 ### Core workflow
 
-**code-creation-workflow** — The main orchestrator. 6 phases:
+**claude-flow** — The main orchestrator. 6 phases:
 
 | Phase | What happens |
 |-------|-------------|
@@ -247,7 +247,7 @@ PRs under 200 lines skip the full agent pool and use a single-pass review.
 ```
 claude_flow/
 ├── skills/                     # 23 bundled skills (SKILL.md + references)
-│   ├── code-creation-workflow/  # Main orchestrator (1750+ lines)
+│   ├── claude-flow/  # Main orchestrator (1750+ lines)
 │   ├── bug-fix/                 # Dedicated bug-fix pipeline
 │   ├── debate-team/             # Cross-model adversarial review
 │   └── ...
@@ -289,7 +289,7 @@ Remove the installed skills, scripts, hooks, and MCP server:
 
 ```bash
 # Remove all bundled skills
-for skill in bug-fix code-creation-workflow coding-best-practices debate-team \
+for skill in bug-fix claude-flow coding-best-practices debate-team \
   defensive-backend-flows defensive-ui-flows executing-plans fetch-api-docs \
   finishing-a-development-branch hook-doctor investigator lint-memory \
   memory-injection production-readiness-check prompt-optimization research \

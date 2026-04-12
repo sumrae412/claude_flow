@@ -1,5 +1,5 @@
 """
-Tests for registry.py — Bayesian agent registry for code-creation-workflow swarm.
+Tests for registry.py — Bayesian agent registry for claude-flow swarm.
 
 TDD: These tests are written before the implementation. Run first to confirm they
 fail with ModuleNotFoundError, then implement registry.py to make them pass.

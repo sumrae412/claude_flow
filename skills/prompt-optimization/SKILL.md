@@ -168,10 +168,10 @@ score              = true_positive_rate * signal_to_noise
 ## Integration
 
 - **smart-exploration** calls `prompt-tracker.py select explorer <category> <role>` before dispatching explorers
-- **code-creation-workflow** Phase 2: selects explorer variants, records files_found
-- **code-creation-workflow** Phase 4: selects architect variants, records user choice
-- **code-creation-workflow** Phase 5: records files_used_in_impl for explorer scoring
-- **code-creation-workflow** Phase 6: records reviewer outcomes (issues found/fixed/dismissed), architect quality signal
+- **claude-flow** Phase 2: selects explorer variants, records files_found
+- **claude-flow** Phase 4: selects architect variants, records user choice
+- **claude-flow** Phase 5: records files_used_in_impl for explorer scoring
+- **claude-flow** Phase 6: records reviewer outcomes (issues found/fixed/dismissed), architect quality signal
 - **session-learnings** triggers this skill when any event files have new entries
 - **MCP server** exposes `get_prompt_performance` tool (accepts optional `agent_type` filter)
 
@@ -179,6 +179,6 @@ score              = true_positive_rate * signal_to_noise
 
 ## Next Steps
 
-- **Need more data for variant scoring?** Run `/code-creation-workflow` on a real task — it auto-records explorer, architect, and reviewer performance events.
+- **Need more data for variant scoring?** Run `/claude-flow` on a real task — it auto-records explorer, architect, and reviewer performance events.
 - **Want to see current standings?** Check `~/.claude/memory/prompt-variants.json` for variant win rates and F1 scores.
 - **Ready to promote a winner?** Re-run `/prompt-optimization` after 10+ sessions per variant to trigger automatic promotion.

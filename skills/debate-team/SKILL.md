@@ -294,7 +294,7 @@ Don't tune after every round. Aggregate over 5+ debate rounds, then:
 1. Compute ADOPT/REJECT rates per critic
 2. Identify the noisiest critic (highest REJECT rate)
 3. Review its last 5 REJECTed findings — what pattern do they share?
-4. Make ONE prompt change (following code-creation-workflow's one-change principle)
+4. Make ONE prompt change (following claude-flow's one-change principle)
 5. Run 3+ rounds with the new prompt to verify improvement
 
 This is the evaluator-optimizer loop applied to the debate team's own critics.

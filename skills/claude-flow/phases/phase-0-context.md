@@ -19,7 +19,7 @@ Replace `SESSION_TIMESTAMP` with actual ISO timestamp, `TASK_SUMMARY` with the u
 ```json
 {
   "schema_version": 1,
-  "workflow_id": "code-creation-workflow",
+  "workflow_id": "claude-flow",
   "session_id": "SESSION_TIMESTAMP",
   "status": "running",
   "started_at": "SESSION_TIMESTAMP",

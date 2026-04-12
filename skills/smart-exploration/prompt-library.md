@@ -2,7 +2,7 @@
 
 Subagent dispatch prompts organized by task category. Each prompt is a complete instruction ready to pass directly to an Agent tool call. Fill in placeholders (`[FEATURE]`, `[AREA]`, `[TARGET]`) from the user's request before dispatching.
 
-All prompts use `think harder about...` as the default thinking budget (deep analysis, ~10K tokens). This matches Phase 2's default in `code-creation-workflow`.
+All prompts use `think harder about...` as the default thinking budget (deep analysis, ~10K tokens). This matches Phase 2's default in `claude-flow`.
 
 ---
 

@@ -1,4 +1,4 @@
-"""registry.py — Bayesian agent registry for code-creation-workflow swarm.
+"""registry.py — Bayesian agent registry for claude-flow swarm.
 
 Stdlib only: json, os, pathlib, datetime, math.
 """

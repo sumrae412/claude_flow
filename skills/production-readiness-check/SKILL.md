@@ -12,7 +12,7 @@ Checks infrastructure and ops-level production readiness that code-level securit
 
 ## When to Use
 
-- **Automatically** — dispatched as a Phase 6 parallel reviewer during the code-creation-workflow
+- **Automatically** — dispatched as a Phase 6 parallel reviewer during the claude-flow
 - **Manually** — invoke `/production-readiness` for a full standalone audit before shipping to production
 
 ## Trigger System

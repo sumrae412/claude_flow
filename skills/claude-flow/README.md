@@ -80,7 +80,7 @@ The hook system is designed to work on any machine:
 - **Scripts** live in this repo (`../../scripts/hooks/`) — copied into each project during bootstrap.
 - **Generated artifacts** (`.claude/hooks.json`, `scripts/hooks/hook-config.sh`) are project-specific and committed to the target project.
 
-On a new machine: clone this repo to `~/claude-config/`, install the code-creation-workflow skill, and the next time you run it on any project it will auto-bootstrap hooks.
+On a new machine: clone this repo to `~/claude-config/`, install the claude-flow skill, and the next time you run it on any project it will auto-bootstrap hooks.
 
 ### Stack Detection Reference
 
@@ -107,7 +107,7 @@ On a new machine: clone this repo to `~/claude-config/`, install the code-creati
 ### File Layout
 
 ```
-skills/code-creation-workflow/
+skills/claude-flow/
 ├── SKILL.md                          # Main workflow definition
 ├── README.md                         # This file
 └── references/

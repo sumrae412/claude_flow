@@ -233,7 +233,7 @@ Done!
 - Dispatch fix subagent with specific instructions
 - Don't try to fix manually (context pollution)
 
-**Self-debugging integration:** When a subagent's work fails verification (test or lint), use the retry loop defined in `code-creation-workflow` Phase 5. Emit failure events, match against the failure catalog, and escalate thinking budget per attempt. Do not silently retry without emitting events.
+**Self-debugging integration:** When a subagent's work fails verification (test or lint), use the retry loop defined in `claude-flow` Phase 5. Emit failure events, match against the failure catalog, and escalate thinking budget per attempt. Do not silently retry without emitting events.
 
 ## Inter-Task Verification Gate
 

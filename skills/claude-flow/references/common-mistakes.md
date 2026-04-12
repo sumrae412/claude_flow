@@ -11,4 +11,4 @@
 | Spinning 7 subagents for a small change | Scale agent count to complexity — fast-path and small tasks need 0-1 agents |
 | Manufacturing clarification questions | Skip clarification entirely if the request is well-specified |
 | Auto-shipping without user review | Always confirm before invoking `/ship` |
-| Using code-creation-workflow for bug fixes | Bug reports, regressions, and error investigations route to `/bug-fix` via Phase 1 Discovery Bug Path |
+| Using claude-flow for bug fixes | Bug reports, regressions, and error investigations route to `/bug-fix` via Phase 1 Discovery Bug Path |

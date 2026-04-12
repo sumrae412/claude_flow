@@ -69,7 +69,7 @@ After all tasks complete and verified:
 
 **Don't force through blockers** - stop and ask.
 
-**When a plan step fails verification:** Use the self-debugging retry loop from `code-creation-workflow` Phase 5 (3 attempts, escalating thinking budget, failure catalog matching, event emission). Do not surface to user until 3 attempts are exhausted.
+**When a plan step fails verification:** Use the self-debugging retry loop from `claude-flow` Phase 5 (3 attempts, escalating thinking budget, failure catalog matching, event emission). Do not surface to user until 3 attempts are exhausted.
 
 ## Remember
 - Review plan critically first

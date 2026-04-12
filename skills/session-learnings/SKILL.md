@@ -68,7 +68,7 @@ Task tool:
     You have DIRECT WRITE ACCESS to the project memory repo:
       MEMORY_DIR=$(find ~/.claude/projects/ -name "MEMORY.md" -maxdepth 3 | head -1 | xargs dirname 2>/dev/null)
       # If not found, ask user for MEMORY_DIR before proceeding.
-      # Note: MEMORY.md should already exist — code-creation-workflow Phase 0 Step 8 bootstraps it.
+      # Note: MEMORY.md should already exist — claude-flow Phase 0 Step 8 bootstraps it.
       # Do not duplicate bootstrap logic here; if missing, it indicates the workflow was skipped.
       MEMORY_FILE=$MEMORY_DIR/MEMORY.md
 
@@ -231,7 +231,7 @@ Task tool:
 
     8b. **Specific patterns to check:** For each modified skill, grep ALL
         other skills for the skill's name (e.g., "debate-team",
-        "code-creation-workflow"). Verify: `--mode` vs `--reviewer` flags,
+        "claude-flow"). Verify: `--mode` vs `--reviewer` flags,
         option numbering (finishing options 1-4), delegation targets
         (which skill handles which option).
 

@@ -1,6 +1,6 @@
 ---
 name: bug-fix
-description: Dedicated bug fix orchestrator — Reproduce → Diagnose → Fix (TDD) → Verify. Composes existing debugging skills (investigator, systematic-debugging, TDD) into a streamlined pipeline. Use when fixing bugs, regressions, or unexpected behavior instead of code-creation-workflow.
+description: Dedicated bug fix orchestrator — Reproduce → Diagnose → Fix (TDD) → Verify. Composes existing debugging skills (investigator, systematic-debugging, TDD) into a streamlined pipeline. Use when fixing bugs, regressions, or unexpected behavior instead of claude-flow.
 user-invocable: true
 ---
 
@@ -12,7 +12,7 @@ user-invocable: true
 
 **Announce:** "Running bug-fix workflow — reproduce, diagnose, fix, verify."
 
-**This is NOT for:** New features, refactors, or improvements. Use `/code-creation-workflow` for those.
+**This is NOT for:** New features, refactors, or improvements. Use `/claude-flow` for those.
 
 ---
 
@@ -150,7 +150,7 @@ The git diff of all changes (fix + test).
 
 ### Review Dispatch
 
-Dispatch a subset of code-creation-workflow's Phase 6 reviewers on `$diff`:
+Dispatch a subset of claude-flow's Phase 6 reviewers on `$diff`:
 
 **Always run:**
 
@@ -173,7 +173,7 @@ Dispatch a subset of code-creation-workflow's Phase 6 reviewers on `$diff`:
 
 ### Review-Fix-Recheck Loop
 
-Same pattern as code-creation-workflow Phase 6:
+Same pattern as claude-flow Phase 6:
 
 ```
 For each HIGH+ finding:
@@ -210,12 +210,12 @@ Review: <findings summary — resolved/escalated>
 
 | Skill | Relationship |
 |-------|-------------|
-| `code-creation-workflow` | Bug-fix is the bug counterpart. Phase 1 Discovery auto-routes bug tasks here. |
+| `claude-flow` | Bug-fix is the bug counterpart. Phase 1 Discovery auto-routes bug tasks here. |
 | `investigator` | Dispatched in Step 2 for complex bugs. Evidence matrix feeds diagnosis. |
 | `systematic-debugging` | Methodology reference. Step 2 follows its "no fixes without root cause" principle. |
 | `test-driven-development` | Used in Steps 1 and 3. Failing test first, then fix to green. |
 | `memory-injection` | Step 2 checks MEMORY.md for known gotchas before tracing code. |
-| `verification-before-completion` | Final gate in Step 4. Same as code-creation-workflow. |
+| `verification-before-completion` | Final gate in Step 4. Same as claude-flow. |
 | `shipping-workflow` | After bug-fix completes, user can invoke `/ship` to commit → PR → merge. |
 
 ---
@@ -223,5 +223,5 @@ Review: <findings summary — resolved/escalated>
 ## Next Steps
 
 - **Bug is fixed and verified?** Use `/ship` to commit, push, create PR, run review, and merge to main.
-- **Fix revealed a deeper architectural issue?** Use `/code-creation-workflow` to address it through the full 6-phase pipeline.
+- **Fix revealed a deeper architectural issue?** Use `/claude-flow` to address it through the full 6-phase pipeline.
 - **Capture what you learned?** Use `/session-learnings` to persist the debugging insights to memory.

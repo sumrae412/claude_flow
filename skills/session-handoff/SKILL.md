@@ -37,7 +37,7 @@ git diff --cached --name-only
 ```
 
 Also check:
-- **Phase/step**: If code-creation-workflow is active, identify the current phase and step number from TodoWrite state or recent conversation context
+- **Phase/step**: If claude-flow is active, identify the current phase and step number from TodoWrite state or recent conversation context
 - **Open questions**: Unresolved ambiguities from the conversation (design decisions deferred, unclear requirements)
 - **Ruled Out**: Approaches, tools, or paths that were tried and failed or deliberately abandoned — include *why* so the next session doesn't re-explore them
 - **Blockers**: Failing tests, missing dependencies, awaiting external input

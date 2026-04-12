@@ -1,6 +1,6 @@
 ---
 name: research
-description: Multi-agent research team with staggered waves and confidence-scored synthesis. Standalone skill for deep codebase + external research, also invoked by code-creation-workflow Phase 2 for full/complex tasks.
+description: Multi-agent research team with staggered waves and confidence-scored synthesis. Standalone skill for deep codebase + external research, also invoked by claude-flow Phase 2 for full/complex tasks.
 user-invocable: true
 ---
 
@@ -11,7 +11,7 @@ user-invocable: true
 Multi-agent research team that explores a question in depth across codebase, git history, external docs, and API references. Produces a confidence-scored research brief.
 
 **Standalone:** `/research "your question here"`
-**Integrated:** Called by code-creation-workflow Phase 2 when task path is `full` or `complex`.
+**Integrated:** Called by claude-flow Phase 2 when task path is `full` or `complex`.
 
 **Announce:** "Running research team — classifying task, dispatching researchers, synthesizing findings."
 
@@ -250,7 +250,7 @@ Wave 2 researchers receive:
 
 ### Skip Conditions
 
-When called from code-creation-workflow:
+When called from claude-flow:
 - `fast` or `lite` path → skip research entirely (use current single-executor exploration)
 - `full` or `complex` path → run research team
 
@@ -308,7 +308,7 @@ Be ruthless about confidence scoring. "Verified" means MULTIPLE sources confirm 
 
 ---
 
-## Integration with code-creation-workflow
+## Integration with claude-flow
 
 When called from Phase 2:
 
@@ -330,6 +330,6 @@ When called standalone:
 
 ## Next Steps
 
-- **Ready to build from findings?** Use `/code-creation-workflow` to run the full implementation pipeline (research feeds Phase 3 automatically).
+- **Ready to build from findings?** Use `/claude-flow` to run the full implementation pipeline (research feeds Phase 3 automatically).
 - **Need to capture a dead end?** Use `/session-handoff --abandon` to document what didn't work before moving on.
 - **Want to verify assumptions?** If `/fetch-api-docs` is available, use it to pull authoritative API docs for any external service referenced in findings.

@@ -1,4 +1,4 @@
-"""moe_router.py — Mixture-of-Experts router for code-creation-workflow.
+"""moe_router.py — Mixture-of-Experts router for claude-flow.
 
 Maps task fingerprints to learned expert configurations. Stdlib + registry.py only.
 """

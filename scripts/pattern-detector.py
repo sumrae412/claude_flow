@@ -40,7 +40,7 @@ DOMAIN_TARGET_MAP = {
     "ui": "skills/defensive-ui-flows/SKILL.md",
     "tests": "skills/coding-best-practices/SKILL.md",
 }
-DEFAULT_TARGET = "skills/code-creation-workflow/SKILL.md"
+DEFAULT_TARGET = "skills/claude-flow/SKILL.md"
 
 
 def load_jsonl(path: Path) -> list[dict]:

@@ -1,4 +1,4 @@
-"""rag.py — RAG 2.0 experience retrieval pipeline for code-creation-workflow.
+"""rag.py — RAG 2.0 experience retrieval pipeline for claude-flow.
 
 Dependencies: openai (embedding API), numpy (vector math).
 VectorStore: index.json (chunk metadata) + embeddings.npy (float32 array).

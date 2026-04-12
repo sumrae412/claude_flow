@@ -1,16 +1,16 @@
 ---
 name: smart-exploration
-description: Task-typed exploration prompts for Phase 2. Classifies the task and returns tuned subagent prompts instead of generic ones. Used internally by code-creation-workflow.
+description: Task-typed exploration prompts for Phase 2. Classifies the task and returns tuned subagent prompts instead of generic ones. Used internally by claude-flow.
 user-invocable: false
 ---
 
 # Smart Exploration
 
-**Used by:** code-creation-workflow Phase 2 (direct), `/research` skill (task classification for researcher selection)
+**Used by:** claude-flow Phase 2 (direct), `/research` skill (task classification for researcher selection)
 
 ## Overview
 
-This skill is used internally by `code-creation-workflow` during **Phase 2 (Exploration)**. Rather than dispatching generic explorer subagents, it first classifies the task type, then selects targeted prompts from the prompt library that are tuned for that category of work.
+This skill is used internally by `claude-flow` during **Phase 2 (Exploration)**. Rather than dispatching generic explorer subagents, it first classifies the task type, then selects targeted prompts from the prompt library that are tuned for that category of work.
 
 The result is exploration that surfaces the exact context each task type needs — rather than broadly scanning the codebase and hoping the right patterns turn up.
 
@@ -18,7 +18,7 @@ The result is exploration that surfaces the exact context each task type needs �
 
 ## How Phase 2 Uses This Skill
 
-`code-creation-workflow` dispatches **2–3 explorer subagents** in parallel during Phase 2. Before constructing those subagent prompts, consult this skill to:
+`claude-flow` dispatches **2–3 explorer subagents** in parallel during Phase 2. Before constructing those subagent prompts, consult this skill to:
 
 1. **Classify** the task into one of the categories below.
 2. **Select variants** using the prompt optimization system (see Variant Selection below). If the tracker is unavailable, fall back to `prompt-library.md` directly.

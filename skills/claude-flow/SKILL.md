@@ -1,5 +1,5 @@
 ---
-name: code-creation-workflow
+name: claude-flow
 description: Use when creating new features, implementing complex changes, or executing implementation plans. Agentic workflow with fast, clone, lite, explore, and full paths. Executor/Advisor strategy — Sonnet executes, Opus advises at key decision points.
 user-invocable: true
 ---
@@ -8,7 +8,7 @@ user-invocable: true
 
 Agentic multi-phase workflow for building features. **Executor/Advisor strategy:** Sonnet executor runs the main loop (exploring, drafting, implementing). Opus advisor fires on-demand at 3-5 decision points. Project-agnostic — works for any codebase or greenfield project.
 
-**Announce:** "Running code-creation-workflow — loading context, exploring codebase, then building with you."
+**Announce:** "Running claude-flow — loading context, exploring codebase, then building with you."
 
 ---
 

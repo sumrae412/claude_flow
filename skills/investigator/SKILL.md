@@ -167,7 +167,7 @@ Format findings as a structured matrix:
 
 ---
 
-## Integration with code-creation-workflow
+## Integration with claude-flow
 
 When Phase 5 TDD hits an unexpected failure:
 
@@ -200,5 +200,5 @@ The evidence matrix is the deliverable. What happens next is the caller's decisi
 ## Next Steps
 
 - **Ready to fix the bug?** Use `/bug-fix` — it consumes the evidence matrix and runs Reproduce → Diagnose → Fix → Verify.
-- **Evidence reveals a missing feature?** Use `/code-creation-workflow` to build it through the full 6-phase pipeline.
+- **Evidence reveals a missing feature?** Use `/claude-flow` to build it through the full 6-phase pipeline.
 - **Need to capture what you learned?** Use `/session-learnings` to persist findings to memory before ending the session.

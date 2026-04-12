@@ -173,6 +173,22 @@
       "script": "hooks/tier2/context-rot-detection.sh",
       "description": "Warns when session touches too many files without compaction or summary",
       "stack_tags": ["python", "ruff", "flake8", "pytest", "node", "eslint", "jest", "typescript", "alembic", "docker"]
+    },
+    {
+      "id": "phase-gate",
+      "tier": 1,
+      "trigger": "PreToolUse",
+      "matcher": ["Edit", "Write"],
+      "script": "hooks/tier1/phase-gate.sh",
+      "description": "Blocks source file edits outside Phase 5 (Implementation)"
+    },
+    {
+      "id": "validate-phase-output",
+      "tier": 1,
+      "trigger": "PostToolUse",
+      "matcher": ["Write(.claude/workflow-state.json)"],
+      "script": "hooks/tier1/validate-phase-output.sh",
+      "description": "Validates phase output artifacts against JSON schemas"
     }
   ]
 }

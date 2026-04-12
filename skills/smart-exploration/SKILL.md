@@ -6,6 +6,8 @@ user-invocable: false
 
 # Smart Exploration
 
+**Used by:** code-creation-workflow Phase 2 (direct), `/research` skill (task classification for researcher selection)
+
 ## Overview
 
 This skill is used internally by `code-creation-workflow` during **Phase 2 (Exploration)**. Rather than dispatching generic explorer subagents, it first classifies the task type, then selects targeted prompts from the prompt library that are tuned for that category of work.

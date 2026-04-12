@@ -29,13 +29,48 @@ if [[ -f "$HANDOFF" ]]; then
   print_line ""
 fi
 
-# 2. CLAUDE.md reminder
+# 2. Session log (mid-session decision journal)
+SESSION_LOG="$PROJECT_DIR/.claude/session-log.md"
+if [[ -f "$SESSION_LOG" ]]; then
+  print_line "=== PREVIOUS SESSION LOG ==="
+  # Show last 10 lines (most recent decisions)
+  tail -10 "$SESSION_LOG" 2>/dev/null | while IFS= read -r line && [[ "$LINES_USED" -lt $((LINE_BUDGET - 10)) ]]; do
+    print_line "$line"
+  done
+  print_line "=== END SESSION LOG ==="
+  print_line ""
+fi
+
+# 3. Abandoned approaches (ruled-out context)
+ABANDONED_DIR="$PROJECT_DIR/.claude/abandoned"
+if [[ -d "$ABANDONED_DIR" ]]; then
+  # Show most recent 3 abandoned records (by filename sort = date order)
+  ABANDONED_FILES=$(ls -1 "$ABANDONED_DIR"/*.md 2>/dev/null | tail -3)
+  if [[ -n "$ABANDONED_FILES" ]]; then
+    print_line "=== PREVIOUSLY RULED OUT ==="
+    while IFS= read -r afile; do
+      # Extract title and why-abandoned from each file
+      TITLE=$(head -1 "$afile" 2>/dev/null | sed 's/^# //')
+      WHY=$(sed -n '/^## Why abandoned/,/^## /p' "$afile" 2>/dev/null | grep '^- ' | head -2)
+      print_line "  $TITLE"
+      if [[ -n "$WHY" ]]; then
+        while IFS= read -r reason; do
+          print_line "    $reason"
+        done <<< "$WHY"
+      fi
+    done <<< "$ABANDONED_FILES"
+    print_line "=== END RULED OUT ==="
+    print_line ""
+  fi
+fi
+
+# 4. CLAUDE.md reminder
 if [[ -f "$PROJECT_DIR/CLAUDE.md" ]]; then
   print_line "[session-context-loader] CLAUDE.md found at project root — load it for project conventions."
   print_line ""
 fi
 
-# 3. Recent git activity
+# 5. Recent git activity
 if git -C "$PROJECT_DIR" rev-parse --git-dir &>/dev/null; then
   BRANCH=$(git -C "$PROJECT_DIR" branch --show-current 2>/dev/null || echo "unknown")
   print_line "[session-context-loader] Branch: $BRANCH"

@@ -1,0 +1,107 @@
+{
+  "version": "1.0",
+  "description": "Declarative reviewer selection for Phase 6. 'always' reviewers run every time. 'conditional' reviewers run when file_patterns match the diff (and optionally content_pattern exceeds threshold).",
+  "reviewers": [
+    {
+      "id": "coderabbit",
+      "tier": "always",
+      "cascade_tier": 1,
+      "subagent_type": "coderabbit:code-reviewer",
+      "model": "sonnet",
+      "description": "Consolidated first-pass: bugs, logic errors, conventions, patterns, plan adherence"
+    },
+    {
+      "id": "silent-failure-hunter",
+      "tier": "always",
+      "cascade_tier": 2,
+      "subagent_type": "pr-review-toolkit:silent-failure-hunter",
+      "model": "sonnet",
+      "description": "Swallowed errors, empty catches, hidden failures"
+    },
+    {
+      "id": "security-reviewer",
+      "tier": "always",
+      "cascade_tier": 2,
+      "subagent_type": "security-reviewer",
+      "model": "sonnet",
+      "description": "Auth, data exposure, injection, OWASP"
+    },
+    {
+      "id": "test-coverage-analyzer",
+      "tier": "always",
+      "cascade_tier": 2,
+      "subagent_type": "pr-review-toolkit:pr-test-analyzer",
+      "model": "sonnet",
+      "description": "Test coverage gaps, missing edge cases, untested error paths"
+    },
+    {
+      "id": "migration-reviewer",
+      "tier": "conditional",
+      "cascade_tier": 3,
+      "file_patterns": ["alembic/**/*.py", "**/migrations/**/*.py", "**/*.sql"],
+      "subagent_type": "migration-reviewer",
+      "model": "sonnet",
+      "description": "Alembic migration safety checks"
+    },
+    {
+      "id": "google-api-reviewer",
+      "tier": "conditional",
+      "cascade_tier": 3,
+      "file_patterns": ["**/google/**", "**/calendar/**"],
+      "content_pattern": "google|calendar_service|GoogleCredentials",
+      "threshold": 2,
+      "subagent_type": "google-api-reviewer",
+      "model": "sonnet",
+      "description": "Google API quota, auth, and best practices"
+    },
+    {
+      "id": "async-reviewer",
+      "tier": "conditional",
+      "cascade_tier": 3,
+      "file_patterns": ["**/*.py"],
+      "content_pattern": "async def|await ",
+      "threshold": 3,
+      "subagent_type": "async-reviewer",
+      "model": "sonnet",
+      "description": "Blocking calls and async anti-patterns"
+    },
+    {
+      "id": "type-design-analyzer",
+      "tier": "conditional",
+      "cascade_tier": 3,
+      "file_patterns": ["**/models/**", "**/schemas/**", "**/types/**"],
+      "subagent_type": "pr-review-toolkit:type-design-analyzer",
+      "model": "haiku",
+      "description": "Type/model/schema design quality"
+    },
+    {
+      "id": "api-doc-auditor",
+      "tier": "conditional",
+      "cascade_tier": 3,
+      "file_patterns": ["**/routes/**", "**/api/**", "**/endpoints/**"],
+      "subagent_type": "api-doc-auditor",
+      "model": "haiku",
+      "description": "API documentation and schema consistency"
+    },
+    {
+      "id": "invariant-checker",
+      "tier": "conditional",
+      "cascade_tier": 4,
+      "file_patterns": ["**/models/**", "**/services/**", "**/routes/**"],
+      "subagent_type": "courierflow-invariant-checker",
+      "model": "haiku",
+      "dynamic_prompt": true,
+      "description": "Client sync, column names, query safety, eager loading (CF projects)"
+    },
+    {
+      "id": "defensive-verifier",
+      "tier": "conditional",
+      "cascade_tier": 4,
+      "file_patterns": ["**/templates/**", "**/static/**", "**/routes/**", "**/services/**"],
+      "subagent_type": "defensive-pattern-verifier",
+      "model": "haiku",
+      "dynamic_prompt": true,
+      "description": "Guard clauses, error handling, UI state management"
+    }
+  ]
+}

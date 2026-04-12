@@ -158,6 +158,14 @@
       "stack_tags": ["docker"]
     },
     {
+      "id": "decision-journal",
+      "tier": 1,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit", "Write"],
+      "script": "hooks/tier1/decision-journal.sh",
+      "description": "Periodic reminder to journal design decisions to .claude/session-log.md"
+    },
+    {
       "id": "context-rot-detection",
       "tier": 2,
       "trigger": "PostToolUse",

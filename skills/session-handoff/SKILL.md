@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: Export current session state for seamless resume in next session. Use at end of sessions, before closing, or when context gets heavy. Writes handoff.md with phase, modified files, blockers, and next steps.
+description: Export current session state for seamless resume in next session. Use at end of sessions, before closing, or when context gets heavy. Writes handoff.md with phase, modified files, blockers, and next steps. Also supports --abandon mode for documenting dead ends and failed approaches.
 user-invocable: true
 ---
 
@@ -74,3 +74,53 @@ Tell the user:
 - What was saved and where (`$PROJECT/.claude/handoff.md`)
 - That the SessionStart hook will surface this automatically at the top of the next session
 - Any blockers or open questions they should be aware of before closing
+
+---
+
+## Abandon Mode
+
+When invoked with `--abandon` or when the user says "abandon this", "this didn't work", "scrap this approach", or "dead end":
+
+### Step 1: Gather Abandon Context
+
+Collect the same state as a normal handoff (Step 1 above), plus ask:
+- **What was the approach?** (infer from conversation if possible, confirm with user)
+- **Why is it being abandoned?** (technical limitation, wrong direction, better approach found, etc.)
+- **What was learned?** (insights that should inform future attempts)
+
+### Step 2: Write Abandon Record
+
+Create `$PROJECT/.claude/abandoned/` directory if needed. Write to `$PROJECT/.claude/abandoned/YYYY-MM-DD-<topic>.md`:
+
+```markdown
+# Abandoned: <topic>
+**Date:** YYYY-MM-DD
+**Branch:** feature/xyz (deleted / kept for reference)
+
+## What was attempted
+Brief description of the approach and what was built
+
+## Why abandoned
+- Reason 1
+- Reason 2
+
+## What was learned
+- Insight that should inform future attempts
+- Technical discovery worth preserving
+
+## Files modified
+- `path/to/file.py` — what was changed
+```
+
+### Step 3: Clean Up
+
+- If on a feature branch with no commits worth keeping: offer to delete the branch
+- If on a feature branch with useful partial work: note it as "kept for reference" in the record
+- Remove `.claude/handoff.md` if it exists (the abandon record replaces it)
+
+### Step 4: Announce
+
+Tell the user:
+- Abandon record saved to `.claude/abandoned/YYYY-MM-DD-<topic>.md`
+- The SessionStart hook will surface this as "previously ruled out" context in future sessions
+- Whether the branch was deleted or kept

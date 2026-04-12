@@ -374,7 +374,21 @@ echo "    \"command\": \"python3\","
 echo "    \"args\": [\"$HOME/.claude/mcp/claude-flow/server.py\"]"
 echo "  }"
 
+# Install reviewer registry
+echo -e "${YELLOW}Installing reviewer registry${NC}"
+REVIEWER_REG="$CLAUDE_DIR/hooks/claude-flow/reviewer-registry.json"
+cp "$SCRIPT_DIR/reviewer-registry.json" "$REVIEWER_REG"
+echo "  + reviewer-registry.json"
+
 echo ""
+
+# Suggest project-local plan storage
+echo -e "${CYAN}Recommended:${NC} Save plans inside your project (git-tracked) instead of ~/.claude/plans/."
+echo "  Add to your project's .claude/settings.json or .claude/settings.local.json:"
+echo ""
+echo "  {\"plansDirectory\": \"docs/plans\"}"
+echo ""
+
 echo -e "${GREEN}Done!${NC} Installed $installed skills, $script_count scripts, $hook_count hooks, $memory_count memory files, and MCP server."
 echo ""
 echo "Usage:"

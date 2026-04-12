@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Phase 2 exploration output — key files, patterns, integration points discovered",
+  "type": "object",
+  "required": ["key_files", "patterns", "integration_points"],
+  "properties": {
+    "key_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "File paths read during exploration with their roles"
+    },
+    "patterns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Coding patterns, conventions, and architecture decisions observed"
+    },
+    "integration_points": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Systems, services, or modules this feature touches"
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Areas needing further investigation"
+    },
+    "gotchas_from_memory": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Relevant gotchas loaded from MEMORY.md"
+    }
+  }
+}

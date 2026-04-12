@@ -18,6 +18,16 @@ user-invocable: true
 
 ### Step 1: Gather State
 
+**Primary source — workflow state file:**
+
+If `.claude/workflow-state.json` exists, read it first. It provides structured data for:
+- Current phase and step (replaces guessing from conversation context)
+- Phase history with timestamps (replaces manual reconstruction)
+- Task summary (replaces re-reading the original request)
+- Produced artifacts (replaces checking which docs exist)
+
+Fall back to git/conversation context only for fields not in the state file (e.g., open questions, ruled-out approaches).
+
 Run these commands to collect current session state:
 
 ```bash
@@ -41,7 +51,10 @@ Write to `$PROJECT/.claude/handoff.md` (create `.claude/` dir if needed):
 # Session Handoff
 **Date:** YYYY-MM-DD HH:MM
 **Branch:** feature/xyz
-**Phase:** 5 (Implementation), Step 7 of 12
+**Phase:** <from workflow-state.json: current_phase.id (current_phase.name), Step current_phase.step>
+**Path:** <from workflow-state.json: current_phase.path>
+**Iteration:** <from workflow-state.json: current_phase.iteration / max_iterations>
+**Task:** <from workflow-state.json: task_summary>
 
 ## Modified files
 - `app/services/billing.py` — Added invoice generation service

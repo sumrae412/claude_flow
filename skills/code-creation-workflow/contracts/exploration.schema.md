@@ -19,6 +19,14 @@ concerns: string[]      # open questions for Phase 3
 
 confidence: verified | inferred | assumed   # from research team if used
 
+quality_gate:               # scored by Phase 2 Sonnet advisor, carried to Phase 3
+  passed: boolean           # true if all 4 axes scored PASS — Phase 3 skips re-check
+  scores:
+    objective_clarity: pass | fail
+    service_scope: pass | fail
+    testability: pass | fail
+    completeness: pass | fail
+
 ## Notes
 
 - Populated by executor at end of Phase 2

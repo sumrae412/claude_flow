@@ -69,15 +69,15 @@ All reviewers receive:
 
 ## Default Reviewers
 
-| Cascade Tier | ID | Model | Condition |
-|--------------|----|-------|-----------|
-| 1 | `coderabbit` | sonnet | Always — consolidated first pass |
-| 2 | `safety-reviewer` | sonnet | Always — silent failures + security (combined) |
-| 2 | `test-coverage-analyzer` | sonnet | Always — test gaps |
-| 3 | `migration-reviewer` | sonnet | Alembic/migration files in diff |
-| 3 | `google-api-reviewer` | sonnet | Google/calendar files + content match |
-| 3 | `async-reviewer` | sonnet | 3+ async patterns in Python files |
-| 3-4 | `lightweight-reviewer` | haiku | **Batched** — single dispatch with combined checklist (see below) |
+| Cascade Tier | ID | `subagent_type` | Model | Condition |
+|--------------|----|--------------------|-------|-----------|
+| 1 | `coderabbit` | `coderabbit:code-reviewer` | sonnet | Always — consolidated first pass |
+| 2 | `safety-reviewer` | `pr-review-toolkit:silent-failure-hunter` + `security-reviewer` | sonnet | Always — silent failures + security (combined) |
+| 2 | `test-coverage-analyzer` | `pr-review-toolkit:pr-test-analyzer` | sonnet | Always — test gaps |
+| 3 | `migration-reviewer` | `migration-reviewer` | sonnet | Alembic/migration files in diff |
+| 3 | `google-api-reviewer` | `google-api-reviewer` | sonnet | Google/calendar files + content match |
+| 3 | `async-reviewer` | `async-reviewer` | sonnet | 3+ async patterns in Python files |
+| 3-4 | `lightweight-reviewer` | `general-purpose` (haiku) | haiku | **Batched** — single dispatch with combined checklist (see below) |
 
 **Note:** Agents that ran as conditional specialists during Phase 5 (`migration-reviewer`, `google-api-reviewer`, `async-reviewer`) are **skipped** here — no double review.
 

@@ -106,7 +106,7 @@ def verify_symbol(symbol: str, file_path: str, project_root: Path) -> dict:
 
     try:
         result = subprocess.run(
-            ["grep", "-n", f"def {search_term}\\|class {search_term}", str(full_path)],
+            ["grep", "-En", f"def {search_term}|class {search_term}", str(full_path)],
             capture_output=True,
             text=True,
             timeout=5,
@@ -163,6 +163,7 @@ def main():
     all_results = file_results + symbol_results
     missing = [r for r in all_results if r["status"] == "missing"]
     warnings = [r for r in all_results if r["status"] == "warning"]
+    errors = [r for r in all_results if r["status"] == "error"]
     ok = [r for r in all_results if r["status"] == "ok"]
 
     output = {
@@ -173,10 +174,12 @@ def main():
             "ok": len(ok),
             "missing": len(missing),
             "warnings": len(warnings),
+            "errors": len(errors),
             "patterns_claimed": len(pattern_claims),
         },
         "missing": missing,
         "warnings": warnings,
+        "errors": errors,
         "patterns": pattern_claims,
     }
 
@@ -188,6 +191,10 @@ def main():
             print(f"\nMISSING ({len(missing)}):")
             for r in missing:
                 print(f"  - {r.get('path', r.get('symbol', '?'))}: {r['message']}")
+        if errors:
+            print(f"\nERRORS ({len(errors)}):")
+            for r in errors:
+                print(f"  - {r.get('symbol', '?')}: {r['message']}")
         if warnings:
             print(f"\nWARNINGS ({len(warnings)}):")
             for r in warnings:
@@ -197,8 +204,8 @@ def main():
             for p in pattern_claims:
                 print(f"  - \"{p['pattern']}\"")
 
-    # Exit non-zero if material mismatches
-    if missing:
+    # Exit non-zero if material mismatches or errors
+    if missing or errors:
         sys.exit(1)
     sys.exit(0)
 

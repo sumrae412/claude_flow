@@ -5,6 +5,8 @@
 
 The **executor (Sonnet)** explores the codebase directly — reading files, tracing patterns, mapping architecture. No parallel explorer subagents. The executor builds firsthand context that persists naturally through Phases 3-5, eliminating any context hydration gate.
 
+**Greenfield projects:** If there is no existing codebase, skip Phase 2 exploration entirely — go straight to Phase 3 clarification and then Phase 4 architecture. There are no files to explore or patterns to discover.
+
 ---
 
 ## Research Team Branch (Full/Complex Path Only)

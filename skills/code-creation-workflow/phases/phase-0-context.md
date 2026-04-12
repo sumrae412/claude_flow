@@ -106,9 +106,8 @@ Resume message: `Resuming workflow: "<task_summary>" / <phase.name> Step <step> 
 | phase-1 → phase-5 | Clone or plan path |
 | phase-2 → phase-3 | Always |
 | phase-3 → phase-4 | Always |
-| phase-4 → phase-4b | Always |
-| phase-4b → phase-4d | Full path only |
-| phase-4b → phase-5 | Lite path |
+| phase-4 (includes plan stress-test) → phase-4d | Full path only |
+| phase-4 (includes plan stress-test) → phase-5 | Lite path |
 | phase-4d → phase-5 | Always |
 | phase-5 → phase-5 | Retry: tests/lint failed, iteration < 3 |
 | phase-5 → phase-6 | Tests + lint pass |

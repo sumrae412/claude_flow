@@ -32,6 +32,10 @@ Before drafting architectures, check if existing plans or PRPs contain decisions
 
 **Why this matters:** Without this check, the executor might draft an architecture that contradicts a decision from a prior session's PRP. The user then approves the plan, implementation proceeds, and the contradiction surfaces as a bug in Phase 6 (or worse, in production). A 30-second glob-and-scan prevents this.
 
+### Extended Thinking for Phase 4 Advisors
+
+Both advisor checkpoints in this phase (Architecture Critique + Plan Stress-Test) include "Think step by step" — these are the highest-stakes decisions in the workflow. A missed blind spot here propagates through all of implementation. Phase 2 (gap-finding) and Phase 5 (focused decisions) do NOT need extended thinking — speed matters more there.
+
 ---
 
 ## Step 1: Executor Drafts Two Options
@@ -81,7 +85,7 @@ Present both options (post-advisor-refinement) to the user with the advisor's an
 ◆ USER CHOOSES architecture (A, B, or hybrid) ◆
 ```
 
-**State transition:** Write `artifacts.architecture_doc` with approach/files_to_create/files_to_modify/trade_offs, then transition to phase-4b.
+**State transition:** Write `artifacts.architecture_doc` with approach/files_to_create/files_to_modify/trade_offs, then proceed to Step 4 (plan writing).
 
 ---
 

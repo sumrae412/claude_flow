@@ -17,7 +17,7 @@ Agentic multi-phase workflow for building features. **Executor/Advisor strategy:
 | Role | Model | When |
 |------|-------|------|
 | **Executor** | **sonnet** | Every turn — exploration, drafting, implementation, all file I/O |
-| **Advisor (tiered)** | **sonnet** Phase 2, **opus** Phase 4/4b | Sonnet for gap-finding, Opus for architecture + plan critique |
+| **Advisor (tiered)** | **sonnet** Phase 2, **opus** Phase 4 | Sonnet for gap-finding, Opus for architecture + plan critique |
 | **Lightweight reviewer** | **haiku** | Phase 6 — single batched dispatch (types, API docs, invariants, defensive) |
 | **Specialist reviewers** | **sonnet** | Phase 6 — safety (combined), test coverage |
 
@@ -75,9 +75,8 @@ Load `phases/phase-1-discovery.md` for full path criteria and artifact requireme
 | phase-1 → phase-5 | Clone or plan path |
 | phase-2 → phase-3 | Always |
 | phase-3 → phase-4 | Always |
-| phase-4 → phase-4b | Always |
-| phase-4b → phase-4d | Full path only |
-| phase-4b → phase-5 | Lite path |
+| phase-4 (includes plan stress-test) → phase-4d | Full path only |
+| phase-4 (includes plan stress-test) → phase-5 | Lite path |
 | phase-4d → phase-5 | Always |
 | phase-5 → phase-5 | Retry: tests/lint failed, iteration < 3 |
 | phase-5 → phase-6 | Tests + lint pass |
@@ -111,7 +110,7 @@ Contracts are the interface between phases. When dispatching subagents, pass the
 | 1 | Discovery | executor | 7-path triage (bug/fast/clone/plan/lite/explore/full) | Auto |
 | 2 | Exploration | executor + **sonnet advisor** | Executor explores → advisor reviews gaps + scores quality gate | Advisor confirms |
 | 3 | Requirements | executor | Ambiguities + $requirements (quality gate skipped if Phase 2 passed) | User approves |
-| 4 | Architecture | executor + **advisor** | 2 options → advisor critiques → plan → advisor stress-tests | User approves plan |
+| 4 | Architecture + Plan | executor + **opus advisor** | 2 options → advisor critiques → plan → advisor stress-tests | User approves plan |
 | 5 | Implementation | executor (+ advisor optional) | TDD per step, defensive patterns, parallel dispatch | Tests + lint pass |
 | 5.5 | Reflection | executor | RARV self-check before expensive reviews | Auto |
 | 6 | Quality + Finish | sonnet/haiku | Cascading 5-tier review → verify → commit → retrospective | Verification |
@@ -141,7 +140,7 @@ Contracts are the interface between phases. When dispatching subagents, pass the
 | Skipping Phase 4c plan verification | Plans reference Phase 2 findings — codebase can drift |
 | Jumping to fixes without evidence | Use `/investigator` for complex TDD failures |
 | Calling advisor every turn | 2-4 calls per workflow, not every step |
-| Using Opus for Phase 2 exploration review | Sonnet handles gap-finding; Opus reserved for Phase 4/4b |
+| Using Opus for Phase 2 exploration review | Sonnet handles gap-finding; Opus reserved for Phase 4 |
 | Running all Phase 6 tiers when Tier 1 is clean | Early exit: if CodeRabbit finds no HIGH+ issues, skip Tiers 2-4 |
 | Dispatching 4 separate haiku reviewers | Batch into single `lightweight-reviewer` with combined checklist |
 | Initializing state machine for fast/lite paths | Skip — single-session linear flows don't need cross-session resume |

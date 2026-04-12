@@ -286,6 +286,7 @@ Mark task complete
 - **Task 1:** Skip the full test suite run (no prior tasks to regress against). Still run lint and build.
 - **Trivial tasks:** Config changes, documentation-only tasks, or tasks that don't touch executable code can skip the full suite. Still run lint.
 - **Explicitly independent tasks:** If the plan explicitly marks tasks as having zero shared state, the gate can run only the build check.
+- **Typed dependencies:** When the input plan includes typed dependencies (`data`, `build`, `knowledge`), respect them: `data`/`build` edges are strictly sequential; `knowledge` edges are parallelizable (record assumptions in each subagent's context). If no typed dependencies are present, fall back to existing independence heuristics.
 - **No test runner available:** If the project has no test suite (e.g., pure scripts, config-only repos), skip the suite check and run only lint + build.
 
 ### Why this matters

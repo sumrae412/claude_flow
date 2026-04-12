@@ -53,6 +53,8 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 ````markdown
 ### Task N: [Component Name]
+**Type:** value_unit | shared_prerequisite | adr
+**Depends on:** T2 (data), T4 (knowledge) | none
 
 **Files:**
 - Create: `exact/path/to/file.py`
@@ -91,6 +93,37 @@ git add tests/path/test.py src/path/file.py
 git commit -m "feat: add specific feature"
 ```
 ````
+
+## Task Types
+
+| Type | When | Example |
+|------|------|---------|
+| `value_unit` | Delivers one coherent, independently verifiable outcome | "Add tenant search endpoint" |
+| `shared_prerequisite` | 2+ later tasks depend on this at a shared boundary | "Create base service class with audit logging" |
+| `adr` | Technical decision that constrains multiple tasks | "Choose between WebSocket and SSE for real-time updates" |
+
+## Dependency Types
+
+| Type | Meaning | Parallelizable? |
+|------|---------|-----------------|
+| `data` | Needs schema/contract/interface from predecessor | No — must complete first |
+| `build` | Needs compiled output or deployed artifact | No — must complete first |
+| `knowledge` | Benefits from insights but can proceed with assumptions | Yes — record assumptions |
+
+## Task Ordering
+
+1. `shared_prerequisite` tasks first
+2. `adr` tasks next
+3. `value_unit` tasks in dependency order
+4. Tasks with only `knowledge` dependencies are parallelizable — note this explicitly in the plan
+
+## Granularity Criteria
+
+Right-size each task using these indicators:
+
+- **Too large → split:** spans unrelated service boundaries, mixed concerns in acceptance criteria, would need 2+ independent design docs
+- **Too small → merge:** no independent acceptance criterion, only verifiable as part of parent task, config-only change meaningless without parent
+- **Right-sized:** single service boundary or defined cross-service interaction, at least one independently verifiable acceptance criterion, dependency depth ≤ 2
 
 ## Remember
 - Exact file paths always

@@ -107,7 +107,8 @@ For bug fixes, use `/bug-fix` — a dedicated 4-step pipeline (Reproduce, Diagno
 - `debate-team` — Cross-model adversarial review (DeepSeek + GPT-4o + Haiku)
 - `lint-memory` — 4 health checks: broken links, orphans, stale entries, contradictions
 
-**Context management:**
+**Research & Context:**
+- `research` — Multi-agent research team with staggered waves and confidence-scored synthesis
 - `fetch-api-docs` — Fetch API docs before coding against external services
 - `session-learnings` — Capture discoveries after committing work
 - `session-handoff` — Export session state or archive dead-end approaches
@@ -291,7 +292,7 @@ Remove the installed skills, scripts, hooks, and MCP server:
 for skill in bug-fix code-creation-workflow coding-best-practices debate-team \
   defensive-backend-flows defensive-ui-flows executing-plans fetch-api-docs \
   finishing-a-development-branch hook-doctor investigator lint-memory \
-  memory-injection production-readiness-check prompt-optimization \
+  memory-injection production-readiness-check prompt-optimization research \
   session-handoff session-learnings shipping-workflow smart-exploration \
   subagent-driven-development test-driven-development \
   verification-before-completion writing-plans; do

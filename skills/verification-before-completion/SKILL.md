@@ -137,3 +137,11 @@ From 24 failure memories:
 Run the command. Read the output. THEN claim the result.
 
 This is non-negotiable.
+
+---
+
+## Next Steps
+
+- **All checks pass?** Use `/ship` to commit, push, create PR, run review, and merge to main.
+- **Tests failing?** Use `/investigator` to collect evidence before diagnosing.
+- **Lint or type errors?** Fix them inline — re-run `/verification-before-completion` after fixes.

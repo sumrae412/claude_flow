@@ -30,6 +30,7 @@ For each task:
 3. Run verifications as specified
 4. Mark as completed
 5. **Inter-task verification gate:** Before starting the next task, run the full test suite + lint + build check to catch regressions early. If any fail, fix before proceeding. Skip the full suite for the first task in a batch or trivial tasks (config, docs). See `subagent-driven-development` for the full gate protocol.
+6. **Typed dependencies:** When the plan includes typed dependencies (`data`, `build`, `knowledge`), respect them: `data`/`build` edges are strictly sequential; `knowledge` edges are parallelizable (record assumptions). If no typed dependencies are present, execute tasks in plan order.
 
 ### Step 3: Report
 When batch complete:

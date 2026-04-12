@@ -493,6 +493,21 @@ Each path produces different artifacts. This table makes explicit what each path
 
 The **executor (Sonnet)** explores the codebase directly — reading files, tracing patterns, mapping architecture. No parallel explorer subagents. The executor builds firsthand context that persists naturally through Phases 3-5, eliminating the old context hydration gate.
 
+### Research Team Branch (Full/Complex Path Only)
+
+When the task path is `full` or `complex` (set in Phase 1 Discovery):
+
+1. **Run Step 0** (Prior Knowledge Check) — still runs; prior knowledge reduces redundant research
+2. **Invoke `/research` skill** with the task description as the research question (plus any prior knowledge found in Step 0)
+3. The research skill runs its full pipeline (classify → Wave 1 → gap detection → Wave 2 → synthesize)
+4. **Receive the research brief** — this replaces the exploration output from Steps 1-2
+5. **Skip to Step 3** (Advisor Checkpoint) — the Opus advisor reviews the research brief instead of raw exploration findings
+6. The research brief's confidence scores are included in the `$exploration` variable
+
+When the task path is `lite` or `fast`, the current single-executor exploration (Steps 0-2 below) runs unchanged.
+
+> **Why branch here:** Research adds depth, breadth, and quality verification — but costs 3-6 agent round-trips. Lite/fast tasks don't need this overhead. The branch respects the existing path classification without replacing what works for simpler tasks.
+
 ### Step 0: Prior Knowledge Check (Token Saver)
 
 Before exploring from scratch, check what's already known about this feature area. Prior sessions may have already mapped the relevant architecture, patterns, and integration points.
@@ -613,9 +628,31 @@ before moving to clarification and architecture?
 
 **Act on advisor response:** If the advisor identifies gaps, explore those areas before proceeding. If the advisor confirms coverage is sufficient, move to Phase 3.
 
+**If research brief was produced (full/complex path):**
+Replace the "Key files read" and "Patterns discovered" sections of the advisor prompt with:
+- The full research brief (Key Findings with confidence scores)
+- Architecture-Relevant Constraints
+- Open Risks
+
+The advisor should pay special attention to "assumed" confidence findings and flag any that need resolution before Phase 4.
+
 **Why this works better than parallel explorers:** The executor has firsthand knowledge of every file it read — naming conventions, error patterns, data shapes, integration seams. This context persists naturally into Phases 3 and 4 without any hydration step. The Opus advisor adds strategic depth without requiring Opus to do the expensive file I/O work.
 
 **State transition:** Write `artifacts.exploration_summary` with key_files/patterns/integration_points/gaps, then transition to phase-3.
+
+### Phase 2 Step Labels
+
+| Step | Label (standard path) | Label (research team path) |
+|------|----------------------|---------------------------|
+| 1 | Prior knowledge check | Prior knowledge check |
+| 2 | Compressed codebase context | Task classification |
+| 3 | Executor explores directly | Wave 1 dispatch |
+| 4 | Advisor checkpoint | Gap detection |
+| 5 | — | Wave 2 dispatch (if needed) |
+| 6 | — | Synthesis |
+| 7 | — | Advisor checkpoint |
+
+When the research team is active, update `agents_spawned`, `agents_completed`, and `agents_failed` in the workflow state as researchers are dispatched and return. The existing state schema supports this — no schema changes needed.
 
 ---
 
@@ -638,11 +675,42 @@ Review exploration findings against the original request. Identify **every** und
 
 Present an organized question list to the user. Group questions by category. Wait for answers before proceeding.
 
-**If no ambiguities exist** (rare — usually means the request is very well-specified), state that explicitly and proceed to Step 2.
+**If no ambiguities exist** (rare — usually means the request is very well-specified), state that explicitly and proceed to Step 2 (quality gate).
 
-### Step 2: Synthesize Structured Requirements
+### Step 2: Quality Gate
 
-After all ambiguities are resolved, synthesize the answers into a structured requirements document. This is the `$requirements` output contract — it flows downstream to Phase 4 (architecture references it), Phase 4c (validates plan coverage against it), and Phase 6 (reviewers check adherence).
+Before synthesizing requirements, score the resolved input on 4 axes. This catches vague or incomplete requirements before they waste architecture effort in Phase 4.
+
+```
+QUALITY GATE (score each pass/fail):
+
+1. Objective Clarity — Can you state the deliverable in one sentence as an outcome?
+   PASS: clear outcome statement ("Users can search tenants by name and see filtered results")
+   FAIL: vague ("improve search"), unmeasurable, or describes activity not outcome
+
+2. Service Scope — Are affected services/components identifiable?
+   PASS: concrete files, modules, or systems named from Phase 2 exploration
+   FAIL: no specific codebase locations identified
+
+3. Testability — Does every behavior have a verifiable condition?
+   PASS: all behaviors expressible as WHEN/IF/THEN acceptance criteria
+   FAIL: any requirement uses "should work well", "be fast", "be intuitive", or other untestable language
+
+4. Completeness — Are edge cases, error paths, and integration points addressed?
+   PASS: all known edge cases from Phase 2 exploration have resolutions
+   FAIL: known edge cases unresolved, error handling unspecified, or integration points unclear
+
+GATE LOGIC:
+  All pass → proceed to Step 3 (synthesize $requirements)
+  Any fail → present failures with specific questions to resolve them
+              Loop: re-score after user answers → repeat until all pass
+```
+
+This is NOT a new user approval gate — it's a pre-check that ensures the existing approval gate (end of Step 3) is meaningful.
+
+### Step 3: Synthesize Structured Requirements
+
+After all ambiguities are resolved and the quality gate passes, synthesize the answers into a structured requirements document. This is the `$requirements` output contract — it flows downstream to Phase 4 (architecture references it), Phase 4c (validates plan coverage against it), and Phase 6 (reviewers check adherence).
 
 **Format:**
 
@@ -693,7 +761,7 @@ After requirements are approved, optionally save a **Product Requirement Prompt 
 **Created:** <date> | **Status:** ready-for-implementation
 
 ## Requirements
-(Reference or inline the structured $requirements from Step 2)
+(Reference or inline the structured $requirements from Step 3)
 
 ## Codebase Intelligence
 - **Key files:** <5-10 files from exploration with their roles>
@@ -896,34 +964,50 @@ For integration points:
     check for breaking changes in shared interfaces
 ```
 
+<!-- Task taxonomy (types + dependency types) defined in writing-plans/SKILL.md. Keep in sync. -->
+
 ### Requirements Coverage Validation
 
 Cross-reference `$requirements` (from Phase 3) against `$plan` to catch gaps before implementation:
 
 ```
-ACCEPTANCE CRITERIA COVERAGE:
-  For each acceptance criterion in $requirements:
-    → Is there at least one plan step that addresses it?
-    → Is there a test skeleton (Phase 4d) or test note for it?
-    → If not: flag as UNCOVERED CRITERION
+REQUIREMENTS COVERAGE MAP:
+
+For each acceptance criterion in $requirements:
+  → List which task(s) cover it (by task ID + type)
+  → If covered by a shared_prerequisite only: flag WARNING
+    (prerequisites enable but don't verify user-facing behavior)
+  → If not covered by any task: flag UNCOVERED
+
+Summary table format:
+  AC-1: "WHEN user searches THEN results filter" → T3 (value_unit) ✓
+  AC-2: "WHEN no results THEN empty state shown"  → T3 (value_unit) ✓
+  AC-3: "WHEN API fails THEN error message"       → UNCOVERED ✗
 
 SCOPE BOUNDARY ENFORCEMENT:
   For each scope boundary (OUT items) in $requirements:
-    → Does any plan step implement something marked OUT?
-    → If yes: flag as SCOPE CREEP
+    → Scan task titles + file lists for overlap
+    → If any task implements something marked OUT: flag SCOPE CREEP
 
 EDGE CASE COVERAGE:
   For each edge case in $requirements:
-    → Is it addressed in the plan (either in a step or as a test)?
-    → If not: flag as UNTESTED EDGE CASE
+    → Must map to at least one test skeleton (Phase 4d) or explicit test note
+    → If missing: flag UNTESTED EDGE CASE
+
+TASK GRANULARITY CHECK:
+  For each task in $plan:
+    → If type is value_unit and spans 3+ unrelated service boundaries: flag TOO LARGE
+    → If type is value_unit and has no independent acceptance criterion: flag TOO SMALL
+    → If type is shared_prerequisite and only one task depends on it: flag UNNECESSARY SPLIT
 ```
 
 **Outcome:**
-- **All claims verified + all requirements covered** → Proceed to Phase 4d (test skeletons) or Phase 5.
+- **All mapped, no flags** → Proceed to Phase 4d (test skeletons) or Phase 5.
+- **1-2 minor flags** (e.g., one debatable TOO SMALL) → Log and proceed.
+- **Any UNCOVERED criterion or SCOPE CREEP** → Present gaps to user, revise plan, get re-approval.
+- **Multiple granularity flags** → Present recommendations (split/merge specific tasks), revise plan, get re-approval.
 - **Minor mismatches** (renamed variable, moved function) → Fix the plan silently. Log the corrections.
-- **Minor coverage gaps** (1-2 criteria clearly handled implicitly by existing plan steps) → Log and proceed.
 - **Material mismatches** (deleted file, changed API contract, restructured module) → Re-present the affected plan steps to the user with corrections. Get re-approval before proceeding.
-- **Material coverage gaps** (uncovered acceptance criteria, scope creep detected, untested edge cases) → Present gaps to user, revise plan to address them, get re-approval before proceeding.
 
 **Why this exists:** Plans are drafted against Phase 2 exploration findings. Between exploration and implementation, the codebase can drift (especially in multi-session work or when other contributors merge changes). A 30-60 second mechanical check prevents building on false assumptions — the most expensive kind of bug to find in Phase 6.
 
@@ -1049,7 +1133,7 @@ Each phase produces a defined output that downstream phases consume. Inspired by
 
 | Phase | Output Name | Contains | Consumed By |
 |-------|-------------|----------|-------------|
-| Phase 2 | `$exploration` | Key file paths + roles, patterns discovered, integration points, concerns | Phases 3, 4, advisor prompts |
+| Phase 2 | `$exploration` | Key file paths + roles, patterns discovered, integration points, concerns. For full/complex tasks: confidence-scored research brief with verified/inferred/assumed findings. | Phases 3, 4, advisor prompts |
 | Phase 3 | `$requirements` | Structured document: user stories, acceptance criteria (EARS), scope boundaries (IN/OUT), resolved edge cases, non-functional requirements | Phases 4, 4c, 5, reviewer prompts |
 | Phase 4 | `$architecture` | Chosen architecture summary, component responsibilities, data flow | Phase 5 |
 | Phase 4b | `$plan` | Approved numbered implementation plan with dependencies | Phase 4c, 4d, Phase 5, Phase 6 reviewers |
@@ -1256,7 +1340,14 @@ Use subagent-driven-development skill:
   → Merge results when all complete
 ```
 
-Only parallelize truly independent work — shared state or sequential dependencies must stay sequential.
+<!-- Task taxonomy (types + dependency types) defined in writing-plans/SKILL.md. Keep in sync. -->
+**Dependency-aware dispatch:** When the plan uses typed dependencies (from writing-plans):
+- `data` or `build` dependencies → strictly sequential (predecessor must complete first)
+- `knowledge` dependencies → parallelizable (dispatch concurrently, record assumptions in each subagent's context)
+- Tasks with no dependencies → parallelizable
+- `shared_prerequisite` tasks → always execute before dependent `value_unit` tasks
+
+Only parallelize truly independent work or `knowledge`-only edges — shared state or `data`/`build` dependencies must stay sequential.
 
 ### Conditional Specialist Reviews (During Implementation)
 

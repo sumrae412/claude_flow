@@ -217,3 +217,11 @@ Review: <findings summary — resolved/escalated>
 | `memory-injection` | Step 2 checks MEMORY.md for known gotchas before tracing code. |
 | `verification-before-completion` | Final gate in Step 4. Same as code-creation-workflow. |
 | `shipping-workflow` | After bug-fix completes, user can invoke `/ship` to commit → PR → merge. |
+
+---
+
+## Next Steps
+
+- **Bug is fixed and verified?** Use `/ship` to commit, push, create PR, run review, and merge to main.
+- **Fix revealed a deeper architectural issue?** Use `/code-creation-workflow` to address it through the full 6-phase pipeline.
+- **Capture what you learned?** Use `/session-learnings` to persist the debugging insights to memory.

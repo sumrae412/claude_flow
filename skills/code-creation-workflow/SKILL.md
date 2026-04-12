@@ -151,3 +151,4 @@ Contracts are the interface between phases. When dispatching subagents, pass the
 | Not tagging workflow failures | Apply taxonomy tags (see `references/failure-taxonomy.md`) |
 | Letting context grow unbounded | Tool-result clearing at ~50K, compaction at ~80% |
 | Running 10-step plans without context breaks | Fresh context for subagents at 5+ steps |
+| Running silent-failure-hunter and security-reviewer separately | Use merged `safety-reviewer` (Tier 2) — they're consolidated |

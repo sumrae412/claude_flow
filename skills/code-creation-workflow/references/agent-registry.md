@@ -24,9 +24,8 @@ All advisor calls use `model: "opus"`, `subagent_type: "general-purpose"`.
 | Google API Reviewer | `google-api-reviewer` | 5, 6 | Google API code | sonnet |
 | Async Reviewer | `async-reviewer` | 5, 6 | async I/O code | sonnet |
 | CodeRabbit | `coderabbit:code-reviewer` | 6 (T1) | Always | sonnet |
-| Silent Failure Hunter | `pr-review-toolkit:silent-failure-hunter` | 6 (T2) | Always | sonnet |
-| Security Reviewer | `security-reviewer` | 6 (T2) | Always | sonnet |
-| QA Edge-Case Reviewer | `pr-review-toolkit:pr-test-analyzer` | 6 (T2) | Always | sonnet |
+| Safety Reviewer (merged) | `safety-reviewer` | 6 (T2) | Always — silent failures + security (combined) | sonnet |
+| Test Coverage Analyzer | `pr-review-toolkit:pr-test-analyzer` | 6 (T2) | Always — test gaps | sonnet |
 | Type Design Analyzer | `pr-review-toolkit:type-design-analyzer` | 6 (T3) | New types/models | haiku |
 | API Doc Auditor | `api-doc-auditor` | 6 (T3) | New/modified routes | haiku |
 | Invariant Checker | `courierflow-invariant-checker` | 6 (T4) | Always (CF projects) | haiku |

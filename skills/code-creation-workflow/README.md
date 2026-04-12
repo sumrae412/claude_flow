@@ -9,7 +9,7 @@ Phase 0    Context Loading — load project identity, core skill, classify task
 Phase 0.5  Bootstrap Hooks — auto-detect stack, generate hooks (one-time)
 Phase 1    Discovery — fast-path escape for small changes
 Phase 2    Exploration — 2-3 parallel code-explorer subagents
-Phase 3    Clarification — resolve all ambiguities (hard gate)
+Phase 3    Clarification + Requirements — resolve ambiguities, synthesize structured requirements (hard gate)
 Phase 4    Architecture — 2 parallel code-architect proposals → user picks
 Phase 5    Implementation — TDD per step, parallel dispatch for independent work
 Phase 6    Quality + Ship — parallel reviewers → verify → /ship

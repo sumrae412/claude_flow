@@ -1367,9 +1367,9 @@ After completing a feature, capture structured workflow metrics. This is the "tr
 | Phase | Name | Model | Key Pattern | Gate |
 |-------|------|-------|-------------|------|
 | 0 | Context | executor | Trigger matrix → load relevant skills only | None |
-| 1 | Discovery | executor | 4-path triage (fast/clone/lite/full) | Auto |
+| 1 | Discovery | executor | 6-path triage (bug/fast/clone/plan/lite/full) | Auto |
 | 2 | Exploration | executor + **advisor** | Executor explores directly → advisor reviews gaps | **Advisor confirms coverage** |
-| 3 | Clarification | executor | Surface all ambiguities + optional PRP export | **User answers** |
+| 3 | Clarification + Requirements | executor | Surface ambiguities + synthesize structured $requirements | **User approves requirements** |
 | 4 | Architecture | executor + **advisor** | Executor drafts 2 options → advisor critiques | **User chooses** |
 | 4b | Plan Stress-Test | **advisor** | Advisor reviews implementation plan for risks | **Advisor passes** |
 | — | Context Management | — | Tool-result clearing → phase-aware compaction → subagent pruning | Auto |

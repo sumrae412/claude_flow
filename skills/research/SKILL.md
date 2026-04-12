@@ -92,7 +92,7 @@ Report in under 500 words. Be specific — file paths, line numbers, function na
 ### External Researcher
 
 **Subagent type:** `general-purpose`
-**Tools:** WebSearch, WebFetch, Skill (for `/fetch-api-docs` Context Hub)
+**Tools:** WebSearch, WebFetch, Skill (for `/fetch-api-docs` if available)
 **Focus:** API docs, library references, best practices, prior art outside the codebase.
 
 **Prompt template:**
@@ -105,7 +105,7 @@ Your role: External Researcher — find relevant information OUTSIDE the codebas
 
 Research systematically:
 1. Search for official API documentation for any external services involved
-2. Use the `/fetch-api-docs` skill (Context Hub) for curated API references if available
+2. If a `/fetch-api-docs` skill is available, use it for curated API references
 3. Search for best practices, common patterns, and known pitfalls
 4. Find prior art — how do other projects solve this?
 
@@ -246,7 +246,7 @@ Wave 2 researchers receive:
 - The original research question
 - ALL Wave 1 findings (full scratchpad)
 - Specific gap-fill instructions: "Wave 1 found X but couldn't determine Y. Your job is to answer Y."
-- Same scratchpad format template
+- The same output format as Wave 1 researchers (Findings / Open Questions / Connections sections defined in each researcher's prompt template above)
 
 ### Skip Conditions
 

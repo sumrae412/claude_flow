@@ -114,7 +114,7 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-TOTAL=16
+TOTAL=22
 PASSED=$((TOTAL - ERRORS))
 echo ""
 echo "=== Results: $PASSED/$TOTAL passed ==="

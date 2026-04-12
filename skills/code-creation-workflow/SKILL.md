@@ -497,11 +497,12 @@ The **executor (Sonnet)** explores the codebase directly — reading files, trac
 
 When the task path is `full` or `complex` (set in Phase 1 Discovery):
 
-1. **Invoke `/research` skill** with the task description as the research question
-2. The research skill runs its full pipeline (classify → Wave 1 → gap detection → Wave 2 → synthesize)
-3. **Receive the research brief** — this replaces the exploration output from Steps 1-2
-4. **Skip to Step 3** (Advisor Checkpoint) — the Opus advisor reviews the research brief instead of raw exploration findings
-5. The research brief's confidence scores are included in the `$exploration` variable
+1. **Run Step 0** (Prior Knowledge Check) — still runs; prior knowledge reduces redundant research
+2. **Invoke `/research` skill** with the task description as the research question (plus any prior knowledge found in Step 0)
+3. The research skill runs its full pipeline (classify → Wave 1 → gap detection → Wave 2 → synthesize)
+4. **Receive the research brief** — this replaces the exploration output from Steps 1-2
+5. **Skip to Step 3** (Advisor Checkpoint) — the Opus advisor reviews the research brief instead of raw exploration findings
+6. The research brief's confidence scores are included in the `$exploration` variable
 
 When the task path is `lite` or `fast`, the current single-executor exploration (Steps 0-2 below) runs unchanged.
 

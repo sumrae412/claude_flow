@@ -493,6 +493,20 @@ Each path produces different artifacts. This table makes explicit what each path
 
 The **executor (Sonnet)** explores the codebase directly — reading files, tracing patterns, mapping architecture. No parallel explorer subagents. The executor builds firsthand context that persists naturally through Phases 3-5, eliminating the old context hydration gate.
 
+### Research Team Branch (Full/Complex Path Only)
+
+When the task path is `full` or `complex` (set in Phase 1 Discovery):
+
+1. **Invoke `/research` skill** with the task description as the research question
+2. The research skill runs its full pipeline (classify → Wave 1 → gap detection → Wave 2 → synthesize)
+3. **Receive the research brief** — this replaces the exploration output from Steps 1-2
+4. **Skip to Step 3** (Advisor Checkpoint) — the Opus advisor reviews the research brief instead of raw exploration findings
+5. The research brief's confidence scores are included in the `$exploration` variable
+
+When the task path is `lite` or `fast`, the current single-executor exploration (Steps 0-2 below) runs unchanged.
+
+> **Why branch here:** Research adds depth, breadth, and quality verification — but costs 3-6 agent round-trips. Lite/fast tasks don't need this overhead. The branch respects the existing path classification without replacing what works for simpler tasks.
+
 ### Step 0: Prior Knowledge Check (Token Saver)
 
 Before exploring from scratch, check what's already known about this feature area. Prior sessions may have already mapped the relevant architecture, patterns, and integration points.
@@ -612,6 +626,14 @@ before moving to clarification and architecture?
 ```
 
 **Act on advisor response:** If the advisor identifies gaps, explore those areas before proceeding. If the advisor confirms coverage is sufficient, move to Phase 3.
+
+**If research brief was produced (full/complex path):**
+Replace the "Key files read" and "Patterns discovered" sections of the advisor prompt with:
+- The full research brief (Key Findings with confidence scores)
+- Architecture-Relevant Constraints
+- Open Risks
+
+The advisor should pay special attention to "assumed" confidence findings and flag any that need resolution before Phase 4.
 
 **Why this works better than parallel explorers:** The executor has firsthand knowledge of every file it read — naming conventions, error patterns, data shapes, integration seams. This context persists naturally into Phases 3 and 4 without any hydration step. The Opus advisor adds strategic depth without requiring Opus to do the expensive file I/O work.
 
@@ -1096,7 +1118,7 @@ Each phase produces a defined output that downstream phases consume. Inspired by
 
 | Phase | Output Name | Contains | Consumed By |
 |-------|-------------|----------|-------------|
-| Phase 2 | `$exploration` | Key file paths + roles, patterns discovered, integration points, concerns | Phases 3, 4, advisor prompts |
+| Phase 2 | `$exploration` | Key file paths + roles, patterns discovered, integration points, concerns. For full/complex tasks: confidence-scored research brief with verified/inferred/assumed findings. | Phases 3, 4, advisor prompts |
 | Phase 3 | `$requirements` | Structured document: user stories, acceptance criteria (EARS), scope boundaries (IN/OUT), resolved edge cases, non-functional requirements | Phases 4, 4c, 5, reviewer prompts |
 | Phase 4 | `$architecture` | Chosen architecture summary, component responsibilities, data flow | Phase 5 |
 | Phase 4b | `$plan` | Approved numbered implementation plan with dependencies | Phase 4c, 4d, Phase 5, Phase 6 reviewers |

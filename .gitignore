@@ -208,3 +208,8 @@ __marimo__/
 
 # Self-modification backups (local only)
 memory/skill-backups/
+
+# Workflow state (ephemeral, session-scoped)
+.claude/workflow-state.json
+.claude/workflow-state.tmp
+.claude/workflow-state.archived.json

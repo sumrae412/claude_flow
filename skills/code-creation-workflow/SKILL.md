@@ -638,11 +638,42 @@ Review exploration findings against the original request. Identify **every** und
 
 Present an organized question list to the user. Group questions by category. Wait for answers before proceeding.
 
-**If no ambiguities exist** (rare — usually means the request is very well-specified), state that explicitly and proceed to Step 2.
+**If no ambiguities exist** (rare — usually means the request is very well-specified), state that explicitly and proceed to Step 2 (quality gate).
 
-### Step 2: Synthesize Structured Requirements
+### Step 2: Quality Gate
 
-After all ambiguities are resolved, synthesize the answers into a structured requirements document. This is the `$requirements` output contract — it flows downstream to Phase 4 (architecture references it), Phase 4c (validates plan coverage against it), and Phase 6 (reviewers check adherence).
+Before synthesizing requirements, score the resolved input on 4 axes. This catches vague or incomplete requirements before they waste architecture effort in Phase 4.
+
+```
+QUALITY GATE (score each pass/fail):
+
+1. Objective Clarity — Can you state the deliverable in one sentence as an outcome?
+   PASS: clear outcome statement ("Users can search tenants by name and see filtered results")
+   FAIL: vague ("improve search"), unmeasurable, or describes activity not outcome
+
+2. Service Scope — Are affected services/components identifiable?
+   PASS: concrete files, modules, or systems named from Phase 2 exploration
+   FAIL: no specific codebase locations identified
+
+3. Testability — Does every behavior have a verifiable condition?
+   PASS: all behaviors expressible as WHEN/IF/THEN acceptance criteria
+   FAIL: any requirement uses "should work well", "be fast", "be intuitive", or other untestable language
+
+4. Completeness — Are edge cases, error paths, and integration points addressed?
+   PASS: all known edge cases from Phase 2 exploration have resolutions
+   FAIL: known edge cases unresolved, error handling unspecified, or integration points unclear
+
+GATE LOGIC:
+  All pass → proceed to Step 3 (synthesize $requirements)
+  Any fail → present failures with specific questions to resolve them
+              Loop: re-score after user answers → repeat until all pass
+```
+
+This is NOT a new user approval gate — it's a pre-check that ensures the existing approval gate (end of Step 3) is meaningful.
+
+### Step 3: Synthesize Structured Requirements
+
+After all ambiguities are resolved and the quality gate passes, synthesize the answers into a structured requirements document. This is the `$requirements` output contract — it flows downstream to Phase 4 (architecture references it), Phase 4c (validates plan coverage against it), and Phase 6 (reviewers check adherence).
 
 **Format:**
 
@@ -693,7 +724,7 @@ After requirements are approved, optionally save a **Product Requirement Prompt 
 **Created:** <date> | **Status:** ready-for-implementation
 
 ## Requirements
-(Reference or inline the structured $requirements from Step 2)
+(Reference or inline the structured $requirements from Step 3)
 
 ## Codebase Intelligence
 - **Key files:** <5-10 files from exploration with their roles>

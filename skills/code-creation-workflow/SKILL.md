@@ -1301,7 +1301,13 @@ Use subagent-driven-development skill:
   → Merge results when all complete
 ```
 
-Only parallelize truly independent work — shared state or sequential dependencies must stay sequential.
+**Dependency-aware dispatch:** When the plan uses typed dependencies (from writing-plans):
+- `data` or `build` dependencies → strictly sequential (predecessor must complete first)
+- `knowledge` dependencies → parallelizable (dispatch concurrently, record assumptions in each subagent's context)
+- Tasks with no dependencies → parallelizable
+- `shared_prerequisite` tasks → always execute before dependent `value_unit` tasks
+
+Only parallelize truly independent work or `knowledge`-only edges — shared state or `data`/`build` dependencies must stay sequential.
 
 ### Conditional Specialist Reviews (During Implementation)
 

@@ -932,29 +932,43 @@ For integration points:
 Cross-reference `$requirements` (from Phase 3) against `$plan` to catch gaps before implementation:
 
 ```
-ACCEPTANCE CRITERIA COVERAGE:
-  For each acceptance criterion in $requirements:
-    → Is there at least one plan step that addresses it?
-    → Is there a test skeleton (Phase 4d) or test note for it?
-    → If not: flag as UNCOVERED CRITERION
+REQUIREMENTS COVERAGE MAP:
+
+For each acceptance criterion in $requirements:
+  → List which task(s) cover it (by task ID + type)
+  → If covered by a shared_prerequisite only: flag WARNING
+    (prerequisites enable but don't verify user-facing behavior)
+  → If not covered by any task: flag UNCOVERED
+
+Summary table format:
+  AC-1: "WHEN user searches THEN results filter" → T3 (value_unit) ✓
+  AC-2: "WHEN no results THEN empty state shown"  → T3 (value_unit) ✓
+  AC-3: "WHEN API fails THEN error message"       → UNCOVERED ✗
 
 SCOPE BOUNDARY ENFORCEMENT:
   For each scope boundary (OUT items) in $requirements:
-    → Does any plan step implement something marked OUT?
-    → If yes: flag as SCOPE CREEP
+    → Scan task titles + file lists for overlap
+    → If any task implements something marked OUT: flag SCOPE CREEP
 
 EDGE CASE COVERAGE:
   For each edge case in $requirements:
-    → Is it addressed in the plan (either in a step or as a test)?
-    → If not: flag as UNTESTED EDGE CASE
+    → Must map to at least one test skeleton (Phase 4d) or explicit test note
+    → If missing: flag UNTESTED EDGE CASE
+
+TASK GRANULARITY CHECK:
+  For each task in $plan:
+    → If type is value_unit and spans 3+ unrelated service boundaries: flag TOO LARGE
+    → If type is value_unit and has no independent acceptance criterion: flag TOO SMALL
+    → If type is shared_prerequisite and only one task depends on it: flag UNNECESSARY SPLIT
 ```
 
 **Outcome:**
-- **All claims verified + all requirements covered** → Proceed to Phase 4d (test skeletons) or Phase 5.
+- **All mapped, no flags** → Proceed to Phase 4d (test skeletons) or Phase 5.
+- **1-2 minor flags** (e.g., one debatable TOO SMALL) → Log and proceed.
+- **Any UNCOVERED criterion or SCOPE CREEP** → Present gaps to user, revise plan, get re-approval.
+- **Multiple granularity flags** → Present recommendations (split/merge specific tasks), revise plan, get re-approval.
 - **Minor mismatches** (renamed variable, moved function) → Fix the plan silently. Log the corrections.
-- **Minor coverage gaps** (1-2 criteria clearly handled implicitly by existing plan steps) → Log and proceed.
 - **Material mismatches** (deleted file, changed API contract, restructured module) → Re-present the affected plan steps to the user with corrections. Get re-approval before proceeding.
-- **Material coverage gaps** (uncovered acceptance criteria, scope creep detected, untested edge cases) → Present gaps to user, revise plan to address them, get re-approval before proceeding.
 
 **Why this exists:** Plans are drafted against Phase 2 exploration findings. Between exploration and implementation, the codebase can drift (especially in multi-session work or when other contributors merge changes). A 30-60 second mechanical check prevents building on false assumptions — the most expensive kind of bug to find in Phase 6.
 

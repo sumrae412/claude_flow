@@ -34,14 +34,19 @@ COMPACTION_LATEST=$(ls -t "$PROJECT_DIR/.claude"/pre-compaction-*.md 2>/dev/null
 if [[ -n "$COMPACTION_LATEST" ]]; then
   print_line "=== POST-COMPACTION CHECKPOINT ==="
   print_line "Source: $COMPACTION_LATEST"
-  # Extract Workflow Phase section
-  sed -n '/^## Workflow Phase$/,/^## /{ /^## Workflow Phase$/p; /^## Workflow Phase$/!{ /^## /!p; } }' "$COMPACTION_LATEST" 2>/dev/null | while IFS= read -r line && [[ "$LINES_USED" -lt $((LINE_BUDGET - 15)) ]]; do
-    print_line "  $line"
-  done
-  # Extract Resume Instructions section
-  sed -n '/^## Resume Instructions$/,/^## /{ /^## Resume Instructions$/p; /^## Resume Instructions$/!{ /^## /!p; } }' "$COMPACTION_LATEST" 2>/dev/null | while IFS= read -r line && [[ "$LINES_USED" -lt $((LINE_BUDGET - 12)) ]]; do
-    print_line "  $line"
-  done
+  # Extract key sections (Workflow Phase, Resume Instructions)
+  PHASE_LINE=$(grep -A2 '^## Workflow Phase' "$COMPACTION_LATEST" 2>/dev/null | grep -v '^## ' | grep -v '^--$' | head -2)
+  if [[ -n "$PHASE_LINE" ]]; then
+    while IFS= read -r line; do
+      print_line "  $line"
+    done <<< "$PHASE_LINE"
+  fi
+  RESUME_LINE=$(grep -A2 '^## Resume Instructions' "$COMPACTION_LATEST" 2>/dev/null | grep -v '^## ' | grep -v '^--$' | head -2)
+  if [[ -n "$RESUME_LINE" ]]; then
+    while IFS= read -r line; do
+      print_line "  $line"
+    done <<< "$RESUME_LINE"
+  fi
   print_line "=== END CHECKPOINT ==="
   print_line ""
 fi

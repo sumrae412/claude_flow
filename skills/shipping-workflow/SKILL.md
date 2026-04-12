@@ -138,3 +138,11 @@ Only run the pipeline after the user chooses "Ship it" (or equivalent).
 ## Project-Level Customization
 
 Per-repo settings live in project rules or in the reference. Customize: CI command, test/lint commands, defensive-pattern checklists (backend/frontend), deep-dive trigger patterns, base branch. See [reference.md](reference.md) for the checklist and examples (Python/FastAPI, Node/React).
+
+---
+
+## Next Steps
+
+- **PR merged?** Use `/session-learnings` to capture insights before ending the session.
+- **Handing off to another session?** Use `/session-handoff` to export phase, modified files, and blockers.
+- **Need to roll back?** Check deploy logs first, then use `scripts/rollback.py` if needed.

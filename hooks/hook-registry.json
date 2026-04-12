@@ -172,7 +172,7 @@
       "matcher": ["Edit(*.py)", "Edit(*.js)", "Edit(*.ts)", "Edit(*.css)", "Edit(*.html)"],
       "script": "hooks/tier2/gotcha-detector.sh",
       "description": "Detects known gotcha anti-patterns in edited files (data-driven from gotcha-rules.json)",
-      "stack_tags": ["python", "ruff", "flake8", "node", "eslint"]
+      "stack_tags": ["python", "javascript", "typescript", "css", "html"]
     },
     {
       "id": "context-rot-detection",

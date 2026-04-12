@@ -1069,8 +1069,15 @@ Phase 5 subagent receives:
 
 Phase 6 reviewer receives:
   $diff          — git diff (primary input)
-  $plan          — for adherence checking
+  $requirements  — Phase 3 acceptance criteria (IMMUTABLE reference)
+  $plan          — Phase 4b implementation plan (adherence checking)
   Project conventions (from CLAUDE.md / loaded skills)
+
+  EVAL CONTAMINATION GUARD: Reviewers must evaluate $diff against
+  $requirements as their primary acceptance criteria — not patterns
+  observed in the implementation itself. $plan is secondary (structural
+  adherence). If $requirements is unavailable (Fast/Clone/Lite path),
+  note that requirement-level validation was skipped.
 ```
 
 **What to NEVER pass to subagents:**
@@ -1153,6 +1160,28 @@ For each plan step:
      Review the evidence matrix BEFORE attempting a fix.
      (Prevents fix-retry loops on complex failures.)
 
+3b. GUARD — scoped regression check
+    After the target test passes, run a broader check to catch
+    regressions introduced by the fix:
+
+    Guard scope (choose the narrowest that covers the change):
+    a) Same test module: pytest <test_module> (single module changed)
+    b) Affected package: pytest <package>/tests/ (multi-file change)
+    c) Full suite: only if changes span packages
+
+    Default to (a) — it's fast and catches most regressions.
+
+    Guard MUST pass before proceeding to step 4.
+    If guard fails:
+    - The fix introduced a regression — fix it (don't revert target fix)
+    - Re-run BOTH the target test AND the guard
+    - Max 2 guard-fix cycles → then escalate to user
+    - Emit failure event with tag: guard-regression
+
+    Why separate from step 6: Step 6 catches cross-TASK regressions
+    (after the task is marked complete). Step 3b catches within-FIX
+    regressions before you move on — cheaper to fix in place.
+
 4. Run static analysis on changed files (catch issues early):
    semgrep --config=.semgrep.yml <changed-files>
    ast-grep scan <changed-directory>
@@ -1163,8 +1192,9 @@ For each plan step:
 
 6. Inter-task verification gate (proactive, not just reactive):
    Run full test suite + lint + build check BEFORE starting next task.
-   Catches regressions early. See subagent-driven-development skill
-   for full gate protocol. Skip full suite for Task 1 or trivial tasks.
+   Catches cross-TASK regressions (step 3b catches within-FIX ones).
+   See subagent-driven-development skill for full gate protocol.
+   Skip full suite for Task 1 or trivial tasks.
    If gate fails → fix regression → re-verify → then proceed.
 ```
 
@@ -1270,6 +1300,7 @@ Run through these questions. If any answer is "no" or "unsure", fix before Phase
 3. **Pattern consistency** — Does new code follow the patterns discovered in `$exploration`? Any deviations?
 4. **Test quality** — Do tests verify behavior (not implementation)? Are edge cases from Phase 3 tested?
 5. **Obvious issues** — Read the full diff as if seeing it for the first time. Any code smells, missing error handling, or hardcoded values?
+6. **Eval contamination check** — Are you evaluating the diff against `$requirements` (the original spec), or against patterns you see in the code itself? The latter is circular validation.
 
 ### How to Execute
 
@@ -1321,6 +1352,33 @@ Reviews are structured as a cascade: Tier 1 runs first (broad, fast), then speci
 ```
 
 **Adding project-specific reviewers:** Drop a `reviewer-registry.json` in your project's `.claude/` directory. Project reviewers are merged with (and override by `id`) the global registry.
+
+**Eval Contamination Guard — include in ALL reviewer prompts:**
+
+When constructing reviewer prompts, prepend this instruction block:
+
+```
+ACCEPTANCE CRITERIA SOURCE: The following requirements were defined
+BEFORE implementation began (Phase 3). Use these as your primary
+evaluation standard — not patterns observed in the code itself.
+
+$requirements
+
+Evaluate whether the implementation ($diff) satisfies these criteria.
+If the implementation diverges from $requirements, flag it — even if
+the code is internally consistent. Internal consistency without
+requirement adherence is a false positive.
+```
+
+Why this matters: Without an immutable reference, reviewers can
+unconsciously validate code against its own patterns ("the code does X,
+and X looks correct"). This is the eval contamination problem — the
+thing being evaluated influences the evaluation criteria. Anchoring
+reviewers to `$requirements` breaks this circularity.
+
+If `$requirements` is not available (Fast/Clone/Lite path), include:
+"Note: No Phase 3 requirements available — requirement-level validation
+skipped. Review for code quality only."
 
 **Default reviewers (bundled):**
 
@@ -1654,6 +1712,7 @@ Tag failures to behavioral categories when they occur. These tags feed into the 
 | `review-escape` | Bug/issue shipped past Phase 6 review tiers | Silent failure not caught by any reviewer tier |
 | `integration-failure` | Code works in isolation but breaks at integration points | Service call succeeds but caller doesn't handle new response shape |
 | `regression` | Change broke previously working behavior | New route handler shadowed existing route |
+| `guard-regression` | Fix for target test broke adjacent tests (caught by step 3b guard) | Fixed assertion in test_create but broke test_update in same module |
 | `tool-selection` | Wrong tool or pattern chosen for the job | Used raw SQL when the ORM had a built-in method |
 | `over-engineering` | Built more than was needed | Added abstraction layer for a one-time operation |
 | `under-specification` | Requirements were technically met but user intent was missed | Implemented delete but user wanted soft-delete |

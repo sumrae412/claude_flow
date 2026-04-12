@@ -22,12 +22,12 @@ FILENAME=$(basename "$FILE")
 
 # Use python3 to parse rules JSON and match against file
 if command -v python3 >/dev/null 2>&1; then
-  MATCHES=$(python3 -c "
+  MATCHES=$(python3 - "$RULES_FILE" "$FILE" "$FILENAME" <<'PYEOF'
 import json, re, fnmatch, sys
 
-rules_file = '$RULES_FILE'
-target_file = '$FILE'
-filename = '$FILENAME'
+rules_file = sys.argv[1]
+target_file = sys.argv[2]
+filename = sys.argv[3]
 
 try:
     with open(rules_file) as f:
@@ -35,12 +35,14 @@ try:
 except Exception:
     sys.exit(0)
 
-with open(target_file) as f:
-    lines = f.readlines()
+try:
+    with open(target_file, errors='replace') as f:
+        lines = f.readlines()
+except Exception:
+    sys.exit(0)
 
 hits = []
 for rule in data.get('rules', []):
-    # Check if file matches any glob
     if not any(fnmatch.fnmatch(filename, g) for g in rule.get('file_globs', [])):
         continue
 
@@ -57,7 +59,8 @@ if hits:
     print('[gotcha-detector] Found issues in ' + filename + ':')
     for h in hits:
         print(h)
-" 2>/dev/null)
+PYEOF
+2>/dev/null)
 
   if [[ -n "$MATCHES" ]]; then
     echo "$MATCHES"
@@ -81,13 +84,13 @@ else
       fi
       ;;
     *.css|*.html)
-      if grep -n 'overflow:\s*hidden' "$FILE" 2>/dev/null; then
+      if grep -nE 'overflow(-[xy])?:[[:space:]]*hidden' "$FILE" 2>/dev/null; then
         echo "[gotcha-detector] CAUTION: overflow:hidden may clip flex/grid children. Use overflow:clip."
         FOUND=1
       fi
       ;;
     *.js|*.ts)
-      if grep -n '\.innerHTML\s*=' "$FILE" 2>/dev/null; then
+      if grep -nE '\.innerHTML[[:space:]]*=' "$FILE" 2>/dev/null; then
         echo "[gotcha-detector] WARNING: Use DOM API instead of innerHTML."
         FOUND=1
       fi

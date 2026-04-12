@@ -1,0 +1,13 @@
+{
+  "name": "claude-flow",
+  "description": "Multi-agent code creation workflow — 6-phase pipeline with parallel subagents for exploration, architecture, implementation, and review",
+  "category": "development",
+  "author": {
+    "name": "Summer Rae"
+  },
+  "source": {
+    "source": "url",
+    "url": "https://github.com/summerela/claude-flow.git"
+  },
+  "homepage": "https://github.com/summerela/claude-flow"
+}

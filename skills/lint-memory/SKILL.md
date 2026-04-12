@@ -193,3 +193,11 @@ Run checks 1-2 only (Broken Links + Orphan Memories). Skip checks 3-4 to keep co
 - **Report before fix:** All auto-fixes must be reported to the user before being applied. List what will change, then apply.
 - **No commits:** This skill does NOT commit any changes. The caller (user or compilation pipeline) decides when to commit.
 - **Path resolution:** All link targets are resolved relative to the memory directory, not the project root. File references in Check 3 are resolved relative to the project root.
+
+---
+
+## Next Steps
+
+- **Found stale code references?** Update memory files manually, then re-run `/lint-memory` to confirm.
+- **Fixed broken links or orphans?** Use `/session-learnings` to capture the cleanup as a session event.
+- **Memory growing too large?** Review MEMORY.md for entries that duplicate CLAUDE.md content or are no longer load-bearing — remove them.

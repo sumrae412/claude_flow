@@ -386,3 +386,11 @@ Run an unscheduled security review when any of these occur:
 - Security incident or near-miss (post-incident action item)
 - Significant codebase refactor affecting security boundaries
 ```
+
+---
+
+## Next Steps
+
+- **Critical findings?** Fix them before shipping — each finding includes a specific remediation action.
+- **All checks pass?** Use `/ship` to commit, push, create PR, run review, and merge to main.
+- **Want a multi-model review too?** Use `/debate-team` for cross-model adversarial review before shipping.

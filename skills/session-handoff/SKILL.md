@@ -137,3 +137,11 @@ Tell the user:
 - Abandon record saved to `.claude/abandoned/YYYY-MM-DD-<topic>.md`
 - The SessionStart hook will surface this as "previously ruled out" context in future sessions
 - Whether the branch was deleted or kept
+
+---
+
+## Next Steps
+
+- **Resuming in a new session?** Open `.claude/handoff.md` — it contains your phase, modified files, blockers, and next steps.
+- **Dead end?** Use `/session-handoff --abandon` to archive findings to `.claude/abandoned/` so future sessions avoid re-exploring.
+- **Capture lessons before closing?** Use `/session-learnings` to persist insights to memory (auto-committed).

@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "description": "Data-driven gotcha detection rules. Add new rules here — gotcha-detector.sh reads this file dynamically.",
+  "rules": [
+    {
+      "id": "no-utcnow",
+      "pattern": "datetime\\.utcnow\\(\\)",
+      "file_globs": ["*.py"],
+      "severity": "warning",
+      "message": "datetime.utcnow() is deprecated — returns naive datetime causing timezone bugs. Use datetime.now(timezone.utc) instead."
+    },
+    {
+      "id": "no-cast-string",
+      "pattern": "\\.cast\\(String\\)",
+      "file_globs": ["*.py"],
+      "severity": "warning",
+      "message": ".cast(String) on enum/status columns kills PostgreSQL indexes. Filter on the native enum type instead."
+    },
+    {
+      "id": "is-primary-typo",
+      "pattern": "is_primary[^_c]|is_primary$",
+      "file_globs": ["*.py"],
+      "severity": "warning",
+      "message": "HouseholdMember uses is_primary_contact, not is_primary. The shorter name silently matches nothing in SQLAlchemy filters."
+    },
+    {
+      "id": "no-overflow-hidden",
+      "pattern": "overflow:\\s*hidden",
+      "file_globs": ["*.css", "*.html"],
+      "severity": "caution",
+      "message": "overflow:hidden on flex/grid containers clips child scroll areas. Use overflow:clip + min-height:0 instead."
+    },
+    {
+      "id": "no-innerhtml",
+      "pattern": "\\.innerHTML\\s*=",
+      "file_globs": ["*.js", "*.ts"],
+      "severity": "warning",
+      "message": "Security hook blocks innerHTML. Use DOM API (createElement, textContent, append) instead."
+    },
+    {
+      "id": "no-scalar-one-or-none-nonunique",
+      "pattern": "scalar_one_or_none\\(\\)",
+      "file_globs": ["*.py"],
+      "severity": "caution",
+      "message": "scalar_one_or_none() crashes with MultipleResultsFound on non-unique columns. Verify filter is on a unique column, or use scalars().first()."
+    }
+  ]
+}

@@ -29,6 +29,23 @@ if [[ -f "$HANDOFF" ]]; then
   print_line ""
 fi
 
+# 1b. Compaction checkpoint (most recent, if exists)
+COMPACTION_LATEST=$(ls -t "$PROJECT_DIR/.claude"/pre-compaction-*.md 2>/dev/null | head -1)
+if [[ -n "$COMPACTION_LATEST" ]]; then
+  print_line "=== POST-COMPACTION CHECKPOINT ==="
+  print_line "Source: $COMPACTION_LATEST"
+  # Extract Workflow Phase section
+  sed -n '/^## Workflow Phase$/,/^## /{ /^## Workflow Phase$/p; /^## Workflow Phase$/!{ /^## /!p; } }' "$COMPACTION_LATEST" 2>/dev/null | while IFS= read -r line && [[ "$LINES_USED" -lt $((LINE_BUDGET - 15)) ]]; do
+    print_line "  $line"
+  done
+  # Extract Resume Instructions section
+  sed -n '/^## Resume Instructions$/,/^## /{ /^## Resume Instructions$/p; /^## Resume Instructions$/!{ /^## /!p; } }' "$COMPACTION_LATEST" 2>/dev/null | while IFS= read -r line && [[ "$LINES_USED" -lt $((LINE_BUDGET - 12)) ]]; do
+    print_line "  $line"
+  done
+  print_line "=== END CHECKPOINT ==="
+  print_line ""
+fi
+
 # 2. Session log (mid-session decision journal)
 SESSION_LOG="$PROJECT_DIR/.claude/session-log.md"
 if [[ -f "$SESSION_LOG" ]]; then

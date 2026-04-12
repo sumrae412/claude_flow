@@ -166,6 +166,15 @@
       "description": "Periodic reminder to journal design decisions to .claude/session-log.md"
     },
     {
+      "id": "gotcha-detector",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Edit(*.py)", "Edit(*.js)", "Edit(*.ts)", "Edit(*.css)", "Edit(*.html)"],
+      "script": "hooks/tier2/gotcha-detector.sh",
+      "description": "Detects known gotcha anti-patterns in edited files (data-driven from gotcha-rules.json)",
+      "stack_tags": ["python", "ruff", "flake8", "node", "eslint"]
+    },
+    {
       "id": "context-rot-detection",
       "tier": 2,
       "trigger": "PostToolUse",
@@ -189,6 +198,14 @@
       "matcher": ["Write(.claude/workflow-state.json)"],
       "script": "hooks/tier1/validate-phase-output.sh",
       "description": "Validates phase output artifacts against JSON schemas"
+    },
+    {
+      "id": "metronome",
+      "tier": 1,
+      "trigger": "PreToolUse",
+      "matcher": ["Bash"],
+      "script": "hooks/tier1/metronome.py",
+      "description": "Detects shortcut-taking language and blocks Bash to enforce step-by-step execution"
     }
   ]
 }

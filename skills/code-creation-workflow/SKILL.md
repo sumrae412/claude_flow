@@ -639,6 +639,20 @@ The advisor should pay special attention to "assumed" confidence findings and fl
 
 **State transition:** Write `artifacts.exploration_summary` with key_files/patterns/integration_points/gaps, then transition to phase-3.
 
+### Phase 2 Step Labels
+
+| Step | Label (standard path) | Label (research team path) |
+|------|----------------------|---------------------------|
+| 1 | Prior knowledge check | Prior knowledge check |
+| 2 | Compressed codebase context | Task classification |
+| 3 | Executor explores directly | Wave 1 dispatch |
+| 4 | Advisor checkpoint | Gap detection |
+| 5 | — | Wave 2 dispatch (if needed) |
+| 6 | — | Synthesis |
+| 7 | — | Advisor checkpoint |
+
+When the research team is active, update `agents_spawned`, `agents_completed`, and `agents_failed` in the workflow state as researchers are dispatched and return. The existing state schema supports this — no schema changes needed.
+
 ---
 
 ## Phase 3: Clarification + Requirements (Hard Gate)

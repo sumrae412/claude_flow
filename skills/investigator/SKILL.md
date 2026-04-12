@@ -194,3 +194,11 @@ This skill outputs **evidence and observations only**. It does NOT output:
 - "I think the problem is X" statements
 
 The evidence matrix is the deliverable. What happens next is the caller's decision.
+
+---
+
+## Next Steps
+
+- **Ready to fix the bug?** Use `/bug-fix` — it consumes the evidence matrix and runs Reproduce → Diagnose → Fix → Verify.
+- **Evidence reveals a missing feature?** Use `/code-creation-workflow` to build it through the full 6-phase pipeline.
+- **Need to capture what you learned?** Use `/session-learnings` to persist findings to memory before ending the session.

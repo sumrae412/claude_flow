@@ -1,18 +1,18 @@
-# Claude Flow — Code Creation Workflow
+# Claude Flow
 
-Standalone, self-contained agentic workflow for building features with Claude Code. Uses parallel subagents for exploration, competing architecture proposals, TDD implementation, and multi-tier quality review.
+A multi-agent code creation workflow for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Replaces single-pass coding with a structured 6-phase pipeline: parallel exploration, competing architecture proposals, TDD implementation, and registry-driven quality review.
 
 ## Why use this instead of vanilla Claude Code?
 
-Claude Code's default mode is a single-pass loop: read a few files, form a mental model, write code, commit. This workflow replaces that with a structured multi-agent pipeline:
+Claude Code's default mode is a single-pass loop: read a few files, form a mental model, write code, commit. This works for small changes but falls apart on complex features where assumptions compound. Claude Flow replaces that with a structured multi-agent pipeline:
 
-- **Deep exploration before coding.** 2-3 parallel subagents (Opus) map codebase patterns and architecture before the main session touches code. The main session then reads the top 5-10 source files itself so it has firsthand knowledge of the code, not just agent summaries.
+- **Deep exploration before coding.** 2-3 parallel Opus subagents map codebase patterns and architecture before the main session touches code. The main session then reads the top 5-10 source files itself so it has firsthand knowledge of the code, not just agent summaries.
 - **Token-efficient context.** A bundled repo outline script extracts function and class signatures without their bodies, so Claude sees the full codebase structure without burning context tokens on implementation details.
 - **Hard-gated clarification.** All ambiguities (edge cases, error handling, scope boundaries) must be resolved with you before architecture begins, so Claude doesn't build the wrong thing based on assumptions.
 - **Competing architectures.** Two architect agents (simplicity vs. separation) produce proposals you choose between rather than getting a single take-it-or-leave-it design.
 - **Strict TDD with defensive patterns.** Test-first per plan step, with guard clauses, no-silent-swallow rules, and state management injected automatically based on whether the step touches UI or backend.
-- **4-tier parallel review.** 5+ agents (code review, silent failure hunting, security, test coverage analysis) plus conditional specialists (migration, async, API audit) that fire only when relevant file types appear in the diff. This catches entire categories of bugs vanilla Claude misses: swallowed exceptions, missing error states, auth gaps, untested edge cases, and type mismatches.
-- **Context persistence across sessions.** Hook scripts handle pre-compaction transcript backup, post-commit memory updates, and session-start context reloading so the next session doesn't start from scratch. Related memories are compiled into consolidated concept articles for efficient retrieval.
+- **4-tier parallel review.** 5+ agents (code review, silent failure hunting, security, test coverage analysis) plus conditional specialists (migration, async, API audit) that fire only when relevant file types appear in the diff.
+- **Context persistence across sessions.** Hook scripts handle pre-compaction transcript backup, post-commit memory updates, and session-start context reloading so the next session doesn't start from scratch.
 
 ## How it works
 
@@ -47,13 +47,25 @@ cd claude_flow
 ./install.sh
 ```
 
-This copies all skills to `~/.claude/skills/` and scripts to `~/.claude/scripts/`, and installs the 10 universal Tier 1 hooks.
+This copies all skills to `~/.claude/skills/`, scripts to `~/.claude/scripts/`, hooks to `~/.claude/hooks/claude-flow/`, memory files to `~/.claude/memory/`, and the MCP server to `~/.claude/mcp/claude-flow/`.
 
 To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-check) based on your project's detected stack:
 
 ```bash
 ./install.sh --generate-hooks
 ```
+
+## Usage
+
+After installing, invoke in Claude Code:
+
+```
+/code-creation-workflow
+```
+
+Or describe what you want to build — the workflow triggers automatically for complex features. Small single-file changes use a fast path that skips the full pipeline.
+
+For bug fixes, use `/bug-fix` — a dedicated 4-step pipeline (Reproduce, Diagnose, Fix, Verify).
 
 ## What's included
 
@@ -65,19 +77,20 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 |-------|-------------|
 | 0 Context | Load project identity, classify task, load relevant skills |
 | 0.5 Hooks | Auto-detect stack, generate Claude Code hooks (one-time) |
-| 1 Discovery | Triage: fast-path, plan-path, explore-path, or full workflow |
+| 1 Discovery | Triage: fast-path, plan-path, explore-path, bug-path, or full workflow |
 | 2 Exploration | 2-3 parallel code-explorer subagents map the codebase |
 | 3 Clarification | Resolve all ambiguities before architecture (hard gate) |
-| 4 Architecture | 2 parallel architect proposals, user picks |
+| 4 Architecture | 2 parallel architect proposals, advisor critique, user picks |
 | 5 Implementation | TDD per step, parallel dispatch for independent work |
 | 6 Quality | Registry-driven cascading review, static analysis, verification |
 
-### Bundled skills (19 total)
+### Bundled skills (23)
 
 **Enforcement:**
 - `coding-best-practices` — Python, JS, API, testing, performance standards
 - `defensive-ui-flows` — Guard clauses, state flags, overlay feedback for UI
 - `defensive-backend-flows` — Error handling, data migrations, service-layer patterns
+- `production-readiness-check` — Infrastructure and ops-level readiness checks
 
 **Workflow:**
 - `writing-plans` — Structured implementation plans
@@ -85,18 +98,47 @@ To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-
 - `test-driven-development` — TDD discipline with anti-patterns reference
 - `subagent-driven-development` — Parallel agent dispatch for independent tasks
 - `verification-before-completion` — Pre-commit verification gate
-
-**Utilities:**
-- `fetch-api-docs` — Fetch API docs before coding against external services
-- `finishing-a-development-branch` — Branch completion (merge/PR/cleanup)
-- `session-learnings` — Capture discoveries after committing work, compile related memories into consolidated concept articles
 - `shipping-workflow` — End-to-end shipping pipeline (commit, PR, review, merge)
-- `session-handoff` — Export session state or abandon/archive dead-end approaches
-- `smart-exploration` — Task-typed exploration prompts for Phase 2 (feature/bug/refactor variants)
+
+**Diagnostics:**
+- `bug-fix` — Dedicated bug-fix pipeline (Reproduce, Diagnose, Fix, Verify)
+- `investigator` — Evidence collection from 6 source types without proposing fixes
 - `hook-doctor` — Diagnose hook health: missing files, bad exit codes, env issues
-- `memory-injection` — Inject project gotchas and compiled knowledge articles into subagent system prompts
-- `lint-memory` — 4 health checks for memory files: broken links, orphans, stale entries, contradictions
-- `prompt-optimization` — A/B test and promote subagent prompts across explorers, architects, and reviewers
+- `debate-team` — Cross-model adversarial review (DeepSeek + GPT-4o + Haiku)
+- `lint-memory` — 4 health checks: broken links, orphans, stale entries, contradictions
+
+**Context management:**
+- `fetch-api-docs` — Fetch API docs before coding against external services
+- `session-learnings` — Capture discoveries after committing work
+- `session-handoff` — Export session state or archive dead-end approaches
+- `smart-exploration` — Task-typed exploration prompts for Phase 2
+- `memory-injection` — Inject project gotchas into subagent prompts
+- `prompt-optimization` — A/B test and promote subagent prompts
+
+**Branch management:**
+- `finishing-a-development-branch` — Branch completion (merge/PR/cleanup)
+
+### Hook system
+
+Three-tier hook architecture for automated enforcement and context management:
+
+| Tier | Count | Description |
+|------|-------|-------------|
+| 1 — Universal | 15 | Always-on: secret detection, git safety, session lifecycle, pre-compaction backup, decision journal, phase gates, metronome, build-before-commit, todo cleanup, worktree cleanup |
+| 2 — Stack-specific | 10 | Auto-detected by `install.sh`: lint, test, migration check, type-check, docker rebuild reminder, gotcha detector, context rot detection |
+| 3 — Project-specific | — | User-configured per repo, not bundled |
+
+**Generate hooks for your stack:**
+```bash
+./install.sh --generate-hooks
+```
+
+This detects your stack (Node, Python, TypeScript, Docker, Alembic, etc.) and outputs the relevant Tier 2 hook configuration.
+
+**Diagnose hook issues:**
+```
+/hook-doctor
+```
 
 ### Self-debugging agents
 
@@ -105,85 +147,59 @@ Autonomous failure detection, diagnosis, and retry for Phases 5-6. When a test, 
 1. The retry loop classifies the error against the **failure catalog** (`memory/failure-catalog.md`)
 2. Known patterns are fixed automatically using documented strategies
 3. Novel failures dispatch a **diagnosis subagent** that identifies root cause and proposes a fix
-4. New patterns are validated via multi-model review (DeepSeek + Codex) before being added to the catalog
-5. The catalog is pushed to GitHub so all users benefit from accumulated patterns
-6. All events are logged to `memory/failure-events.jsonl` for trend analysis
+4. New patterns are validated before being added to the catalog
+5. All events are logged to `memory/failure-events.jsonl` for trend analysis
 
 Fully autonomous — user only sees failures that survive 3 retry attempts.
 
 ### Prompt optimization
 
-Closed-loop A/B testing for subagent prompts. The system measures whether the prompts dispatched to subagents actually produce good results, then promotes winners and generates challengers for losers.
+Closed-loop A/B testing for subagent prompts. Measures whether prompts dispatched to explorers, architects, and reviewers actually produce good results, then promotes winners and generates challengers.
 
-**Three agent types tracked:**
+| Agent Type | Phase | What's Measured |
+|-----------|-------|----------------|
+| Explorer | 2 | Were discovered files actually used in implementation? |
+| Architect | 4 | Was this proposal chosen? Did it converge quickly? |
+| Reviewer | 6 | Were reported issues real and worth fixing? |
 
-| Agent Type | Phase | What's Measured | Score |
-|-----------|-------|----------------|-------|
-| Explorer | 2 | Were discovered files actually used in implementation? | F1(precision, recall) * (1 - retry_rate) |
-| Architect | 4 | Was this proposal chosen? Did it converge quickly? Few review issues? | Weighted: selection + quality + convergence |
-| Reviewer | 6 | Were reported issues real and worth fixing? | true_positive_rate * signal_to_noise |
+Run `/prompt-optimization` to see current variant performance.
 
-**How it works:**
+### 3-tier memory system
 
-1. Before dispatching subagents, `prompt-tracker.py select` picks a variant via epsilon-greedy (80% exploit best, 20% explore)
-2. After the phase completes, outcomes are recorded to per-type JSONL event files
-3. After 10+ sessions per variant, the system compares scores and promotes winners (gap > 0.05)
-4. Losing variants get rewritten by an LLM to address their specific blind spots (requires user approval)
+Inspired by cognitive science's memory types, adapted for agentic workflows:
 
-**Manual review:** Run `/prompt-optimization` to see current variant performance across all agent types.
+- **Episodic** — Raw event traces (exploration outcomes, failures, phase timings)
+- **Semantic** — Generalized patterns extracted from episodic data (failure catalog, pattern library)
+- **Procedural** — Learned optimizations (A/B tested prompt variants, proposed skill updates)
 
-**MCP tool:** `get_prompt_performance` returns JSON performance data, filterable by agent type and category.
-
-### Hook system
-
-Three-tier hook architecture for automated enforcement and context management:
-
-| Tier | Count | Description |
-|------|-------|-------------|
-| 1 — Universal | 11 | Always-on: secret detection, git safety, session lifecycle, pre-compaction backup, post-commit memory update, decision journal |
-| 2 — Stack-specific | 7 | Auto-detected by `install.sh`: lint, test, migration check, type-check (fires only when relevant files change) |
-| 3 — Project-specific | — | User-configured per repo, not bundled |
-
-**Generate hooks for your stack:**
-```bash
-./install.sh --generate-hooks
-```
-
-This detects your stack (Node, Python, Rails, etc.) and writes the relevant Tier 2 hooks into `.claude/hooks/`.
-
-**Diagnose hook issues:**
-```
-/hook-doctor
-```
-
-Checks for missing hook files, bad exit codes, unset env vars, and permission errors, and prints a fix for each.
+Data flows from episodic events through a pattern detector into semantic patterns and procedural proposals.
 
 ### Session intelligence
 
-**Decision journal** — A Tier 1 hook that periodically reminds Claude to log design decisions, tradeoffs, and approach changes to `.claude/session-log.md`. Fires every 10 file edits. The session-context-loader surfaces this log when resuming work.
+- **Decision journal** — Tier 1 hook that periodically reminds Claude to log design decisions to `.claude/session-log.md`. Fires every 10 file edits.
+- **Abandon/archive workflow** — `/session-handoff --abandon` creates structured records of failed approaches in `.claude/abandoned/`, preventing re-exploration of dead ends in future sessions.
+- **Exploration path** — Phase 1 routes experimental work ("spike", "prototype") to a lightweight sandbox with a 60/100 quality bar (no TDD, no Phase 6 review). Successful experiments graduate into the full workflow.
+- **Reviewer registry** — Phase 6 reviewer selection driven by `reviewer-registry.json`. Add project-specific reviewers by dropping a `reviewer-registry.json` in your project's `.claude/` directory.
+- **Project-local plans** — Plans save to `docs/plans/` (git-tracked) by default.
 
-**Abandon/archive workflow** — When an approach fails or a spike doesn't pan out, `/session-handoff --abandon` creates a structured record in `.claude/abandoned/` documenting what was tried, why it was abandoned, and what was learned. Future sessions see this as "previously ruled out" context, preventing re-exploration of dead ends.
+### Workflow state machine
 
-**Exploration path** — Phase 1 Discovery now routes experimental work ("try this", "spike", "prototype") to a lightweight sandbox in `explorations/<topic>/`. Quality bar is 60/100 (no TDD, no Phase 6 review). When the experiment succeeds, it graduates into the full workflow. When it fails, it archives via the abandon workflow.
-
-**Reviewer registry** — Phase 6 reviewer selection is now driven by `reviewer-registry.json` instead of hardcoded logic. Add project-specific reviewers by dropping a `reviewer-registry.json` in your project's `.claude/` directory.
-
-**Project-local plans** — Plans save to `docs/plans/` (git-tracked) by default. Add `"plansDirectory": "docs/plans"` to your project's `.claude/settings.json` to also route Claude Code's built-in plan mode there.
+Phase transitions are governed by a state machine persisted to `.claude/workflow-state.json`. Each phase validates required inputs, records outputs, and gates entry to downstream phases. Supports resume-from-checkpoint after context compaction or session restart.
 
 ### MCP server
 
-A Model Context Protocol server that exposes workflow state to external tools and IDE integrations.
+A [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes workflow state to external tools and IDE integrations.
 
 | Type | Name | Description |
 |------|------|-------------|
 | Resource | `workflow://state` | Current phase, active agents, last checkpoint |
-| Resource | `workflow://memory` | Project memory files (identity, gotchas, decisions) |
+| Resource | `workflow://memory` | Project memory files |
 | Resource | `workflow://hooks` | Hook registry and last-run status |
 | Resource | `workflow://outline` | Latest repo outline (signatures without bodies) |
 | Resource | `workflow://session` | Active session context and loaded skills |
 | Tool | `query_state` | Query workflow state with a natural-language filter |
 | Tool | `search_memory` | Full-text search across all memory files |
-| Tool | `check_hook_health` | Run hook-doctor diagnostics and return results |
+| Tool | `check_hook_health` | Run hook-doctor diagnostics |
 | Tool | `inject_context` | Push a context block into the next subagent prompt |
 
 **Register in `~/.claude/settings.json`:**
@@ -191,8 +207,8 @@ A Model Context Protocol server that exposes workflow state to external tools an
 {
   "mcpServers": {
     "claude-flow": {
-      "command": "node",
-      "args": ["~/.claude/scripts/mcp-server/index.js"]
+      "command": "python3",
+      "args": ["~/.claude/mcp/claude-flow/server.py"]
     }
   }
 }
@@ -200,15 +216,12 @@ A Model Context Protocol server that exposes workflow state to external tools an
 
 ### Automated PR review
 
-An Agent SDK app (`scripts/pr-review-agent/`) that runs the Phase 6 quality review headlessly against any PR diff — no interactive Claude session required.
+An Agent SDK app (`agent-sdk/pr-reviewer/`) that runs the Phase 6 quality review headlessly against any PR diff — no interactive Claude session required.
 
-**What it reviews:**
 - Tier 1 checks always run: silent failure hunting, security audit, test coverage analysis
-- Tier 2 checks fire conditionally: migration safety (if `*.sql` in diff), async patterns (if `async/await` count is high), API contract audit (if route files changed)
+- Tier 2 checks fire conditionally: migration safety, async patterns, API contract audit
 
 **GitHub Actions integration:**
-
-Add to `.github/workflows/pr-review.yml` — the action posts review comments directly on the PR.
 
 ```yaml
 - uses: sumrae412/claude-flow-pr-review@v1
@@ -216,47 +229,48 @@ Add to `.github/workflows/pr-review.yml` — the action posts review comments di
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-**Cost controls:** PRs under 200 lines skip the full agent pool and use a single-pass review. The agent cap defaults to 5 and is configurable via `MAX_REVIEW_AGENTS`.
+PRs under 200 lines skip the full agent pool and use a single-pass review.
 
 ### Scripts
 
 **Analysis:**
 - `generate_repo_outline.py` — Extract function/class signatures without bodies (token-efficient codebase context)
-- `plancraft_review.py` — Multi-model AI plan review (DeepSeek + Codex)
+- `plancraft_review.py` — Multi-model AI plan review
 - `prompt-tracker.py` — Prompt variant selection, outcome recording, and performance reporting
+- `thinking-budget.py` — Dynamic thinking budget selection based on complexity tier and domain retry rates
+- `dashboard.py` — Performance dashboard across episodic event data
+- `pattern-detector.py` — Extract semantic patterns from episodic events
 
-**Universal hooks (Tier 1 — always installed):**
-- `hooks/session-start-context.sh` — Load context + skill suggestions on session start
-- `hooks/pre-compaction-save.sh` — Save transcript before context compaction
-- `hooks/post-commit-memory-update.sh` — Update memory files after commits
-- `hooks/secret-detection.sh` — Block commits containing secrets or credentials
-- `hooks/git-safety.sh` — Prevent force-pushes to main and other destructive ops
-
-**Stack-specific hooks (Tier 2 — generated by `install.sh --generate-hooks`):**
-- `hooks/stack/lint.sh` — Run linter on changed files before commit
-- `hooks/stack/test.sh` — Run affected tests before commit
-- `hooks/stack/migration-check.sh` — Validate migration files when schema changes
-- `hooks/stack/type-check.sh` — Run type checker when type files change
-
-**Self-debugging:**
-- `scripts/emit-failure-event.sh` — Append structured events to the failure event log
-- `hooks/tier1/failure-catalog-push.sh` — Auto-commit and push failure catalog updates to GitHub
-
-**MCP server:**
-- `mcp-server/index.js` — MCP server entrypoint (5 resources, 4 tools)
-
-**PR review agent:**
-- `pr-review-agent/index.js` — Headless Phase 6 review via Agent SDK
-
-## Usage
-
-After installing, invoke in Claude Code:
+## Project structure
 
 ```
-/code-creation-workflow
+claude_flow/
+├── skills/                     # 23 bundled skills (SKILL.md + references)
+│   ├── code-creation-workflow/  # Main orchestrator (1750+ lines)
+│   ├── bug-fix/                 # Dedicated bug-fix pipeline
+│   ├── debate-team/             # Cross-model adversarial review
+│   └── ...
+├── hooks/                      # Tier 1 & 2 hook implementations
+│   ├── hook-registry.json       # Single source of truth for hook selection
+│   ├── tier1/                   # 15 universal hooks (always-on)
+│   └── tier2/                   # 10 stack-specific hooks (conditional)
+├── scripts/                    # Utility and analysis scripts
+├── memory/                     # 3-tier memory system
+│   ├── episodic/                # Raw event traces
+│   ├── semantic/                # Generalized patterns
+│   └── procedural/              # Learned optimizations
+├── mcp/                        # Model Context Protocol server
+│   └── claude-flow-server/
+├── agent-sdk/                  # Headless PR review agent
+│   └── pr-reviewer/
+├── docs/                       # Design documents and plans
+│   ├── plans/                   # 20+ design docs
+│   └── superpowers/             # Capability specs
+├── reviewer-registry.json      # Phase 6 reviewer selection config
+├── install.sh                  # Installer
+├── REVIEW.md                   # Review standards
+└── LICENSE                     # MIT
 ```
-
-Or describe what you want to build — the workflow triggers automatically for complex features.
 
 ## Updating
 
@@ -270,40 +284,64 @@ git pull
 
 ## Uninstall
 
-Remove the installed skills:
+Remove the installed skills, scripts, hooks, and MCP server:
 
 ```bash
 # Remove all bundled skills
-for skill in code-creation-workflow coding-best-practices defensive-ui-flows \
-  defensive-backend-flows fetch-api-docs finishing-a-development-branch \
-  session-learnings shipping-workflow writing-plans executing-plans \
-  test-driven-development subagent-driven-development verification-before-completion \
-  lint-memory; do
+for skill in bug-fix code-creation-workflow coding-best-practices debate-team \
+  defensive-backend-flows defensive-ui-flows executing-plans fetch-api-docs \
+  finishing-a-development-branch hook-doctor investigator lint-memory \
+  memory-injection production-readiness-check prompt-optimization \
+  session-handoff session-learnings shipping-workflow smart-exploration \
+  subagent-driven-development test-driven-development \
+  verification-before-completion writing-plans; do
   rm -rf ~/.claude/skills/$skill
 done
 
 # Remove scripts
 rm -f ~/.claude/scripts/generate_repo_outline.py
 rm -f ~/.claude/scripts/plancraft_review.py
-rm -f ~/.claude/scripts/hooks/session-start-context.sh
-rm -f ~/.claude/scripts/hooks/pre-compaction-save.sh
-rm -f ~/.claude/scripts/hooks/post-commit-memory-update.sh
+rm -f ~/.claude/scripts/prompt-tracker.py
+rm -f ~/.claude/scripts/thinking-budget.py
+rm -f ~/.claude/scripts/dashboard.py
+rm -f ~/.claude/scripts/pattern-detector.py
+rm -f ~/.claude/scripts/review-proposals.py
+rm -f ~/.claude/scripts/emit-failure-event.sh
+rm -f ~/.claude/scripts/emit-phase-event.sh
+rm -rf ~/.claude/scripts/hooks/
+
+# Remove hooks
+rm -rf ~/.claude/hooks/claude-flow/
+
+# Remove MCP server
+rm -rf ~/.claude/mcp/claude-flow/
+
+# Remove memory files (optional — these accumulate project-specific data)
+# rm -rf ~/.claude/memory/
 ```
 
-## Future Work
+## Future work
 
-### Issue-tracker entry point (`from-ticket`)
+- **Issue-tracker entry point** — Start from a Linear/Jira/GitHub issue instead of a user prompt, pulling in structured acceptance criteria and reproduction steps automatically.
+- **External knowledge sources in Phase 2** — Pull context from Obsidian, Apple Notes, or a docs directory to give subagents richer domain context.
+- **Priority-ranked review feedback** — Triage Phase 6 findings into Critical (auto-fix), Medium (present for user decision), and Low (log but skip).
+- **Cross-LLM task routing** — Route subagent tasks to best-fit LLM CLI (Codex, Gemini, Claude, Cursor) based on task characteristics.
 
-A skill that takes an issue ID (Linear, Jira, GitHub Issue) and auto-gathers context from the tracker, linked PRs, related discussions, and error monitoring (Sentry) before feeding it into Phase 1 Discovery. Currently the workflow starts from a user prompt — this would let it start from a ticket and pull in structured acceptance criteria, linked conversations, and reproduction steps automatically.
+## Acknowledgments
 
-### External knowledge source in Phase 2
+Claude Flow builds on ideas, patterns, and code from several open-source projects and resources. Thank you to:
 
-Phase 2 Exploration currently only searches the codebase. Adding an optional step to pull context from an external knowledge source (Obsidian vault, Apple Notes, a `docs/` directory, or a notes MCP server) would give subagents richer domain context — especially useful for projects where product decisions, meeting notes, or research live outside the repo.
-
-### Priority-ranked review feedback
-
-Phase 6 currently auto-fixes all findings from the review tier. A severity filter would triage findings into Critical (auto-fix), Medium (present for user decision), and Low (log but skip), reducing unnecessary churn on stylistic or speculative suggestions while still catching real bugs.
+- **[Archon](https://github.com/coleam00/archon)** by Cole Medin ([@coleam00](https://github.com/coleam00)) — Environment variable sanitization pattern (Phase 0.5), `$nodeId.output` variable substitution pattern for inter-phase data flow, and "fresh context per iteration" pattern for long TDD cycles.
+- **[claude-memory-compiler](https://github.com/coleam00/claude-memory-compiler)** by Cole Medin — Inspiration for the memory compilation system, based on Andrej Karpathy's LLM Knowledge Base architecture.
+- **[claude-workflow](https://github.com/anthropics/claude-workflow)** — `WorkflowStateManager`, `SchemaValidator`, and `phase-tracker` patterns adapted (not imported) for the workflow state machine.
+- **[shinpr/metronome](https://github.com/shinpr/metronome)** (MIT) — Step-skipping detection hook adapted for the claude-flow tier-1 hook pattern.
+- **[Pimzino/claude-code-spec-workflow](https://github.com/Pimzino/claude-code-spec-workflow)** by Pimzino — Inspiration for the requirements validation and structured specification approach in Phase 3.
+- **[loki-mode](https://github.com/loki-mode)** — RARV (Reason-Act-Reflect-Verify) cycle pattern, adapted as the pre-review self-assessment step in Phase 6.
+- **[Better-Harness](https://github.com/better-harness)** — "One change at a time to avoid confounding" principle, applied to the workflow retrospective.
+- **[HardEval](https://arxiv.org/abs/2407.21227)** — Cognitive complexity classification framework (arXiv 2407.21227), adapted for the task complexity classifier in Phase 1 Discovery.
+- **[Claude Cookbook](https://docs.anthropic.com/en/docs/claude-cookbook)** by Anthropic — Context engineering patterns, evaluator-optimizer loop for review fix iteration, and building evals / tool evaluation patterns for reviewer calibration.
+- **Cognitive science literature** — 3-tier memory architecture (episodic, semantic, procedural) adapted for agentic workflows.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

@@ -226,7 +226,11 @@ fi
 
 # ─── Normal install mode ─────────────────────────────────────────────────────
 
-echo -e "${BLUE}Claude Flow — Code Creation Workflow Installer${NC}"
+echo -e "${BLUE}Claude Flow — Advanced Setup${NC}"
+echo ""
+echo -e "${CYAN}Note:${NC} Skills are auto-loaded when claude-flow is installed as a Claude Code plugin."
+echo "This script installs hooks, scripts, MCP server, and memory files that the plugin"
+echo "system does not handle."
 echo ""
 
 # Check source files exist
@@ -235,8 +239,8 @@ if [ ! -d "$SCRIPT_DIR/skills" ]; then
   exit 1
 fi
 
-# Install skills
-echo -e "${YELLOW}Installing skills to $SKILLS_DIR/${NC}"
+# Install skills (fallback for non-plugin installs)
+echo -e "${YELLOW}Installing skills to $SKILLS_DIR/ (fallback — plugin users skip this)${NC}"
 mkdir -p "$SKILLS_DIR"
 
 installed=0

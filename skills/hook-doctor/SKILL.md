@@ -100,3 +100,11 @@ For each broken or warning hook, provide a specific fix:
 | No shebang | "Add a shebang line to [path], e.g. `#!/bin/bash`" |
 
 If all hooks are healthy, confirm: "All configured hooks are working correctly."
+
+---
+
+## Next Steps
+
+- **Regenerate hooks for this project?** Run `./install.sh --generate-hooks` to re-detect your stack and rebuild hook config.
+- **Stale hook paths?** Run `/lint-memory` to check if memory files reference hooks that have moved or been renamed.
+- **Need new hooks?** Add entries to `hooks/hook-registry.json` (tier 1 = always-on, tier 2 = stack-conditional), then re-run `--generate-hooks`.

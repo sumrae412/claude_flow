@@ -174,3 +174,11 @@ score              = true_positive_rate * signal_to_noise
 - **code-creation-workflow** Phase 6: records reviewer outcomes (issues found/fixed/dismissed), architect quality signal
 - **session-learnings** triggers this skill when any event files have new entries
 - **MCP server** exposes `get_prompt_performance` tool (accepts optional `agent_type` filter)
+
+---
+
+## Next Steps
+
+- **Need more data for variant scoring?** Run `/code-creation-workflow` on a real task — it auto-records explorer, architect, and reviewer performance events.
+- **Want to see current standings?** Check `~/.claude/memory/prompt-variants.json` for variant win rates and F1 scores.
+- **Ready to promote a winner?** Re-run `/prompt-optimization` after 10+ sessions per variant to trigger automatic promotion.

@@ -10,30 +10,25 @@ After user approves the plan and before any implementation begins, verify the pl
 
 ---
 
-## File Path Verification
+## File Path Verification (Script-Based — Zero Tokens)
 
-The executor (Sonnet) runs a mechanical verification pass — no subagent needed:
+Run the verification script instead of LLM reasoning:
 
+```bash
+python scripts/verify_plan.py <plan-file> --project-root . --json
 ```
-For each file path in the plan:
-  → Does the file exist? (glob/ls)
-  → Are the referenced functions/classes/methods actually in that file? (grep)
-  → If a file is listed as "create new": does a file with that name already exist?
 
-For each pattern claim ("follows existing X pattern"):
-  → Grep to confirm the pattern exists in the referenced location
-  → If the pattern was discovered in Phase 2 but the file has since changed
-    (unlikely but possible in multi-session work), flag it
+The script extracts file paths, function references, and pattern claims from the plan markdown, then verifies each against the codebase using grep/glob. Returns JSON with ok/missing/warning counts.
 
-For each API contract claim (endpoint signatures, model fields, service methods):
-  → Verify the signature/fields exist as described
-  → Check parameter types and return types match
+**Interpret results:**
+- Exit 0 (all ok): proceed to coverage mapping below
+- Exit 1 (missing refs): read the JSON output, fix plan references for material mismatches, re-present to user for minor ones
+- Pattern claims (listed but not auto-verified): spot-check the top 2-3 manually
 
-For integration points:
-  → Verify the interface hasn't changed since Phase 2 exploration
-  → If another session's work landed between Phase 2 and now (e.g., a merged PR),
-    check for breaking changes in shared interfaces
-```
+**What the script checks:**
+- File paths: exist for Modify/Test/Read, don't already exist for Create
+- Function/class refs: `symbol()` in `file.py` — grep confirms definition exists
+- Pattern claims: extracted for manual review (not auto-verifiable)
 
 <!-- Task taxonomy (types + dependency types) defined in writing-plans/SKILL.md. Keep in sync. -->
 

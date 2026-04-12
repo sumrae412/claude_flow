@@ -119,11 +119,13 @@ Pass 3: TEST + UI PATTERNS (if relevant)
 
 ### Advisor: Exploration Review
 
-Dispatch Opus (`model: "opus"`, `subagent_type: "general-purpose"`) with:
+Dispatch **Sonnet** (`model: "sonnet"`, `subagent_type: "general-purpose"`) with:
 - Input: populated `$exploration` contract (key_files, patterns, integration_points, concerns)
-- Question: "What's missing from this exploration before I move to requirements?"
+- Question: "What's missing from this exploration before I move to requirements? Also score these 4 quality axes as pass/fail: (1) Objective Clarity — deliverable stateable as one-sentence outcome? (2) Service Scope — affected files/modules identifiable? (3) Testability — all behaviors expressible as WHEN/THEN? (4) Completeness — all edge cases from exploration have resolutions?"
 - If research brief was produced: include full brief with confidence scores instead of raw exploration
-- Act on response: explore identified gaps, then transition to Phase 3
+- Act on response: explore identified gaps. If all 4 quality axes pass, carry scores forward to Phase 3 (skip quality gate re-check). If any fail, Phase 3 will re-score after ambiguity resolution.
+
+**Why Sonnet, not Opus:** Exploration review is gap-finding and checklist scoring — broad pattern matching, not deep trade-off analysis. Opus is reserved for Phase 4 architecture critique and plan stress-test where it earns its cost.
 
 ---
 

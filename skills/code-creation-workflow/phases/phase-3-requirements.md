@@ -28,34 +28,18 @@ Present an organized question list to the user. Group questions by category. Wai
 
 ## Step 2: Quality Gate
 
-Before synthesizing requirements, score the resolved input on 4 axes. This catches vague or incomplete requirements before they waste architecture effort in Phase 4.
+<SKIP-CONDITION>
+If the Phase 2 advisor already scored all 4 quality axes as PASS (carried forward in $exploration.quality_gate), skip this step — proceed directly to Step 3.
+</SKIP-CONDITION>
 
-```
-QUALITY GATE (score each pass/fail):
+**Only runs when Phase 2 advisor flagged failures or was skipped.** Re-score the 4 axes after ambiguity resolution:
 
-1. Objective Clarity — Can you state the deliverable in one sentence as an outcome?
-   PASS: clear outcome statement ("Users can search tenants by name and see filtered results")
-   FAIL: vague ("improve search"), unmeasurable, or describes activity not outcome
+1. **Objective Clarity** — Deliverable stateable as one-sentence outcome? FAIL: vague, unmeasurable, or activity-not-outcome.
+2. **Service Scope** — Affected files/modules identifiable from exploration? FAIL: no specific locations.
+3. **Testability** — All behaviors expressible as WHEN/THEN? FAIL: "should work well", "be fast", etc.
+4. **Completeness** — All edge cases have resolutions? FAIL: unresolved edges, unspecified error handling.
 
-2. Service Scope — Are affected services/components identifiable?
-   PASS: concrete files, modules, or systems named from Phase 2 exploration
-   FAIL: no specific codebase locations identified
-
-3. Testability — Does every behavior have a verifiable condition?
-   PASS: all behaviors expressible as WHEN/IF/THEN acceptance criteria
-   FAIL: any requirement uses "should work well", "be fast", "be intuitive", or other untestable language
-
-4. Completeness — Are edge cases, error paths, and integration points addressed?
-   PASS: all known edge cases from Phase 2 exploration have resolutions
-   FAIL: known edge cases unresolved, error handling unspecified, or integration points unclear
-
-GATE LOGIC:
-  All pass → proceed to Step 3 (synthesize $requirements)
-  Any fail → present failures with specific questions to resolve them
-              Loop: re-score after user answers → repeat until all pass
-```
-
-This is NOT a new user approval gate — it's a pre-check that ensures the existing approval gate (end of Step 3) is meaningful.
+**Gate:** All pass → Step 3. Any fail → present failures with questions, loop until all pass.
 
 ---
 

@@ -4,17 +4,17 @@ Reference documentation for all agents, skills, and tools used within the code-c
 
 ## Agents Used Within This Workflow
 
-### Advisor (Opus, On-Demand)
+### Advisor (Tiered Model)
 
-| Checkpoint | Phase | Question Focus | Required? |
-|------------|-------|----------------|-----------|
-| Exploration Review | 2 | "What am I missing?" | Yes |
-| Architecture Critique | 4 | "What are the blind spots?" | Yes |
-| Plan Stress-Test | 4b | "Find logic errors, scope creep" | Yes |
-| Mid-Implementation | 5 | "Which pattern at this decision point?" | Optional |
-| Strategic Pre-Review | 6 | "Does this fulfill requirements?" | Optional |
+| Checkpoint | Phase | Model | Question Focus | Required? |
+|------------|-------|-------|----------------|-----------|
+| Exploration Review + Quality Gate | 2 | **sonnet** | "What's missing? + score 4 quality axes" | Yes |
+| Architecture Critique | 4 | **opus** | "Blind spots? Trade-offs underweighted?" | Yes |
+| Plan Stress-Test | 4b | **opus** | "Logic errors, scope creep?" | Yes |
+| Mid-Implementation | 5 | **opus** | "Which pattern at this decision point?" | Optional |
+| Strategic Pre-Review | 6 | **opus** | "Does this fulfill requirements?" | Optional |
 
-All advisor calls use `model: "opus"`, `subagent_type: "general-purpose"`.
+All advisor calls use `subagent_type: "general-purpose"`. Phase 2 uses `model: "sonnet"` (gap-finding). Phase 4+ uses `model: "opus"` (trade-off analysis).
 
 ### Review Agents (Phase 5-6)
 
@@ -26,10 +26,7 @@ All advisor calls use `model: "opus"`, `subagent_type: "general-purpose"`.
 | CodeRabbit | `coderabbit:code-reviewer` | 6 (T1) | Always | sonnet |
 | Safety Reviewer (merged) | `safety-reviewer` | 6 (T2) | Always — silent failures + security (combined) | sonnet |
 | Test Coverage Analyzer | `pr-review-toolkit:pr-test-analyzer` | 6 (T2) | Always — test gaps | sonnet |
-| Type Design Analyzer | `pr-review-toolkit:type-design-analyzer` | 6 (T3) | New types/models | haiku |
-| API Doc Auditor | `api-doc-auditor` | 6 (T3) | New/modified routes | haiku |
-| Invariant Checker | `courierflow-invariant-checker` | 6 (T4) | Always (CF projects) | haiku |
-| Defensive Verifier | `defensive-pattern-verifier` | 6 (T4) | Always | haiku |
+| Lightweight Reviewer (batched) | `lightweight-reviewer` | 6 (T3-4) | Single haiku dispatch — combines type design, API docs, invariants, defensive patterns based on diff | haiku |
 | Design Reviewer | `general-purpose` | 6 (T5) | UI files modified | sonnet |
 | Cross-Cutting Synthesizer | `general-purpose` | 6 (post-tiers) | If any HIGH+ findings | sonnet |
 | Code Simplifier | `code-simplifier:code-simplifier` | 6 | After review fixes | opus |

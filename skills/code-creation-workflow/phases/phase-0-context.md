@@ -6,6 +6,10 @@
 
 ## Workflow State Machine
 
+<SKIP-CONDITION>
+Skip state machine initialization for **fast** and **lite** paths. These are single-session, linear flows that don't benefit from cross-session resume. Only initialize for **full**, **clone**, and **plan** paths (determined in Phase 1 — defer initialization until after path selection).
+</SKIP-CONDITION>
+
 The workflow tracks its state in `.claude/workflow-state.json` for phase governance and cross-session resume.
 
 ### State File: Initialize

@@ -17,9 +17,9 @@ Agentic multi-phase workflow for building features. **Executor/Advisor strategy:
 | Role | Model | When |
 |------|-------|------|
 | **Executor** | **sonnet** | Every turn — exploration, drafting, implementation, all file I/O |
-| **Advisor** | **opus** | On-demand at 3-5 checkpoints — reviews shared context, returns guidance |
-| **Light reviewers** | **haiku** | Phase 6 — convention checks, defensive patterns, invariants |
-| **Specialist reviewers** | **sonnet** | Phase 6 — security, silent failures, test coverage |
+| **Advisor (tiered)** | **sonnet** Phase 2, **opus** Phase 4/4b | Sonnet for gap-finding, Opus for architecture + plan critique |
+| **Lightweight reviewer** | **haiku** | Phase 6 — single batched dispatch (types, API docs, invariants, defensive) |
+| **Specialist reviewers** | **sonnet** | Phase 6 — safety (combined), test coverage |
 
 ---
 
@@ -109,8 +109,8 @@ Contracts are the interface between phases. When dispatching subagents, pass the
 |-------|------|-------|-------------|------|
 | 0 | Context | executor | Trigger matrix → load relevant skills only | None |
 | 1 | Discovery | executor | 7-path triage (bug/fast/clone/plan/lite/explore/full) | Auto |
-| 2 | Exploration | executor + **advisor** | Executor explores directly → advisor reviews gaps | Advisor confirms |
-| 3 | Requirements | executor | Ambiguities + quality gate + structured $requirements | User approves |
+| 2 | Exploration | executor + **sonnet advisor** | Executor explores → advisor reviews gaps + scores quality gate | Advisor confirms |
+| 3 | Requirements | executor | Ambiguities + $requirements (quality gate skipped if Phase 2 passed) | User approves |
 | 4 | Architecture | executor + **advisor** | 2 options → advisor critiques → plan → advisor stress-tests | User approves plan |
 | 5 | Implementation | executor (+ advisor optional) | TDD per step, defensive patterns, parallel dispatch | Tests + lint pass |
 | 5.5 | Reflection | executor | RARV self-check before expensive reviews | Auto |
@@ -140,8 +140,12 @@ Contracts are the interface between phases. When dispatching subagents, pass the
 | Exploring without checking prior knowledge | Step 0: check MEMORY.md, PRPs, Serena before exploring |
 | Skipping Phase 4c plan verification | Plans reference Phase 2 findings — codebase can drift |
 | Jumping to fixes without evidence | Use `/investigator` for complex TDD failures |
-| Calling advisor every turn | 3-5 calls per workflow, not every step |
-| Skipping advisor at required checkpoints | Phases 2, 4, 4b are required |
+| Calling advisor every turn | 2-4 calls per workflow, not every step |
+| Using Opus for Phase 2 exploration review | Sonnet handles gap-finding; Opus reserved for Phase 4/4b |
+| Running all Phase 6 tiers when Tier 1 is clean | Early exit: if CodeRabbit finds no HIGH+ issues, skip Tiers 2-4 |
+| Dispatching 4 separate haiku reviewers | Batch into single `lightweight-reviewer` with combined checklist |
+| Initializing state machine for fast/lite paths | Skip — single-session linear flows don't need cross-session resume |
+| Re-running Phase 3 quality gate when Phase 2 scored it | Carry scores forward — skip redundant re-check |
 | Coding before clarification | Phase 3 is a hard gate |
 | Single architecture proposal | Always present 2 options |
 | Passing full conversation to subagents | Use named contracts ($plan, $requirements, etc.) |

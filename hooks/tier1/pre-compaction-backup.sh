@@ -52,6 +52,7 @@ try:
     else:
         print(f'Phase: {cp}')
     print(f\"Task: {d.get('task_summary', 'unknown')}\")
+
 except Exception:
     print('(unable to parse workflow-state.json)')
 " 2>/dev/null

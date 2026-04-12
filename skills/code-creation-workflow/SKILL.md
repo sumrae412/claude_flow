@@ -1,6 +1,6 @@
 ---
 name: code-creation-workflow
-description: Use when creating new features, implementing complex changes, or executing implementation plans. Agentic workflow using the Executor/Advisor strategy — Sonnet executes, Opus advises at key decision points.
+description: Use when creating new features, implementing complex changes, or executing implementation plans. Agentic workflow with fast, clone, lite, explore, and full paths. Executor/Advisor strategy — Sonnet executes, Opus advises at key decision points.
 user-invocable: true
 ---
 

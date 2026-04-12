@@ -45,6 +45,8 @@ SESSION CONTEXT:
 - Code quality catches: [N+1 queries, race conditions, duplicate code found in review]
 - Cross-cutting changes: [same rule applied to 3+ files = policy; needs memory entry]
 - Skills modified: [which skills were edited and why — triggers cross-reference audit]
+- Abandoned approaches: [check .claude/abandoned/ for records created this session —
+  ensure they are reflected in MEMORY.md entries so future sessions don't re-explore]
 - Failure events: [read memory/episodic/failure-events.jsonl for this session's events —
   count by type, note any failure:unresolved, list novel patterns added to catalog]
 ```

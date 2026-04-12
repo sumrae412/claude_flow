@@ -102,11 +102,159 @@ This is a prompt-level technique — not the API-level `thinking` parameter (whi
 
 ---
 
+## Workflow State Machine
+
+The workflow tracks its state in `.claude/workflow-state.json` for phase governance and cross-session resume.
+
+### State File Operations
+
+**Initialize** (Phase 0, after context loading — replace SESSION_TIMESTAMP with actual ISO timestamp, TASK_SUMMARY with the user's request):
+
+```json
+{
+  "schema_version": 1,
+  "workflow_id": "code-creation-workflow",
+  "session_id": "SESSION_TIMESTAMP",
+  "status": "running",
+  "started_at": "SESSION_TIMESTAMP",
+  "current_phase": {
+    "id": "phase-0",
+    "name": "Context Loading",
+    "path": null,
+    "status": "running",
+    "started_at": "SESSION_TIMESTAMP",
+    "step": 1,
+    "step_label": "Load project identity",
+    "agents_spawned": 0,
+    "agents_completed": 0,
+    "agents_failed": 0,
+    "iteration": 1,
+    "max_iterations": 1
+  },
+  "phase_history": [],
+  "iterations": { "phase-0": 1 },
+  "task_summary": "TASK_SUMMARY",
+  "artifacts": {
+    "exploration_summary": null,
+    "architecture_doc": null,
+    "implementation_plan": null,
+    "review_findings": null
+  }
+}
+```
+
+**Transition** (at each phase boundary — use jq to move current phase to history and set new phase):
+
+```bash
+jq '
+  .phase_history += [{
+    id: .current_phase.id,
+    name: .current_phase.name,
+    status: "completed",
+    started_at: .current_phase.started_at,
+    completed_at: (now | todate),
+    iteration: .current_phase.iteration,
+    results: {}
+  }] |
+  .current_phase = {
+    id: "NEXT_PHASE_ID",
+    name: "NEXT_PHASE_NAME",
+    path: .current_phase.path,
+    status: "running",
+    started_at: (now | todate),
+    step: 1,
+    step_label: "FIRST_STEP_LABEL",
+    agents_spawned: 0,
+    agents_completed: 0,
+    agents_failed: 0,
+    iteration: 1,
+    max_iterations: MAX_ITERATIONS
+  } |
+  .iterations["NEXT_PHASE_ID"] = ((.iterations["NEXT_PHASE_ID"] // 0) + 1)
+' .claude/workflow-state.json > .claude/workflow-state.tmp && mv .claude/workflow-state.tmp .claude/workflow-state.json
+```
+
+**Update step** (within a phase):
+```bash
+jq '.current_phase.step = N | .current_phase.step_label = "LABEL"' \
+  .claude/workflow-state.json > .claude/workflow-state.tmp && \
+  mv .claude/workflow-state.tmp .claude/workflow-state.json
+```
+
+**Complete** (workflow done):
+```bash
+jq '.status = "completed"' .claude/workflow-state.json > .claude/workflow-state.tmp && \
+  mv .claude/workflow-state.tmp .claude/workflow-state.json
+```
+
+### Cross-Session Resume
+
+At the very start of Phase 0 (before Step 1), check for existing state:
+
+1. If `.claude/workflow-state.json` exists and `status == "running"`:
+   - Check `started_at` — if >48 hours ago, ask user: "Found workflow state from N days ago. Resume or start fresh?"
+   - If resume: output resume message with phase/step/artifacts, skip to the in-progress phase
+   - If start fresh: archive to `.claude/workflow-state.archived.json`, proceed normally
+2. If `status == "completed"`: archive and start fresh
+3. If file doesn't exist: proceed normally, initialize state after Phase 0 context loading
+
+Resume message format:
+```
+Resuming workflow: "<task_summary>"
+<current_phase.name> was in progress — Step <step> (<step_label>)
+Path: <path>
+Completed: [list from phase_history]
+Artifacts: [which are null vs populated]
+```
+
+### Transition Map
+
+| From | To | Condition |
+|------|----|-----------|
+| phase-0 → phase-0.5 | No hooks.json exists |
+| phase-0 → phase-1 | hooks.json exists |
+| phase-0.5 → phase-1 | Always |
+| phase-1 → EXIT | Fast path |
+| phase-1 → phase-2 | Full or lite path |
+| phase-1 → phase-5 | Clone or plan path |
+| phase-2 → phase-3 | Always |
+| phase-3 → phase-4 | Always |
+| phase-4 → phase-4b | Always |
+| phase-4b → phase-4d | Full path only |
+| phase-4b → phase-5 | Lite path |
+| phase-4d → phase-5 | Always |
+| phase-5 → phase-5 | Retry: tests/lint failed, iteration < 3 |
+| phase-5 → phase-6 | Tests + lint pass |
+| phase-6 → phase-5 | High/critical findings, iteration < 2 |
+| phase-6 → COMPLETE | No high/critical findings |
+
+### Iteration Limits
+
+| Phase | Max | On Exceeded |
+|-------|-----|-------------|
+| phase-5 | 3 | Surface to user |
+| phase-6 | 2 | Ship with known issues |
+| All others | 1 | Forward only |
+
+---
+
 ## Phase 0: Context Loading
 
 <HARD-GATE>
 Load project context before any exploration or coding.
 </HARD-GATE>
+
+### Step 0: Check for Existing Workflow State
+
+Before loading any context, check if a prior session's workflow is in progress:
+
+1. Read `.claude/workflow-state.json`
+2. If found and `status == "running"`:
+   - Check `started_at` age. If >48 hours, ask user to resume or start fresh.
+   - Output resume message (see Workflow State Machine section above)
+   - Skip to the in-progress phase
+3. If found and `status == "completed"`: archive and start fresh
+4. If not found: proceed normally (initialize state after Step 6)
 
 ### Step 1: Load Project Identity
 
@@ -182,6 +330,8 @@ If no MEMORY.md exists, create one to enable cross-session context persistence:
 3. **Announce:** "Created MEMORY.md for cross-session context — I'll populate it as I learn about the project."
 
 **Why this matters:** The memory-injection system (see `references/memory-injection.md`) maps domain-specific gotchas from MEMORY.md into subagent prompts. Without MEMORY.md, that system silently no-ops and gotchas discovered during sessions are lost.
+
+**State transition:** Update `.claude/workflow-state.json` — move current phase to `phase_history`, set `current_phase` to phase-0.5 or phase-1 based on hooks.json existence. Set `path` to null (not yet determined).
 
 ---
 
@@ -335,6 +485,8 @@ Each path produces different artifacts. This table makes explicit what each path
 - "Test Skeletons" refers to Phase 4d acceptance test generation (Full path only — smaller changes don't benefit from pre-generated skeletons).
 - PRP is optional even on Full path — only export when the feature spans sessions or has 3+ integration points.
 
+**State transition:** Update `.claude/workflow-state.json` — set `current_phase.path` to selected path (fast/clone/lite/full/plan), then transition to the appropriate next phase.
+
 ---
 
 ## Phase 2: Exploration (Executor + Advisor)
@@ -463,6 +615,8 @@ before moving to clarification and architecture?
 
 **Why this works better than parallel explorers:** The executor has firsthand knowledge of every file it read — naming conventions, error patterns, data shapes, integration seams. This context persists naturally into Phases 3 and 4 without any hydration step. The Opus advisor adds strategic depth without requiring Opus to do the expensive file I/O work.
 
+**State transition:** Write `artifacts.exploration_summary` with key_files/patterns/integration_points/gaps, then transition to phase-3.
+
 ---
 
 ## Phase 3: Clarification + Requirements (Hard Gate)
@@ -564,6 +718,8 @@ After requirements are approved, optionally save a **Product Requirement Prompt 
 
 If not triggered, skip — most single-session features don't need this.
 
+**State transition:** Transition to phase-4.
+
 ---
 
 ## Phase 4: Architecture (Executor Drafts + Advisor Critiques)
@@ -660,6 +816,8 @@ Present both options (post-advisor-refinement) to the user with the advisor's an
 ◆ USER CHOOSES architecture (A, B, or hybrid) ◆
 ```
 
+**State transition:** Write `artifacts.architecture_doc` with approach/files_to_create/files_to_modify/trade_offs, then transition to phase-4b.
+
 ### Step 4: Write Implementation Plan
 
 After user chooses, write a structured plan using the `writing-plans` skill:
@@ -704,6 +862,8 @@ Revise plan to address HIGH+ findings. Present consolidated findings to user alo
 ```
 ◆ USER APPROVES final plan (post-advisor-review) before implementation ◆
 ```
+
+**State transition:** Write `artifacts.implementation_plan` with steps array, then transition to phase-4d (full path) or phase-5 (lite path).
 
 ---
 
@@ -1093,6 +1253,8 @@ MEDIUM/LOW findings defer to Phase 6 review. Agents that ran in Phase 5 are **sk
 | Data migrations | defensive-backend-flows: copy before delete, reversible ops |
 | Cross-module calls | defensive-backend-flows: respect encapsulation, public wrappers |
 
+**State transition:** If tests+lint pass, transition to phase-6. If failed and iteration < 3, increment iteration and retry phase-5. If iteration limit reached, set status to "failed" and surface to user.
+
 ---
 
 ## Phase 5.5: Self-Reflection (RARV Reflect)
@@ -1373,6 +1535,8 @@ After completing a feature, capture structured workflow metrics. This is the "tr
 - The failure tags applied during this run
 - Which phase caught each issue (the "trace")
 - Any workflow-level improvement suggestion (scoped to one change)
+
+**State transition:** Write `artifacts.review_findings` with findings array. If high/critical findings and iteration < 2, transition back to phase-5 with status "fixing". If no high/critical findings, set workflow status to "completed".
 
 ---
 

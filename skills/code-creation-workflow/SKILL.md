@@ -927,6 +927,8 @@ For integration points:
     check for breaking changes in shared interfaces
 ```
 
+<!-- Task taxonomy (types + dependency types) defined in writing-plans/SKILL.md. Keep in sync. -->
+
 ### Requirements Coverage Validation
 
 Cross-reference `$requirements` (from Phase 3) against `$plan` to catch gaps before implementation:
@@ -1301,6 +1303,7 @@ Use subagent-driven-development skill:
   → Merge results when all complete
 ```
 
+<!-- Task taxonomy (types + dependency types) defined in writing-plans/SKILL.md. Keep in sync. -->
 **Dependency-aware dispatch:** When the plan uses typed dependencies (from writing-plans):
 - `data` or `build` dependencies → strictly sequential (predecessor must complete first)
 - `knowledge` dependencies → parallelizable (dispatch concurrently, record assumptions in each subagent's context)

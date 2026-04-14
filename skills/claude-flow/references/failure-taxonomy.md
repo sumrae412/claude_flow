@@ -13,6 +13,7 @@ Tag failures to behavioral categories when they occur. These tags feed into the 
 | `integration-failure` | Code works in isolation but breaks at integration points | Service call succeeds but caller doesn't handle new response shape |
 | `regression` | Change broke previously working behavior | New route handler shadowed existing route |
 | `guard-regression` | Fix for target test broke adjacent tests (caught by step 3b guard) | Fixed assertion in test_create but broke test_update in same module |
+| `mutation-gate-exceeded` | New test(s) did not kill any mutation after 2 strengthen cycles (step 3c mutation gate) | Test called target but only asserted `True`; after 2 rewrites still non-discriminating |
 | `tool-selection` | Wrong tool or pattern chosen for the job | Used raw SQL when the ORM had a built-in method |
 | `over-engineering` | Built more than was needed | Added abstraction layer for a one-time operation |
 | `under-specification` | Requirements were technically met but user intent was missed | Implemented delete but user wanted soft-delete |

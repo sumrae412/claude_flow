@@ -241,6 +241,8 @@ Question: focused on the specific ambiguity.
 
 When the plan has 3+ steps with no dependencies between them:
 
+> **Clarification window:** Implementers dispatched in parallel use the narrow mid-work clarification window — they do not stall on ambiguity. Documented assumptions surface in task output for the Phase 6 reviewer to validate. This is a deliberate trade: batch-level throughput > per-agent precision. See `subagent-driven-development/implementer-prompt.md` for the authoritative rule.
+
 ```
 Use subagent-driven-development skill:
   → Dispatch parallel implementation agents with model: "sonnet"

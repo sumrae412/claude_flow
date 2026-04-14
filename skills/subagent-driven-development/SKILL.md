@@ -94,6 +94,15 @@ digraph process {
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
+## Clarification Windows
+
+Implementers follow a two-window clarification model:
+
+- **Pre-start (wide):** ask freely about requirements, approach, dependencies, anything unclear in the task description. This is the authorized window for questions.
+- **Mid-work (narrow):** only plan-breaking blockers (plan contradiction, unreachable acceptance criteria, critical architectural blocker the plan didn't anticipate). Routine ambiguity is resolved by judgment; assumptions are documented in the final report for reviewer validation.
+
+See `implementer-prompt.md` for the authoritative prompt. Rationale: parallel-dispatched implementers stall the whole batch on any single mid-work clarifier — documented assumptions are reviewable, but mid-task stalls are pure latency.
+
 ## Example Workflow
 
 ```

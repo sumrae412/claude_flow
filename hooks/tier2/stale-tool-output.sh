@@ -2,6 +2,12 @@
 # Trigger: PostToolUse:Read|Grep|Glob
 # Tier 2 — opt-in via stack detection (any stack with file-read-heavy workflows)
 #
+# Sibling of context-rot-detection.sh. Measures a different dimension:
+#   context-rot-detection.sh → unique files touched (breadth / sprawl)
+#   stale-tool-output.sh     → total Read/Grep/Glob ops (frequency / re-reading)
+# See session_monitor_dimension_pattern.md in memory for when to extend an
+# existing monitor vs ship a sibling on a distinct dimension.
+#
 # Counts Read/Grep/Glob tool invocations per session. Unlike context-rot-detection
 # (which counts UNIQUE files), this counts TOTAL operations — detects the "re-read
 # the same 3 files 20 times" pattern common in long Phase 5/6 loops, where stale

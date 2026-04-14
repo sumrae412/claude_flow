@@ -42,6 +42,36 @@ Examples:
 
 For each matched domain, look up the gotcha keys listed in the domain table. Find the corresponding 1-line entries in MEMORY.md by semantic key. Extract only the entries whose keys appear in the matched domains' key lists.
 
+### Step 4a: 1-Hop Expansion via `## Related`
+
+After Step 4 produces its initial matches, walk the matched memory files for a `## Related` section and pull in neighbor entries. This surfaces connective tissue that file-pattern matching alone misses — e.g., a gotcha about Phase 3 quality gate is more useful if the design decision that introduced it also comes along.
+
+**Convention:** Memory files may declare relationships with a plain-markdown footer (no frontmatter migration required):
+
+```markdown
+## Related
+- [slug] — why it's related (one line)
+- [other-slug] — ...
+```
+
+Where `slug` matches a filename in the memory directory without the `.md` extension (e.g. `fold_check_upstream` → `fold_check_upstream.md`).
+
+**Expansion rules:**
+1. For each file matched in Step 4, open it and grep for `## Related`. If absent, move on.
+2. Parse `- [slug] — ...` bullets. Resolve each slug to a file path; skip if the file doesn't exist.
+3. Collect expanded entries. Deduplicate against Step 4 matches (by filename).
+4. Cap total expansion at **3 additional entries** across all matched files combined. If more candidates exist, prefer slugs that appear in multiple matched files' `## Related` lists (co-cited = higher signal).
+5. Emit expanded entries into Section 1 of the injection block, tagged as `[related]` so the subagent sees they were pulled via 1-hop:
+
+```
+PROJECT GOTCHAS (verified for this codebase — do not ignore):
+- [direct match entry]
+- [direct match entry]
+- [related] [expanded entry from ## Related footer]
+```
+
+**When this is empty:** most existing memory files don't have `## Related` footers yet. That's fine — Step 4a is a graceful no-op in that case. The backfill compilation (Step 4b) provides relational coverage via compiled concept articles; Step 4a becomes more useful as new entries are written with `## Related` footers going forward.
+
 ### Step 4b: Select Matching Compiled Articles
 
 Check if `knowledge/concepts/` exists in the memory directory. If so:

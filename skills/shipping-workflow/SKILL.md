@@ -108,6 +108,8 @@ After the PR is confirmed merged (or the user explicitly acknowledges unmerged s
 - Sync config/skills/memory repos (commit+push changes from session-learnings)
 - Worktree teardown via `ExitWorktree` tool
 
+**Note on deferred hook reminders during ship:** The `post-commit-learnings.sh` hook may print a "run session-learnings" reminder after each commit made during Stages 1 and 4. Those reminders are deferred by design — session-learnings runs once here at Stage 5, after merge verification, not per-commit. No action needed from prior deferrals. If the hook's wording is stricter than "advisory" on this machine, see the hook's own README for softening options.
+
 Before invoking cleanup (which runs session-learnings), confirm session-learnings is warranted by checking: (1) user corrected approach at least once, (2) 3+ files committed, (3) gotcha hit, (4) new component built, (5) skill modified, (6) exploration events recorded (prompt-tracker data exists in memory/episodic/exploration-events.jsonl). If ANY is true, session-learnings must run.
 
 Do not manually run session-learnings, sync repos, or remove worktrees — `/cleanup` handles all of this.

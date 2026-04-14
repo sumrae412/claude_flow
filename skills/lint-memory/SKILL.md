@@ -66,7 +66,7 @@ Report every removal before applying it.
 
 ### What to scan
 
-Find all `feedback_*.md` and `reference_*.md` files in the memory directory.
+Find all `*.md` files at the top level of the memory directory (one level deep, not recursive). Glob ALL top-level `*.md` regardless of naming convention — some projects name memory files by topic slug (e.g. `compose_dont_replace.md`), others use `feedback_*` / `reference_*` prefixes (e.g. `feedback_jwt_rotation.md`). Both exist in the wild; the filter must match either.
 
 ### Exclusions
 
@@ -76,7 +76,7 @@ Skip these files entirely — they are not expected to be referenced:
 - `failure-catalog.md`
 - `prompt-variants.json`
 - `MEMORY.md`
-- Everything inside `knowledge/` (compiled articles are not orphan candidates)
+- Everything inside subdirectories (`knowledge/`, `episodic/`, `abandoned/`, etc.) — compiled articles and runtime state are not orphan candidates
 
 ### What constitutes "orphan"
 
@@ -87,7 +87,7 @@ A file is orphaned if it is NOT referenced by any of:
 ### Auto-fix
 
 For each orphan file:
-1. Generate a semantic key from the filename: strip the `feedback_` or `reference_` prefix, strip the `.md` extension, replace underscores/hyphens with spaces
+1. Generate a semantic key from the filename: strip the `.md` extension, replace underscores/hyphens with spaces. Use the full filename stem — do not strip any prefix (e.g. `feedback_api_retry.md` → `feedback api retry`, not `api retry`). Prefixes carry meaning; removing them silently merges distinct entries.
 2. Append an index entry to `MEMORY.md`:
    ```
    - **<semantic key>**: [<filename>](<filename>)
@@ -102,7 +102,7 @@ Report every addition before applying it.
 
 ### What to scan
 
-All `feedback_*.md` and `reference_*.md` files in the memory directory, plus `MEMORY.md`.
+All top-level `*.md` files in the memory directory (same glob as Check 2, same exclusions), plus `MEMORY.md`.
 
 ### What to look for
 

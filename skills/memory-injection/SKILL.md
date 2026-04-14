@@ -60,7 +60,11 @@ Where `slug` matches a filename in the memory directory without the `.md` extens
 1. For each file matched in Step 4, open it and grep for `## Related`. If absent, move on.
 2. Parse `- [slug] — ...` bullets. Resolve each slug to a file path; skip if the file doesn't exist.
 3. Collect expanded entries. Deduplicate against Step 4 matches (by filename).
-4. Cap total expansion at **3 additional entries** across all matched files combined. If more candidates exist, prefer slugs that appear in multiple matched files' `## Related` lists (co-cited = higher signal).
+4. Cap total expansion at **3 additional entries** across all matched files combined. These 3 entries are **additive** — they do NOT count toward Section 1's 10-entry cap (see Step 5). When more than 3 candidates exist, select deterministically:
+   - **Score:** co-citation count = number of matched files whose `## Related` list names this slug.
+   - **Rank:** descending by co-citation count.
+   - **Tiebreak:** ascending alphabetical slug order (stable across runs).
+   - **Fallback:** if fewer than 3 slugs are co-cited (score ≥ 2), fill remaining slots with singly-cited candidates using the same alphabetical tiebreak. If fewer than 3 candidates exist total, include all of them (the cap is a ceiling, not a target).
 5. Emit expanded entries into Section 1 of the injection block, tagged as `[related]` so the subagent sees they were pulled via 1-hop:
 
 ```
@@ -91,7 +95,8 @@ Assemble two sections:
 ```
 PROJECT GOTCHAS (verified for this codebase — do not ignore):
 - [1-line entry for each matching key]
-- [... up to 10 entries]
+- [... up to 10 direct-match entries]
+- [related] [up to 3 additional entries from Step 4a, appended after direct matches]
 ```
 
 **Section 2 — Compiled knowledge (new):**
@@ -107,12 +112,12 @@ COMPILED KNOWLEDGE (from knowledge/concepts/):
 - If total injection exceeds 2000 chars, truncate compiled article excerpts with `... [truncated]` (not raw gotchas)
 - If no compiled articles match, omit Section 2 entirely
 
-**Priority when more than 10 raw gotcha entries match** (truncate to 10, highest priority first — this applies only to Section 1; compiled articles have their own cap of 3):
+**Priority when more than 10 raw gotcha entries match** (truncate to 10, highest priority first — this applies only to direct matches from Step 4; Step 4a `[related]` expansions and Step 4b compiled articles have their own caps and are not subject to this truncation):
 1. Exact file match — the gotcha mentions a specific file being touched
 2. Direct domain match — the file pattern matches the primary domain
 3. Cross-cutting concern — the gotcha applies broadly (e.g., `no-aliases`, `counts-endpoint`)
 
-If truncated, append: `[N more gotchas omitted — see MEMORY.md]`
+If truncated, append: `[N more gotchas omitted — see MEMORY.md]`. The Section 1 render order is: up to 10 direct-match entries first, then up to 3 `[related]` entries appended. Total Section 1 entries therefore cap at 13 (10 + 3), not 10.
 
 ### Step 5b: Check Abandoned Approaches
 

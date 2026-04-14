@@ -133,6 +133,48 @@ For each plan step:
     (after the task is marked complete). Step 3b catches within-FIX
     regressions before you move on — cheaper to fix in place.
 
+3c. MUTATION GATE — test-discrimination check
+    After the new test(s) pass on the real implementation, verify they
+    actually discriminate by mutating the target and re-running them.
+    A test that passes under every mutation (e.g. `assert True`, weak
+    assertions, calls-but-doesn't-check) is non-discriminating and
+    wouldn't catch a regression.
+
+    Inspired by the Atomic Skills paper (arXiv:2604.05013): unit tests
+    only earn reward when they pass the original AND fail an injected
+    bug. This is the same gate applied at workflow time.
+
+    Run:
+    ```
+    python skills/claude-flow/scripts/mutation_check.py \
+        --new-tests <new-or-modified-test-paths> \
+        --target-files <modified-production-paths> \
+        --json
+    ```
+
+    Scope (heuristic C): the script mutates only functions in the
+    target files whose names also appear in the new test files.
+
+    Gate rule (per-test, strict — paper's rule):
+    - Each new test must kill at least one mutation of its target.
+    - Exit 0 + non_discriminating == [] → PASS, proceed to step 4.
+    - Exit 1 → FAIL. Strengthen the flagged test(s): add real
+      assertions, check return values/side effects, don't just call
+      the function and assert True.
+    - Max 2 mutation-fix cycles → then escalate to user.
+    - Emit failure event with tag: mutation-gate-exceeded.
+
+    Skip conditions (exit 0, skipped=True, do not block):
+    - Target code is non-Python (JS/Go/etc. — v1 is Python-only)
+    - No target function identifiable from the new tests
+    - Pure refactor (no new tests, no --new-tests supplied)
+    - pytest unavailable in the current interpreter
+    - Target function has no mutable operators
+
+    Why separate from step 3b: 3b catches regressions the FIX itself
+    introduced. 3c catches tests that wouldn't catch regressions
+    introduced by FUTURE changes. Different failure modes.
+
 4. Run static analysis on changed files (catch issues early):
    semgrep --config=.semgrep.yml <changed-files>
    ast-grep scan <changed-directory>

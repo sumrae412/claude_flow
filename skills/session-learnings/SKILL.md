@@ -89,11 +89,18 @@ Task tool:
     ```
 
     ### 2b.1 Inventory
-    Read all `feedback_*.md` and `reference_*.md` files in $MEMORY_DIR.
+    Read all `*.md` files at the top level of $MEMORY_DIR (one level deep, not recursive).
     Read existing `knowledge/concepts/*.md` articles.
-    Ignore: MEMORY.md, *.jsonl, *.json, failure-catalog.md, prompt-variants.json.
 
-    **If no `feedback_*.md` or `reference_*.md` files exist, skip Steps 2b.2 through 2b.5.**
+    Exclude from the top-level scan:
+    - `MEMORY.md` (it's the index, not a memory)
+    - `failure-catalog.md`, `prompt-variants.json` (runtime state, not learnings)
+    - Any `*.jsonl` or `*.json` files
+    - Anything under subdirectories (`knowledge/`, `episodic/`, `abandoned/`, etc.) — these have their own pipelines
+
+    This intentionally globs all topic-slug-named files (e.g. `compose_dont_replace.md`, `evidence_before_diagnosis.md`), not just `feedback_*.md` / `reference_*.md`. Memory files are named by topic, so the inventory must match reality.
+
+    **If zero memory files are found after exclusions, skip Steps 2b.2 through 2b.5.**
 
     ### 2b.2 Cluster (LLM judgment)
     Group memory files into topic clusters. Rules:
@@ -106,10 +113,10 @@ Task tool:
     ```json
     {
       "clusters": [
-        { "slug": "error-handling-patterns", "title": "Error Handling Patterns", "files": ["feedback_001.md", "reference_003.md"] },
-        { "slug": "ui-state-management", "title": "UI State Management", "files": ["feedback_004.md"] }
+        { "slug": "subagent-dispatch-patterns", "title": "Subagent Dispatch Patterns", "files": ["overshoot_prompt_scope.md", "general_purpose_reviewer_prompts.md", "batch_similar_agents.md"] },
+        { "slug": "phase-architecture", "title": "Phase Architecture Decisions", "files": ["fold_check_upstream.md", "skip_infra_simple_paths.md", "executor_vs_subagent_heuristic.md"] }
       ],
-      "unclustered": ["reference_007.md"]
+      "unclustered": ["grep_portability.md"]
     }
     ```
 

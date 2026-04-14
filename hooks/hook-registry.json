@@ -184,6 +184,15 @@
       "stack_tags": ["python", "ruff", "flake8", "pytest", "node", "eslint", "jest", "typescript", "alembic", "docker"]
     },
     {
+      "id": "stale-tool-output",
+      "tier": 2,
+      "trigger": "PostToolUse",
+      "matcher": ["Read", "Grep", "Glob"],
+      "script": "hooks/tier2/stale-tool-output.sh",
+      "description": "Warns when Read/Grep/Glob operation count suggests stale duplicate tool results are dominating context (complements context-rot-detection which counts unique files)",
+      "stack_tags": ["python", "ruff", "flake8", "pytest", "node", "eslint", "jest", "typescript", "alembic", "docker"]
+    },
+    {
       "id": "phase-gate",
       "tier": 1,
       "trigger": "PreToolUse",

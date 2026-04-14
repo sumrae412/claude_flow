@@ -175,6 +175,8 @@ Focus area: [FOCUS_DESCRIPTION]
 
 Your role: History Analyst — understand WHY the code is structured this way.
 
+READ-ONLY CONSTRAINT — you have Bash access for git history only. Allowed commands: git log, git blame, git show, git diff, git rev-parse, git rev-list. Forbidden commands: git checkout, git reset, git rebase, git commit, git push, git pull, git stash, git merge, git cherry-pick, rm, mv, mkdir, touch, npm install, pip install, bun, yarn. If you need to understand state that would require a forbidden command, report it as an open question instead of running the command.
+
 Investigate systematically:
 1. git log for the key files — who changed them, when, and why (read commit messages)
 2. git blame on critical sections — when was this pattern introduced?

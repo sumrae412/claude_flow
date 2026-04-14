@@ -38,8 +38,23 @@ Task tool (general-purpose):
 
     Work from: [directory]
 
-    **While you work:** If you encounter something unexpected or unclear, **ask questions**.
-    It's always OK to pause and clarify. Don't guess or make assumptions.
+    **While you work — complete autonomously.** The pre-start gate above is your window for
+    clarifying questions. Once you've started, don't stall the orchestrator with mid-task
+    questions on ambiguity you can resolve with judgment. If you hit something unexpected:
+    1. Make the most reasonable call consistent with the plan, existing code patterns, and
+       acceptance criteria.
+    2. Document the assumption explicitly in your final report under "Assumptions made".
+    3. Keep going.
+
+    Raise a question mid-task ONLY if: (a) proceeding would require writing code that
+    contradicts the plan, (b) the acceptance criteria are genuinely unreachable with any
+    reasonable interpretation, or (c) you've uncovered a critical architectural blocker
+    the plan didn't anticipate. Routine ambiguity ("which helper to reuse", "what to name
+    this") is judgment, not a blocker.
+
+    Rationale: parallel-dispatched implementers stall the whole batch when any one asks a
+    clarifying question mid-run. Documented assumptions are reviewable; mid-task stalls are
+    pure latency.
 
     ## Before Reporting Back: Self-Review
 

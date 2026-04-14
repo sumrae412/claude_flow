@@ -16,14 +16,19 @@ Usage:
         [--json]
 
 Exit codes:
-    0 — all new tests discriminate OR skip conditions met (non-python,
-        no target, no new tests, pytest unavailable)
+    0 — all new tests discriminate OR skip conditions met
     1 — one or more new tests failed to kill any mutation
     2 — internal error
 
 Skip semantics: this is a lite gate. When we cannot run meaningfully (wrong
 language, no targets, env missing), we emit skip and exit 0 rather than block
 the workflow. Silence-on-failure is worse than silence-on-inapplicability.
+
+Parallel safety: the script mutates target files IN-PLACE with try/finally
+restore. Multiple processes mutating the SAME target file would race. We
+serialize with fcntl file locks (POSIX). On platforms without fcntl (Windows),
+the lock is a no-op — Phase 5 parallel dispatch must avoid scheduling
+mutation-check runs on overlapping targets on Windows.
 """
 
 from __future__ import annotations
@@ -38,6 +43,13 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+try:
+    import fcntl
+
+    HAS_FCNTL = True
+except ImportError:  # pragma: no cover — Windows only
+    HAS_FCNTL = False
 
 PASS_EXIT = 0
 FAIL_EXIT = 1
@@ -80,7 +92,7 @@ class Report:
 
 
 def extract_defs(py_path: Path) -> set[str]:
-    """Return the set of top-level + method names defined in py_path."""
+    """Return the set of short function/method names defined in py_path."""
     try:
         tree = ast.parse(py_path.read_text())
     except (SyntaxError, UnicodeDecodeError, OSError):
@@ -128,10 +140,6 @@ def find_targets(test_files: list[Path], target_files: list[Path]) -> list[tuple
 # -------------------- mutation operators --------------------
 
 
-# Each operator returns a NEW node or None (to leave unchanged).
-# We walk the tree, collect mutation sites, then produce one mutated tree per site.
-
-
 def _flip_cmpop(op: ast.cmpop):
     mapping = {
         ast.Eq: ast.NotEq,
@@ -140,6 +148,8 @@ def _flip_cmpop(op: ast.cmpop):
         ast.GtE: ast.Lt,
         ast.LtE: ast.Gt,
         ast.Gt: ast.LtE,
+        ast.Is: ast.IsNot,
+        ast.IsNot: ast.Is,
     }
     cls = mapping.get(type(op))
     return cls() if cls else None
@@ -147,6 +157,24 @@ def _flip_cmpop(op: ast.cmpop):
 
 def _flip_boolop(op: ast.boolop):
     mapping = {ast.And: ast.Or, ast.Or: ast.And}
+    cls = mapping.get(type(op))
+    return cls() if cls else None
+
+
+def _flip_binop(op: ast.operator):
+    """Flip arithmetic/bitwise BinOp operators.
+
+    `return a + b` should be challenged by swapping to `a - b` — a test asserting
+    `f(2, 3) == 5` would then fail, discriminating the test.
+    """
+    mapping = {
+        ast.Add: ast.Sub,
+        ast.Sub: ast.Add,
+        ast.Mult: ast.Div,
+        ast.Div: ast.Mult,
+        ast.FloorDiv: ast.Mult,
+        ast.Mod: ast.Mult,
+    }
     cls = mapping.get(type(op))
     return cls() if cls else None
 
@@ -159,15 +187,17 @@ def _bump_constant(value):
     return None  # strings/floats/None — skip for v1
 
 
+_NESTED_SCOPE_TYPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
+
+
 def collect_mutation_sites(func_node: ast.AST) -> list[tuple[str, callable]]:
     """Walk func_node; return list of (description, mutator) pairs.
 
-    Each mutator takes (tree_copy) and applies one mutation in place.
+    Each mutator takes a (tree_copy, target_def_node_in_copy) and applies one
+    mutation in place under that target_def. Nested functions/classes are NOT
+    descended into — they have their own mutation scope.
     """
     sites: list[tuple[str, callable]] = []
-
-    # Locate each mutable node by path (list of (attr, index|None) from root).
-    # Then the mutator descends the copy along the same path and swaps in place.
 
     def record(path, desc, make_replacement):
         sites.append((desc, lambda tree: _apply_at_path(tree, path, make_replacement)))
@@ -178,32 +208,56 @@ def collect_mutation_sites(func_node: ast.AST) -> list[tuple[str, callable]]:
             for i, op in enumerate(node.ops):
                 flipped = _flip_cmpop(op)
                 if flipped is not None:
-                    record(path + [("ops", i)], f"flip-cmpop({type(op).__name__})", lambda _old, f=flipped: f)
-        # BoolOp
+                    record(
+                        path + [("ops", i)],
+                        f"flip-cmpop({type(op).__name__})",
+                        lambda _old, f=flipped: f,
+                    )
+        # BoolOp (and/or)
         if isinstance(node, ast.BoolOp):
             flipped = _flip_boolop(node.op)
             if flipped is not None:
-                record(path + [("op", None)], f"flip-boolop({type(node.op).__name__})", lambda _old, f=flipped: f)
+                record(
+                    path + [("op", None)],
+                    f"flip-boolop({type(node.op).__name__})",
+                    lambda _old, f=flipped: f,
+                )
+        # BinOp (+, -, *, /, //, %)
+        if isinstance(node, ast.BinOp):
+            flipped = _flip_binop(node.op)
+            if flipped is not None:
+                record(
+                    path + [("op", None)],
+                    f"flip-binop({type(node.op).__name__})",
+                    lambda _old, f=flipped: f,
+                )
         # Constant (True/False/int)
         if isinstance(node, ast.Constant):
             bumped = _bump_constant(node.value)
             if bumped is not None:
-                record(path, f"const({node.value}->{bumped})", lambda _old, b=bumped: ast.copy_location(ast.Constant(value=b), _old))
+                record(
+                    path,
+                    f"const({node.value}->{bumped})",
+                    lambda _old, b=bumped: ast.copy_location(ast.Constant(value=b), _old),
+                )
         # UnaryOp `not x` → drop the not
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
             operand = node.operand
             record(path, "drop-not", lambda _old, o=operand: o)
 
-        # Recurse into child fields
+        # Recurse into child fields — but do NOT descend into nested scopes
+        # (inner defs, lambdas, nested classes) — they have their own mutation sites.
         for field_name, value in ast.iter_fields(node):
             if isinstance(value, list):
                 for i, item in enumerate(value):
-                    if isinstance(item, ast.AST):
+                    if isinstance(item, ast.AST) and not isinstance(item, _NESTED_SCOPE_TYPES):
                         walk(item, path + [(field_name, i)])
-            elif isinstance(value, ast.AST):
+            elif isinstance(value, ast.AST) and not isinstance(value, _NESTED_SCOPE_TYPES):
                 walk(value, path + [(field_name, None)])
 
-    walk(func_node, [])
+    # Walk the function BODY (don't treat the FunctionDef itself as an inner scope).
+    for i, stmt in enumerate(func_node.body):
+        walk(stmt, [("body", i)])
     return sites[:MAX_MUTATIONS_PER_TARGET]
 
 
@@ -229,28 +283,50 @@ def _apply_at_path(tree, path, make_replacement):
     return tree
 
 
+def _find_matching_defs(tree: ast.Module, target_name: str) -> list[ast.AST]:
+    """Return ALL FunctionDef/AsyncFunctionDef nodes with matching short name.
+
+    Distinguishes module-level `def foo` from `class C: def foo` — both are
+    returned. Each is mutated independently (fix for Finding #1).
+    """
+    return [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == target_name
+    ]
+
+
 def generate_mutants(src_tree: ast.Module, target_def_name: str):
     """Yield (description, mutated_source_string) for each single-mutation variant
-    of the target function inside src_tree."""
-    # Find the target function def
-    for node in ast.walk(src_tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == target_def_name:
-            sites = collect_mutation_sites(node)
-            for desc, mutator in sites:
-                tree_copy = copy.deepcopy(src_tree)
-                # Find the corresponding func in the copy and mutate it
-                for copy_node in ast.walk(tree_copy):
-                    if (
-                        isinstance(copy_node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                        and copy_node.name == target_def_name
-                    ):
-                        mutator(copy_node)
-                        break
-                try:
-                    yield desc, ast.unparse(tree_copy)
-                except (ValueError, AttributeError):
-                    continue
-            break
+    of EACH function/method matching target_def_name in src_tree.
+
+    Uses (name, lineno, col_offset) as identity so module-level `foo` and
+    `class C: def foo` both get mutated independently.
+    """
+    for original_def in _find_matching_defs(src_tree, target_def_name):
+        sites = collect_mutation_sites(original_def)
+        if not sites:
+            continue
+        key = (original_def.name, original_def.lineno, original_def.col_offset)
+        for desc, mutator in sites:
+            tree_copy = copy.deepcopy(src_tree)
+            copy_def = next(
+                (
+                    n
+                    for n in ast.walk(tree_copy)
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and (n.name, n.lineno, n.col_offset) == key
+                ),
+                None,
+            )
+            if copy_def is None:
+                continue
+            mutator(copy_def)
+            try:
+                yield f"{key[0]}@L{key[1]}:{desc}", ast.unparse(tree_copy)
+            except (ValueError, AttributeError):
+                continue
 
 
 # -------------------- test discovery + pytest runner --------------------
@@ -280,7 +356,23 @@ def pytest_available() -> bool:
         return False
 
 
-def run_test(test_file: Path, test_name: str, cwd: Path, env: dict) -> bool:
+def build_pythonpath(test_files: list[Path], target_files: list[Path]) -> str:
+    """Union of parents of all tests + targets, so cross-directory imports work
+    (fix for Finding #4)."""
+    parts: list[str] = []
+    seen: set[str] = set()
+    for p in list(test_files) + list(target_files):
+        parent = str(p.parent.resolve())
+        if parent not in seen:
+            seen.add(parent)
+            parts.append(parent)
+    existing = os.environ.get("PYTHONPATH", "")
+    if existing:
+        parts.append(existing)
+    return os.pathsep.join(parts)
+
+
+def run_test(test_file: Path, test_name: str, env: dict) -> bool:
     """Return True if the test passes, False if it fails."""
     result = subprocess.run(
         [
@@ -295,7 +387,7 @@ def run_test(test_file: Path, test_name: str, cwd: Path, env: dict) -> bool:
             "-p",
             "no:cacheprovider",
         ],
-        cwd=cwd,
+        cwd=str(Path.cwd()),
         env=env,
         capture_output=True,
         timeout=30,
@@ -306,12 +398,42 @@ def run_test(test_file: Path, test_name: str, cwd: Path, env: dict) -> bool:
 # -------------------- orchestration --------------------
 
 
+class _TargetLock:
+    """fcntl.flock-based lock on a sidecar file next to the target (fix for #5).
+
+    POSIX-only; on Windows HAS_FCNTL is False and the lock is a no-op.
+    The lockfile is ephemeral and doesn't modify the target's content.
+    """
+
+    def __init__(self, target_file: Path):
+        self.lockfile_path = target_file.with_suffix(target_file.suffix + ".mutlock")
+        self._fh = None
+
+    def __enter__(self):
+        if not HAS_FCNTL:
+            return self
+        self._fh = self.lockfile_path.open("w")
+        fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        if self._fh is not None:
+            try:
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+            finally:
+                self._fh.close()
+                try:
+                    self.lockfile_path.unlink()
+                except OSError:
+                    pass
+
+
 def check_test_against_mutations(
     test_file: Path,
     test_name: str,
     target_file: Path,
     target_def: str,
-    cwd: Path,
+    env: dict,
 ) -> TestOutcome:
     """Run the test against each mutation of target_def; return outcome."""
     outcome = TestOutcome(
@@ -325,29 +447,31 @@ def check_test_against_mutations(
         return outcome
 
     original_text = target_file.read_text()
-    env = {**os.environ, "PYTHONPATH": f"{cwd}{os.pathsep}{os.environ.get('PYTHONPATH', '')}"}
 
-    try:
-        for _desc, mutated_src in generate_mutants(src_tree, target_def):
-            outcome.total_mutations_run += 1
-            target_file.write_text(mutated_src)
-            try:
-                passed = run_test(test_file, test_name, cwd, env)
-            except subprocess.TimeoutExpired:
-                continue
-            if not passed:
-                outcome.killed_mutations += 1
-                outcome.discriminates = True
-                # Early-exit: one kill is enough per the paper's rule.
-                break
-    finally:
-        target_file.write_text(original_text)
+    with _TargetLock(target_file):
+        try:
+            for _desc, mutated_src in generate_mutants(src_tree, target_def):
+                outcome.total_mutations_run += 1
+                target_file.write_text(mutated_src)
+                try:
+                    passed = run_test(test_file, test_name, env)
+                except subprocess.TimeoutExpired:
+                    continue
+                if not passed:
+                    outcome.killed_mutations += 1
+                    outcome.discriminates = True
+                    # Early-exit: one kill is enough per the paper's rule.
+                    break
+        finally:
+            target_file.write_text(original_text)
 
     return outcome
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--new-tests", nargs="*", default=[], help="Paths to new/modified test files")
     parser.add_argument("--target-files", nargs="*", default=[], help="Paths to modified production files")
     parser.add_argument("--json", action="store_true", help="Emit JSON report to stdout")
@@ -388,30 +512,24 @@ def main() -> int:
         _emit(report, args.json)
         return PASS_EXIT
 
-    # Work in a tmp copy of the cwd so we never actually mutate real files on disk.
-    # But targets need to be importable by the tests — easiest is to operate in-place
-    # with a finally-restore. That's what check_test_against_mutations does.
-    cwd = test_paths[0].parent.resolve()
+    # PYTHONPATH covers all parents so tests can import targets in sibling dirs.
+    pythonpath = build_pythonpath(test_paths, python_targets)
+    env = {**os.environ, "PYTHONPATH": pythonpath}
 
-    # For each new test × target pairing in the same directory, run the check.
     for test_file in test_paths:
         test_names = discover_test_names(test_file)
         test_identifiers = extract_identifiers(test_file)
         for target_file, target_def in pairs:
             if target_def not in test_identifiers:
-                continue  # Test doesn't reference this def
+                continue
             for test_name in test_names:
-                # Only associate tests that mention the target def in their own body,
-                # OR any test in a file where the def appears (v1 simplification).
                 outcome = check_test_against_mutations(
-                    test_file, test_name, target_file, target_def, cwd
+                    test_file, test_name, target_file, target_def, env
                 )
                 report.outcomes.append(outcome)
                 if not outcome.discriminates and outcome.total_mutations_run > 0:
                     report.non_discriminating.append([str(test_file), test_name])
 
-    # If every test either ran zero mutations (nothing to mutate) or killed ≥1,
-    # we pass. Non-discriminating = ran mutations but killed none.
     _emit(report, args.json)
     return FAIL_EXIT if report.non_discriminating else PASS_EXIT
 

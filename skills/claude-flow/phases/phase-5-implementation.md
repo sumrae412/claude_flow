@@ -171,6 +171,19 @@ For each plan step:
     - pytest unavailable in the current interpreter
     - Target function has no mutable operators
 
+    Wall-clock budget:
+    - Per-test mutation run: 30s subprocess timeout.
+    - Per step: MAX_MUTATIONS_PER_TARGET=12 × N target functions. Typical
+      step: 10-60s. Hard cap: 120s — exceed → partial results + continue.
+
+    Parallel dispatch safety (Phase 5 supports parallel subagents):
+    - mutation_check.py mutates target files IN-PLACE with backup/restore,
+      protected by an fcntl file-lock on a sidecar .mutlock file.
+    - Subagents on DISJOINT target files run concurrently.
+    - Subagents on OVERLAPPING target files serialize via the lock.
+    - On Windows (no fcntl), the lock is a no-op — orchestrator must
+      schedule mutation checks sequentially when targets overlap.
+
     Why separate from step 3b: 3b catches regressions the FIX itself
     introduced. 3c catches tests that wouldn't catch regressions
     introduced by FUTURE changes. Different failure modes.

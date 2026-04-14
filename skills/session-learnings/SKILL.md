@@ -13,6 +13,20 @@ After writing individual memory files, the agent also runs a **compilation step*
 
 **Core principle:** The conversation is the richest source of learnings. Code diffs show *what* changed; session events show *why* and *what went wrong first*.
 
+## Memory File Convention: `## Related` Footer
+
+When writing a new memory file (topic-slug-named, one per learning), end it with an optional `## Related` section listing 2–4 neighbor memory files that share context. Plain markdown, one line per neighbor:
+
+```markdown
+## Related
+- [neighbor_slug] — one-line reason they relate
+- [other_slug] — ...
+```
+
+`slug` is the filename without `.md` (e.g. `fold_check_upstream` → `fold_check_upstream.md`).
+
+Why this matters: the `memory-injection` skill reads `## Related` footers for 1-hop relational retrieval (Step 4a). When a gotcha matches a subagent's file scope, co-cited neighbors get pulled in too — capped at 3 additions per injection, additive to Section 1's 10-entry cap, co-citation scored for tiebreak. Graceful no-op when the footer is absent, so adding it is strictly additive value. Add it only when genuine relationships exist; do not force-link.
+
 ## When to Use
 
 Proactively invoke after:
@@ -80,8 +94,8 @@ Task tool:
 
     ## Step 2b: Memory Compilation
 
-    After writing individual memory files (feedback_*.md, reference_*.md), run
-    this compilation step to consolidate related memories into concept articles.
+    After writing individual memory files (topic-slug-named, e.g. `compose_dont_replace.md`),
+    run this compilation step to consolidate related memories into concept articles.
 
     ### 2b.0 Create directory
     ```bash
@@ -146,7 +160,7 @@ Task tool:
     ### 2b.4 Quick Lint (Checks 1-2 only)
     Before committing, scan for:
     1. **Broken links:** Any `[[concepts/<slug>]]` that points to a non-existent file? Fix or remove.
-    2. **Orphan memories:** Any `feedback_*.md` or `reference_*.md` not listed in any concept's `sources`? Note them but do not force-cluster.
+    2. **Orphan memories:** Any top-level memory `*.md` file not listed in any concept's `sources`? Note them but do not force-cluster.
 
     ### 2b.5 Update MEMORY.md Index
     For each compiled concept article, ensure MEMORY.md contains an index entry:
@@ -157,7 +171,7 @@ Task tool:
 
     ## Commit Sequencing
     After writing raw memory files and running compilation:
-    1. Write raw memory files (existing behavior — feedback_*.md, reference_*.md, MEMORY.md edits)
+    1. Write raw memory files (existing behavior — topic-slug memory files, MEMORY.md edits)
     2. Attempt compilation (Step 2b above)
     3. If compilation succeeded:
        ```bash
@@ -165,7 +179,7 @@ Task tool:
        ```
     4. If compilation errored (partial write, lint failures, etc.):
        ```bash
-       cd $MEMORY_DIR && git add MEMORY.md feedback_*.md reference_*.md && git commit -m "[partial] session-learnings: <summary>"
+       cd $MEMORY_DIR && git add MEMORY.md *.md && git commit -m "[partial] session-learnings: <summary>"
        ```
     5. Push regardless:
        ```bash

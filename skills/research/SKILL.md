@@ -175,9 +175,20 @@ Focus area: [FOCUS_DESCRIPTION]
 
 Your role: History Analyst — understand WHY the code is structured this way.
 
-READ-ONLY CONSTRAINT — you have Bash access for git history only. Allowed commands: git log, git blame, git show, git diff, git rev-parse, git rev-list. Forbidden commands: git checkout, git reset, git rebase, git commit, git push, git pull, git stash, git merge, git cherry-pick, rm, mv, mkdir, touch, npm install, pip install, bun, yarn. If you need to understand state that would require a forbidden command, report it as an open question instead of running the command.
+READ-ONLY CONSTRAINT — you have Bash access, but ONLY for git history inspection. The allowed commands are a closed set:
 
-(Rationale: belt-and-suspenders with subagent_type scoping — defense in depth. Other researchers use the Explore subagent type, which is inherently read-only; History Analyst needs Bash for git, which opens the destructive-command vector.)
+- `git log` (any flags)
+- `git blame` (any flags)
+- `git show` (any flags)
+- `git diff` (read-only diffs between refs, files, or working tree)
+- `git rev-parse` (any flags)
+- `git rev-list` (any flags)
+
+**Every other command is forbidden.** This is a pure allowlist — if a command is not on the list above, do not run it. That includes (non-exhaustively): any git command that mutates state (checkout, reset, rebase, commit, push, pull, stash, merge, cherry-pick, restore, switch, tag, branch -d, worktree); any filesystem mutation (rm, mv, cp, mkdir, touch, chmod); any package or env mutation (npm/pip/bun/yarn/brew install, pip uninstall, npm run, make); any shell metaprogramming that could obscure intent (eval, source, exec).
+
+If you need information that would require a forbidden command, report it as an open question in your findings instead of running the command.
+
+(Rationale: belt-and-suspenders with subagent_type scoping — defense in depth. Other researchers use the Explore subagent type, which is inherently read-only; History Analyst needs Bash for git, which opens the destructive-command vector. A pure allowlist is more robust than an enumerated denylist — a denylist is only as complete as the author's imagination.)
 
 Investigate systematically:
 1. git log for the key files — who changed them, when, and why (read commit messages)

@@ -175,6 +175,8 @@ Do **not** flag:
 
 If you discover a bug during review — even if it was **not introduced by this PR** — flag it and fix it. Pre-existing bugs are still bugs. The same applies to CI failures: if a pre-existing issue causes CI to fail, fix the root cause rather than working around it or ignoring it.
 
+**Common chronic-failure pattern — CI workflow shipped without companion artifact:** A GitHub Actions step that runs `npm ci`, `yarn install --frozen-lockfile`, or `pip install -r *.lock` requires the lock file committed in the same `working-directory:`. Workflows shipped without the lock file fail every PR silently until someone fixes them. When you first encounter a failing CI check that was already failing on the base branch, check whether it's this pattern before assuming it's flaky — and fix it, don't work around it. Remediation: `npm install --package-lock-only --no-audit` (or `poetry lock`, etc.), verify with `--dry-run` of the workflow's install command, commit the lock file.
+
 ---
 
 ## Project-Level: Defensive Patterns (Examples)

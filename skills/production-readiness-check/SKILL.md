@@ -10,10 +10,23 @@ Checks infrastructure and ops-level production readiness that code-level securit
 
 > Running production readiness check — scanning for auth, data protection, and monitoring gaps.
 
+**Registry wiring:** Registered in `reviewer-registry.json` as a Tier 2 `always` reviewer (id `production-readiness-check`, subagent_type `production-readiness-check`, model `sonnet`). Phase 6 cascade dispatches it automatically when Tier 1 finds HIGH+ issues. Standalone invocation via `/production-readiness` bypasses the cascade and runs every deep-dive regardless of file patterns.
+
 ## When to Use
 
 - **Automatically** — dispatched as a Phase 6 parallel reviewer during the claude-flow
 - **Manually** — invoke `/production-readiness` for a full standalone audit before shipping to production
+
+## Check Types
+
+Every check in this skill is classified by one of four types. Pick the right type when adding new checks — the wrong type either produces false-positive FAILs (grep-based over-confidence) or lets real issues slip through (missing confirmation gate).
+
+- **code-check** — deterministic literal/structural match (e.g., hardcoded secret pattern, `http://` URL, missing migration file). Grep/glob is authoritative; no user confirmation needed before marking FAIL.
+- **code-check (heuristic)** — grep pre-filter for a property that depends on enclosing scope or structure (e.g., "is this `await` inside a try/catch?", "does this component render both loading and error branches?"). Grep cannot verify scope — treat matches as **low-confidence** and confirm each flagged location with the user before marking FAIL.
+- **user-judgment** — no automation; relies on the reviewer reading the diff and making a call (e.g., "are inputs validated server-side?").
+- **infra-confirm** — ask the user whether an external infra/ops condition holds (e.g., "Is Sentry wired in production?", "Has backup restore been tested in the last 90 days?").
+
+When adding a new check, ask: does correctness depend on enclosing block or sibling structure? If yes → heuristic + confirmation gate.
 
 ## Trigger System
 
@@ -87,6 +100,30 @@ git diff origin/main...HEAD --name-only | xargs grep -lE '(logger\.|logging\.|co
 ```
 
 - **Score: 80** — new endpoints found that lack audit logging in the same file.
+
+#### C4: CI Workflow Companion Artifacts
+
+Any workflow that runs a deterministic install (`npm ci`, `yarn install --frozen-lockfile`, `pnpm install --frozen-lockfile`, `poetry install --no-update`, `pip install -r *.lock`) must have the corresponding lock file committed in the working directory it targets. Workflows shipped without the lock file chronically fail every PR silently until someone traces the failure.
+
+```bash
+# For each workflow, find deterministic-install commands and verify lockfile sibling
+for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
+  [ -f "$wf" ] || continue
+  grep -qE 'npm ci|yarn install --frozen|pnpm install --frozen|poetry install --no-update|pip install -r [^ ]*\.lock' "$wf" || continue
+  wd=$(grep -oE 'working-directory:\s*\S+' "$wf" | awk '{print $2}' | head -1)
+  wd="${wd:-.}"
+  found=0
+  for lock in package-lock.json yarn.lock pnpm-lock.yaml poetry.lock; do
+    [ -f "$wd/$lock" ] && found=1 && break
+  done
+  [ "$found" -eq 0 ] && echo "FAIL: $wf runs deterministic install in $wd but no lock file found"
+done
+```
+
+- **Score: 90** — workflow invokes `npm ci` (or equivalent) but no lockfile is committed in the referenced `working-directory:`.
+- Remediation: generate the lockfile (`npm install --package-lock-only --no-audit`, `poetry lock`, etc.), verify the workflow's install command passes in `--dry-run`, commit both together.
+
+This is Core (not a deep-dive) because the trigger is narrow (`.github/workflows/*.yml` or lockfile-producing `package.json` / `pyproject.toml` in the diff) but very high-signal — every missed instance causes chronic PR failure until manually traced.
 
 ### Step 3: Match Deep-Dive Triggers
 

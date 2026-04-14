@@ -33,6 +33,12 @@ Reviews are structured as a cascade: Tier 1 runs first (broad, fast), then speci
 
 **Adding project-specific reviewers:** Drop a `reviewer-registry.json` in your project's `.claude/` directory. Project reviewers are merged with (and override by `id`) the global registry.
 
+**Reviewer conventions:**
+
+- **Advisory by default.** All reviewers are advisory — `reviewer-registry.json` has no `enforcement` field. The review-fix-recheck loop surfaces findings to the user; the user decides what blocks ship. If a future reviewer needs hard-gate behavior, add an explicit `enforcement: "gate"` field to the schema — do not overload `tier` or `cascade_tier` for this.
+- **Heuristic pre-filter convention.** If a reviewer uses grep to infer a property that depends on enclosing scope (e.g., "unguarded `await`", "data-fetching component without error state"), classify the check as `code-check (heuristic)` and require user confirmation before marking FAIL. See `skills/production-readiness-check/SKILL.md` CD2/CD3 for the canonical shape.
+- **New `always` reviewers default to `cascade_tier: 2`.** Tier 1 is reserved for the broad first-pass sweep (CodeRabbit) whose clean result enables Phase 6 early-exit. Putting a second reviewer at Tier 1 forces every run to execute it even on clean diffs, voiding the optimization.
+
 ---
 
 ## Eval Contamination Guard

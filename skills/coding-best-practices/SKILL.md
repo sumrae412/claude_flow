@@ -61,6 +61,76 @@ For specific patterns and examples, see:
 - [Performance](docs/performance.md) - Caching, circuit breakers, optimization
 - [Security](docs/security.md) - OWASP top 10, input validation, secrets
 
+## Shell Scripts That Call External LLM CLIs
+
+Three discipline rules for any bash script that shells out to an external LLM (Codex CLI, Gemini CLI, etc.) or passes user/LLM-generated content through shell:
+
+### 1. Put the prompt in a sibling `.txt` file, not an inline string
+
+Bash single-quoted strings break on apostrophes. A multi-line `PERSONA='You are a staff engineer. You have seen it all. Don\'t...'` appears to work until the next editor adds "don't" or "it's" somewhere and the string closes mid-sentence. Silently. Double-quoted strings break on `$`, `` ` ``, and `"`.
+
+```bash
+# BAD — one apostrophe away from silent breakage
+PERSONA='You are a staff engineer. You have seen it all. Do not praise. ...'
+
+# GOOD — persona lives in a sibling file, immune to bash quoting
+PERSONA_FILE="$SCRIPT_DIR/curmudgeon_persona.txt"
+```
+
+Pattern: any LLM prompt longer than a single line or likely to be edited should live in a sibling `.txt` file, `cat`'d into the prompt assembly.
+
+### 2. Pipe large prompts to stdin, not argv
+
+`codex exec "$(cat prompt.txt)"` passes the entire prompt as a single argv. `ARG_MAX` on macOS is ~128KB; large diffs blow past that silently and fail with `E2BIG` or truncate. If the external CLI accepts stdin, prefer it:
+
+```bash
+# BAD — prompt as argv; ARG_MAX risk on large diffs
+RAW=$(codex exec --quiet "$(cat "$PROMPT_FILE")")
+
+# GOOD — prompt on stdin; no ARG_MAX
+RAW=$(codex exec --quiet --output-format json < "$PROMPT_FILE")
+```
+
+If the CLI only accepts argv, log a warning and cap the prompt size before handoff.
+
+### 3. Cross the shell → Python boundary with env vars, not interpolation
+
+Passing CLI output into Python via heredoc interpolation (`raw = """$RAW"""`) is shell-injection-vulnerable: if RAW contains `"""`, `` ` ``, or `$(...)`, the shell sees it before Python does. Use a quoted heredoc (`<<'PY'`) and read the value from `os.environ`:
+
+```bash
+# BAD — unquoted heredoc interpolates $RAW; quote-bomb in RAW breaks it
+python3 <<PY
+raw = """$RAW"""
+data = json.loads(raw)
+PY
+
+# GOOD — quoted heredoc, Python reads from env; injection-safe
+RAW=$RAW python3 <<'PY'
+import os, json
+raw = os.environ.get("RAW", "")
+data = json.loads(raw)
+PY
+```
+
+Adversarial verification: pass a payload containing `"""`, `` `rm -rf /` ``, and `$(whoami)` through the boundary. It should land as literal JSON string content on the Python side.
+
+## Shell Script Cleanup Traps
+
+When a shell script creates a side effect that must be cleaned up (temp file, symlink, background process, PID file), register the `trap` BEFORE the side effect is created — not after.
+
+```bash
+# BAD — if ln -sf fails the trap never registers; if ln -sf succeeds but
+# a later assertion fails, the symlink leaks.
+ln -sf "$FIX/mock-codex" "$FIX/codex"
+trap 'rm -f "$FIX/codex"' EXIT
+
+# GOOD — trap registered first; side effect has an unconditional cleanup path
+trap 'rm -f "$FIX/codex"' EXIT
+ln -sf "$FIX/mock-codex" "$FIX/codex"
+```
+
+Same rule for `mktemp`, background `&` jobs, `lockfile`, and anything else that persists past the script's happy path. The invariant is: **from the moment the side effect exists, there is a registered cleanup for it.**
+
 ## Type Hint Discipline
 
 **Every function gets type hints** — parameters, return types, and `None` where applicable:

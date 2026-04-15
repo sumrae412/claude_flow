@@ -90,6 +90,23 @@ Plan step touches external API?
 
 Break the plan into individual TodoWrite items. Mark each complete as you finish it.
 
+### Per-Task Context: Mockup Inputs for UI Work
+
+For any task touching UI files — patterns `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.html`, `*.css`, `*.scss`, or template directories (e.g. `app/templates/*`, `views/*`, `pages/*`) — check whether Phase 4 emitted Excalidraw mockups for this feature:
+
+```
+If docs/design/<feature>/mockups/*.excalidraw exists:
+  → Include the matching mockup file path(s) in the implementer subagent's context
+    alongside $plan and the step's file list
+  → The implementer should read the mockup before writing templates/CSS to
+    ensure the rendered UI matches the approved layout
+If docs/design/<feature>/architecture.excalidraw exists (one-way diagram):
+  → Include as reference context for any task that touches >1 component
+    (helps the implementer see how their piece connects)
+```
+
+Mockups are optional context — if none exist (backend-only feature, `--visual` not used), skip. Do not fail a task because a mockup is missing.
+
 ### Execute Each Step
 
 For each plan step:

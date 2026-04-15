@@ -81,17 +81,50 @@ All reviewers receive:
 
 ## Default Reviewers
 
-| Cascade Tier | ID | `subagent_type` | Model | Condition |
+| Cascade Tier | ID | `subagent_type` / runner | Model | Condition |
 |--------------|----|--------------------|-------|-----------|
 | 1 | `coderabbit` | `coderabbit:code-reviewer` | sonnet | Always — consolidated first pass |
 | 2 | `safety-reviewer` | `pr-review-toolkit:silent-failure-hunter` + `security-reviewer` | sonnet | Always — silent failures + security (combined) |
 | 2 | `test-coverage-analyzer` | `pr-review-toolkit:pr-test-analyzer` | sonnet | Always — test gaps |
+| 2 | `curmudgeon-review` | `scripts/curmudgeon_review.sh` (Codex CLI) | gpt-5-codex | Always — non-Anthropic second opinion |
 | 3 | `migration-reviewer` | `migration-reviewer` | sonnet | Alembic/migration files in diff |
 | 3 | `google-api-reviewer` | `google-api-reviewer` | sonnet | Google/calendar files + content match |
 | 3 | `async-reviewer` | `async-reviewer` | sonnet | 3+ async patterns in Python files |
 | 3-4 | `lightweight-reviewer` | `general-purpose` (haiku) | haiku | **Batched** — single dispatch with combined checklist (see below) |
 
 **Note:** Agents that ran as conditional specialists during Phase 5 (`migration-reviewer`, `google-api-reviewer`, `async-reviewer`) are **skipped** here — no double review.
+
+**CLI-backed reviewers (`runner_script`):** Entries with a `runner` field (currently `curmudgeon-review`) shell out to a local script instead of dispatching an agent. Full schema in `skills/claude-flow/references/reviewer-registry-schema.md`.
+
+Contract (from the schema doc, summarized):
+
+1. **Input:** script is called with a single argv — the path to a unified-diff file.
+2. **Output (stdout):** a single JSON object of the shape
+   ```json
+   {"reviewer": "<id>", "findings": [{"file": str, "line": int, "severity": "HIGH|MEDIUM|LOW", "title": str, "rationale": str}, ...]}
+   ```
+3. **Graceful skip:** if the external CLI, the input diff, or the external's output is missing/malformed, emit the canonical **skip envelope** on stdout and exit 0 (never exit non-zero for skip conditions):
+   ```json
+   {"reviewer": "<id>", "findings": [], "skipped": true, "reason": "<one-line>"}
+   ```
+   Callers MUST NOT special-case skip vs. happy — they `jq` the envelope either way and route `skipped: true` to an informational log, not a failure.
+
+Three canonical skip branches (reference: `scripts/curmudgeon_review.sh`):
+
+| Branch | Reason | When |
+|---|---|---|
+| Missing external CLI | `"<cli> CLI not installed"` | `command -v <cli>` fails |
+| Missing input file | `"diff file not found"` | `[ ! -f "$1" ]` |
+| Malformed external output | `"malformed output from <cli>"` | External emits non-JSON or unexpected shape |
+
+Dispatch shape:
+
+```bash
+# In Tier 2 parallel dispatch:
+if jq -e '.runner == "codex-cli"' <<<"$reviewer" >/dev/null; then
+    bash "$(jq -r .runner_script <<<"$reviewer")" "$DIFF_FILE"
+fi
+```
 
 ---
 

@@ -1007,3 +1007,13 @@ Jinja2 templates accessing model attributes (e.g., `member.is_primary`) render a
 - [ ] Store setters that accept external data normalize legacy field formats to the current schema (e.g., `delay_days` → `timing_config`)
 - [ ] Modules with multiple `addEventListener` calls use an `AbortController` + `{ signal }` option for bulk cleanup on teardown/reinit; call `controller.abort()` before re-attaching (ref: `email-compose-modal.js`)
 - [ ] Inline `<script>` blocks in Jinja templates that do NOT reference `{{ }}` variables are extracted to external `.js` files with `defer` for browser caching (ref: `base.html` → `app-init.js`, 1,779 lines extracted)
+
+---
+
+## Related: Mockup State Matrix
+
+Code-side multi-state handling (this skill) and design-time state enumeration are mirrors of one rule: every UI state your code handles should also have a mockup, and every mockup state should have code that handles it. When you add a new state to a component (e.g., a `retry` state after an error), the feature's mockup manifest must gain a matching entry — otherwise `visual-verify` only checks the happy path and a broken state ships green.
+
+- **Mockup-side contract:** [`skills/claude-flow/contracts/mockup-manifest.schema.md`](../claude-flow/contracts/mockup-manifest.schema.md) — per-(screen, state) file enumeration, required-state sets per screen type
+- **Policy memory:** `state_matrix_mockup_policy` in `~/.claude/projects/-Users-summerrae-claude-flow/memory/` — why the matrix is required, what triggered the cross-cutting adoption
+- **Gate that enforces it:** Phase 5 Step 3d `visual_verify.py --manifest` — iterates every (screen, state), tags findings with both, blocks on any state mismatch

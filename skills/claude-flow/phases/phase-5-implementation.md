@@ -111,6 +111,31 @@ For each plan step:
      Review the evidence matrix BEFORE attempting a fix.
      (Prevents fix-retry loops on complex failures.)
 
+   - CROSS-MODEL DIAGNOSIS on retry exhaustion (iteration ≥ 3):
+     When the same test has failed in ≥2 prior retries under the
+     executor's model family, the model is likely stuck in a wrong
+     mental model. Same-model "think harder" (thinking-budget
+     escalation) does not break confirmation-bias loops.
+
+     On the 3rd retry, dispatch /investigator with an EXPLICITLY
+     DIFFERENT model family than the executor:
+       - Executor is Sonnet → dispatch investigator on Opus
+       - Executor is Opus → dispatch investigator on Sonnet
+       - Haiku executor → escalate to Sonnet (never rely on Haiku
+         for diagnosis)
+
+     Pass the /investigator call:
+       - The evidence matrix from prior retries (not the transcript)
+       - The specific failing assertion + stack trace
+       - A 1-line hypothesis from each prior retry ("last attempt
+         assumed X — that may be the wrong mental model")
+       - Explicit ask: "What mental model is the prior attempts
+         missing? Do not propose a fix."
+
+     Emit failure event with tag: retry-cross-model-diagnosis.
+     This is distinct from within-retry investigator use — same
+     tool, different model family, diagnostic-only framing.
+
 3b. GUARD — scoped regression check
     After the target test passes, run a broader check to catch
     regressions introduced by the fix:
@@ -283,3 +308,14 @@ MEDIUM/LOW findings defer to Phase 6 review. Agents that ran in Phase 5 are **sk
 | Cross-module calls | defensive-backend-flows: respect encapsulation, public wrappers |
 
 **State transition:** If tests+lint pass, transition to phase-5.5. If failed and iteration < 3, increment iteration and retry phase-5. If iteration limit reached, set status to "failed" and surface to user.
+
+**Retry escalation ladder** (applied in order, not all at once):
+
+| Iteration | Action | Model |
+|-----------|--------|-------|
+| 1 (initial) | Re-read error, fix, re-test | Executor (same) |
+| 2 | Same as iteration 1 | Executor (same) |
+| 3 (last retry) | **Cross-model diagnosis via /investigator** — see step 3 above for protocol. Fix applied by executor using investigator's evidence. | Investigator on **different** model family; executor unchanged |
+| >3 | Surface to user with evidence matrix, cross-model diagnosis output, and all prior retry summaries | — |
+
+**Why cross-model on iteration 3, not earlier:** Iterations 1-2 usually recover from trivial errors (typo, missing import, test-file mismatch). Cross-model dispatch is a real cost; spend it only when the same-model approach has demonstrably exhausted its mental model.

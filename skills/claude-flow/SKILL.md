@@ -30,6 +30,7 @@ Agentic multi-phase workflow for building features. **Executor/Advisor strategy:
 3. **On entering each phase:** load `phases/phase-N-*.md` via Read tool
 4. **On completing each phase:** the phase file can be dropped — the populated contract (`$exploration`, `$requirements`, `$plan`, `$diff`) carries forward at 1/10th the size
 5. **Reference files** in `references/` are lazy-loaded only when a phase needs them
+6. **Architecture diagrams** in `diagrams/*.mmd` are lazy-loaded — read when reasoning about path selection (`triage-paths.mmd`), token budget behavior (`phase-lifecycle.mmd`), or contract data flow (`contract-flow.mmd`). Not resident.
 
 ---
 

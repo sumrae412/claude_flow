@@ -1,0 +1,67 @@
+%% claude-flow Contract Data Flow: $exploration → $requirements → $plan → $diff / $assessment
+%% Source of truth: contracts/*.schema.md + SKILL.md "Phase Output Contracts"
+%% Load when: tracing data between phases or debugging subagent context passing
+
+flowchart TD
+    subgraph Phase2[Phase 2: Exploration]
+        P2Exec[Executor explores codebase]
+        P2Adv[Sonnet advisor reviews gaps]
+        P2Exec --> P2Adv
+    end
+    P2Adv --> Exp[/$exploration<br/>key files, patterns, prior-art/]
+
+    subgraph Phase3[Phase 3: Requirements]
+        P3[Clarify ambiguities<br/>user stories + EARS criteria]
+    end
+    Exp --> P3
+    P3 --> Req[/$requirements<br/>user stories, acceptance criteria,<br/>scope boundaries/]
+
+    subgraph Phase4[Phase 4: Architecture + Plan]
+        P4Arch[Draft 2 architecture options]
+        P4Adv[Opus advisor critiques]
+        P4Plan[Produce plan]
+        P4Stress[Opus stress-tests plan]
+        P4Arch --> P4Adv --> P4Plan --> P4Stress
+    end
+    Exp --> P4Arch
+    Req --> P4Arch
+    P4Stress --> Plan[/$plan<br/>typed tasks + classified dependencies/]
+
+    subgraph Phase4c[Phase 4c: Verify]
+        P4cScript[verify_plan.py grep/glob check]
+    end
+    Plan --> P4cScript
+    P4cScript --> Plan
+
+    subgraph Phase5[Phase 5: Implementation]
+        P5TDD[TDD per step]
+        P5Par[Parallel subagent dispatch<br/>knowledge-dep only]
+        P5TDD -.parallel.-> P5Par
+    end
+    Plan --> P5TDD
+    Req --> P5TDD
+    Exp --> P5TDD
+    P5TDD --> Diff[/$diff<br/>git diff + files modified/]
+
+    subgraph Phase6[Phase 6: Review]
+        P6T1[Tier 1: CodeRabbit<br/>broad first pass]
+        P6T2[Tier 2: safety-reviewer<br/>silent-failure + security]
+        P6T34[Tiers 3-4: lightweight-reviewer<br/>batched haiku checklist]
+        P6T1 -->|HIGH+ findings| P6T2 --> P6T34
+        P6T1 -.->|clean → early exit| Done
+    end
+    Diff --> P6T1
+    Req --> P6T1
+    Plan --> P6T1
+    P6T34 --> Done([Ship])
+
+    subgraph AuditPath[Audit Path variant]
+        AS[/$audit_scope<br/>files to review/] --> Assess[/$assessment<br/>findings + tech debt/]
+    end
+
+    classDef contract fill:#d6eaf8,stroke:#1f618d,stroke-width:2px
+    classDef phase fill:#fdf2e9,stroke:#ba4a00
+    classDef terminal fill:#d5f5e3,stroke:#1e8449,stroke-width:2px
+    class Exp,Req,Plan,Diff,AS,Assess contract
+    class P2Exec,P2Adv,P3,P4Arch,P4Adv,P4Plan,P4Stress,P4cScript,P5TDD,P5Par,P6T1,P6T2,P6T34 phase
+    class Done terminal

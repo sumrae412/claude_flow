@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Mock codex CLI: prints canned curmudgeon JSON regardless of input.
+cat <<'JSON'
+{"findings":[{"file":"example.py","line":3,"severity":"MEDIUM","title":"Bare except swallows all exceptions","rationale":"Catches BaseException including KeyboardInterrupt; obscures real failures."}]}
+JSON

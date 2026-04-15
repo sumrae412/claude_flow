@@ -39,7 +39,11 @@ Check deletions: `git diff --diff-filter=D --name-only origin/main..origin/<pr-b
 
 ### Step 3: Broad Code Review Sweep
 
-- Run code review tool if available (e.g. CodeRabbit: `coderabbit review --plain`).
+- Run code review tool if available. **For PRs where the changes are already committed and pushed** (the normal shipping-workflow state), invoke CodeRabbit with:
+  ```
+  coderabbit review --plain --base <base-branch> --type committed
+  ```
+  The default mode only reviews uncommitted changes and returns `No files found for review` when the diff is already on a pushed branch — exactly the state after Stage 1/2. `--type committed --base main` is what actually runs the review.
 - Check the diff for **defensive patterns** (see project-level checklists below).
 
 ### Step 4: Determine Deep-Dive Triggers

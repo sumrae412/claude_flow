@@ -81,17 +81,27 @@ All reviewers receive:
 
 ## Default Reviewers
 
-| Cascade Tier | ID | `subagent_type` | Model | Condition |
+| Cascade Tier | ID | `subagent_type` / runner | Model | Condition |
 |--------------|----|--------------------|-------|-----------|
 | 1 | `coderabbit` | `coderabbit:code-reviewer` | sonnet | Always — consolidated first pass |
 | 2 | `safety-reviewer` | `pr-review-toolkit:silent-failure-hunter` + `security-reviewer` | sonnet | Always — silent failures + security (combined) |
 | 2 | `test-coverage-analyzer` | `pr-review-toolkit:pr-test-analyzer` | sonnet | Always — test gaps |
+| 2 | `curmudgeon-review` | `scripts/curmudgeon_review.sh` (Codex CLI) | gpt-5-codex | Always — non-Anthropic second opinion |
 | 3 | `migration-reviewer` | `migration-reviewer` | sonnet | Alembic/migration files in diff |
 | 3 | `google-api-reviewer` | `google-api-reviewer` | sonnet | Google/calendar files + content match |
 | 3 | `async-reviewer` | `async-reviewer` | sonnet | 3+ async patterns in Python files |
 | 3-4 | `lightweight-reviewer` | `general-purpose` (haiku) | haiku | **Batched** — single dispatch with combined checklist (see below) |
 
 **Note:** Agents that ran as conditional specialists during Phase 5 (`migration-reviewer`, `google-api-reviewer`, `async-reviewer`) are **skipped** here — no double review.
+
+**CLI-backed reviewers (`runner_script`):** Entries with a `runner` field (currently `curmudgeon-review`) shell out to a local script instead of dispatching an agent. The script receives the diff file path as `$1` and emits a single JSON object `{"reviewer": ..., "findings": [...]}` on stdout. If the external CLI is missing the script exits 0 with a `"skipped": true` envelope — do not treat missing-CLI as a reviewer failure. See `scripts/curmudgeon_review.sh` for the reference implementation. Dispatch shape:
+
+```bash
+# In Tier 2 parallel dispatch:
+if jq -e '.runner == "codex-cli"' <<<"$reviewer" >/dev/null; then
+    bash "$(jq -r .runner_script <<<"$reviewer")" "$DIFF_FILE"
+fi
+```
 
 ---
 

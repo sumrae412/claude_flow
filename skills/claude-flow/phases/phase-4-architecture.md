@@ -2,6 +2,10 @@
 
 <!-- Loaded: after Phase 3 | Dropped: after user approves plan -->
 <!-- Output: $plan contract -->
+<!-- Step numbers are cross-referenced from other skills (search "Phase 4 Step N"
+     across skills/, references/, docs/ before renumbering). Add new steps at
+     the END or as `Step X.5` to preserve existing cross-refs.
+     See memory/phase_step_renumbering.md. -->
 
 The **executor (Sonnet)** drafts two competing architecture options. It has full context from Phase 2 exploration — it read the files firsthand, knows the patterns, understands the integration points. No architect subagents needed.
 

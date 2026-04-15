@@ -116,6 +116,8 @@ Contracts are the interface between phases. When dispatching subagents, pass the
 
 **Never pass to subagents:** advisor transcripts, rejected architecture details, Phase 0 skill loading decisions, raw clarification Q&A (pass `$requirements` instead).
 
+**Authoring-time verification:** Phase 3 audits self-answerable questions; Phase 5 injects deterministic lookups (alembic, routes, columns, CSS, React) and runs a visual-drift gate. Optional deps graceful-skip — never block the workflow. See concept: `knowledge/concepts/authoring-time-verification.md`.
+
 ---
 
 ## Quick Reference

@@ -135,19 +135,29 @@ Optional UI-mockup loop that runs after `$plan` is finalized and before the user
 
 ### Substeps (when guard passes)
 
-1. **Load skill.** Read `skills/excalidraw-canvas/SKILL.md` — it routes to `references/excalidraw-schema.md` (JSON subset) and `references/mockup-prompts.md` (generation + drift-detection prompts).
+1. **Load skill.** Read `skills/excalidraw-canvas/SKILL.md` — it routes to `references/excalidraw-schema.md` (JSON subset), `references/mockup-prompts.md` (generation + drift-detection prompts), and `skills/claude-flow/contracts/mockup-manifest.schema.md` (state-matrix manifest).
 
-2. **Generate mockup(s).** Using the generation prompt from `skills/excalidraw-canvas/references/mockup-prompts.md`, synthesize one `.excalidraw` file per distinct screen or layout in `$plan`. Write them to `docs/design/<feature>/mockups/<screen-name>.excalidraw`. Feature slug comes from the branch name or `$requirements.feature_slug`.
-
-3. **Print open command.** For each generated file, print:
+2. **Refactor-path extract (conditional).** If `$requirements.task_type == "refactor"` AND `$requirements.target_url` is set, seed the `default` state from the live page before generating other states:
    ```
-   scripts/open_excalidraw.sh docs/design/<feature>/mockups/<screen-name>.excalidraw
+   python skills/claude-flow/scripts/extract_mockup.py \
+       --url <target_url> \
+       --output docs/design/<feature>/mockups/<screen>__default.excalidraw
+   ```
+   If the script returns a skip envelope (Playwright missing, URL unreachable) or writes a visibly lossy output (empty, single-box flattening), discard the extract and fall back to blank-canvas generation — note the fallback in the Phase 4 output. Greenfield (non-refactor) tasks skip this substep.
+
+3. **Generate state-matrix mockups.** Using the generation prompt from `skills/excalidraw-canvas/references/mockup-prompts.md`, synthesize one `.excalidraw` file per (screen, state) tuple. Required-state sets per screen type are listed in `skills/claude-flow/contracts/mockup-manifest.schema.md`. Paths follow `docs/design/<feature>/mockups/<screen-slug>__<state>.excalidraw`. Feature slug comes from the branch name or `$requirements.feature_slug`.
+
+4. **Emit manifest.** After all state mockups for the feature are written, emit `docs/design/<feature>/mockup-manifest.json` per the schema in `skills/claude-flow/contracts/mockup-manifest.schema.md`. Every state entry must point to an existing `.excalidraw` file — a manifest that references a missing file is a HIGH-severity finding at the Phase 5 visual-verify gate.
+
+5. **Print open commands.** For each generated file, print:
+   ```
+   scripts/open_excalidraw.sh docs/design/<feature>/mockups/<screen-slug>__<state>.excalidraw
    ```
    Show the user the list of files written and remind them VS Code opens in an Excalidraw tab if the extension is installed; otherwise the script falls back to excalidraw.com.
 
-4. **Pause for user edits.** Prompt: "Edit the mockup(s) directly, then reply `continue` when done — or `skip` to proceed without re-reading." Do not touch the files during the pause.
+6. **Pause for user edits.** Prompt: "Edit the mockup(s) directly, then reply `continue` when done — or `skip` to proceed without re-reading." Do not touch the files during the pause.
 
-5. **Drift detection.** On `continue`, re-read each edited `.excalidraw` and diff against the generator's original output. Use the drift-detection prompt from `skills/excalidraw-canvas/references/mockup-prompts.md` to convert visual deltas into `$plan` deltas (new components, renamed fields, removed screens, etc.). Apply deltas inline to `$plan` and note them in a "Visual-driven plan changes" callout for the user approval gate. If no drift, note "Mockup approved as-is" and continue.
+7. **Drift detection.** On `continue`, re-read each edited `.excalidraw` and diff against the generator's original output. Use the drift-detection prompt from `skills/excalidraw-canvas/references/mockup-prompts.md` to convert visual deltas into `$plan` deltas (new components, renamed fields, removed screens, etc.). Apply deltas inline to `$plan` and note them in a "Visual-driven plan changes" callout for the user approval gate. If no drift, note "Mockup approved as-is" and continue. If states were added or removed during editing, update `mockup-manifest.json` to match.
 
 ### Always-emit architecture diagram (runs regardless of guard)
 

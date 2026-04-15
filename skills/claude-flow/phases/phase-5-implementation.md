@@ -129,7 +129,12 @@ Break the plan into individual TodoWrite items. Mark each complete as you finish
 For any task touching UI files — patterns `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.html`, `*.css`, `*.scss`, or template directories (e.g. `app/templates/*`, `views/*`, `pages/*`) — check whether Phase 4 emitted Excalidraw mockups for this feature:
 
 ```
-If docs/design/<feature>/mockups/*.excalidraw exists:
+If docs/design/<feature>/mockup-manifest.json exists (state-matrix mode):
+  → Include the manifest path in the implementer subagent's context
+  → The implementer reads the manifest to discover every state their UI
+    work must support (default, loading, error, empty, success)
+  → Defensive patterns applied across all states per defensive-ui-flows skill
+If docs/design/<feature>/mockups/*.excalidraw exists (legacy single-file):
   → Include the matching mockup file path(s) in the implementer subagent's context
     alongside $plan and the step's file list
   → The implementer should read the mockup before writing templates/CSS to
@@ -281,21 +286,41 @@ For each plan step:
       or from .claude/launch.json)
     - docs/design/<feature>/mockups/*.excalidraw exists from Phase 4
 
-    Run:
-    ```
-    python skills/claude-flow/scripts/visual_verify.py \
-        --url <dev-server-url> \
-        --mockup docs/design/<feature>/mockups/<mockup>.excalidraw \
-        --threshold 0.15 \
-        --json
-    ```
+    Mode selection:
+    - PREFERRED: if docs/design/<feature>/mockup-manifest.json exists,
+      use state-matrix mode — iterates every (screen, state) tuple:
+      ```
+      python skills/claude-flow/scripts/visual_verify.py \
+          --manifest docs/design/<feature>/mockup-manifest.json \
+          --threshold 0.15 \
+          --json
+      ```
+    - FALLBACK: if no manifest (legacy single-file mockup), use:
+      ```
+      python skills/claude-flow/scripts/visual_verify.py \
+          --url <dev-server-url> \
+          --mockup docs/design/<feature>/mockups/<mockup>.excalidraw \
+          --threshold 0.15 \
+          --json
+      ```
 
-    Gate rule:
+    Gate rule (applies to both modes):
     - skipped=True → SKIP, proceed to step 4 (Playwright not installed,
-      mockup missing, URL unreachable — all graceful, do not block)
+      manifest/mockup missing or malformed, URL unreachable — all graceful,
+      do not block)
     - findings=[] → PASS, proceed to step 4
-    - findings with severity=high → FAIL, fix before step 4
+    - findings with severity=high → FAIL, fix before step 4.
+      In manifest mode, each finding carries screen+state tags — fix the
+      specific state that failed; do not regenerate the whole mockup set.
     - findings with severity=medium only → WARN, user confirms before step 4
+
+    Manifest-mode specifics:
+    - A finding on ANY state blocks the gate (not just default).
+    - A manifest that references a missing .excalidraw file is a HIGH
+      finding (generator bug), not a skip.
+    - Fix cycle: re-run visual_verify after fixing each failing state;
+      passing states are not re-rendered — the manifest iteration is
+      deterministic from the JSON, not from previous findings.
 
     Max 2 visual-fix cycles → escalate to user.
     Emit failure event with tag: visual-verify-drift.

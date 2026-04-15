@@ -131,6 +131,8 @@ any code. Inspired by Brian/Notion's `find-icon` skill.
 
 If `lookups` is empty (all step-scope detectors skipped), omit the section.
 
+**Skip-envelope contract:** `inject_lookups.py` uses a graceful-skip design (see memory: `optional_dep_gate_policy`) — missing tools, inapplicable detectors, or absent project structure all produce a skip entry, never a non-zero exit. Only a non-zero exit code or malformed JSON is a real failure that should block dispatch.
+
 ## Direct Execution — When to Skip the Subagent Cycle
 
 For very small, architecturally-unambiguous tasks, the controller executes directly instead of dispatching an implementer + two reviewers. Direct execution is an intentional efficiency move, not a shortcut around review — the controller self-verifies by reading the diff, running the test, and checking scope.

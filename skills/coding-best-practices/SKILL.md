@@ -131,6 +131,30 @@ ln -sf "$FIX/mock-codex" "$FIX/codex"
 
 Same rule for `mktemp`, background `&` jobs, `lockfile`, and anything else that persists past the script's happy path. The invariant is: **from the moment the side effect exists, there is a registered cleanup for it.**
 
+## Path Traversal via `/` Operator
+
+When a script takes a relative path from LLM output, user input, or any untrusted source and joins it with a trusted project root, `project_root / user_rel` does NOT guard against `../` escape.
+
+```python
+# BAD — --files ../../etc/passwd reads outside the project root
+path = project_root / rel
+tree = ast.parse(path.read_text())
+
+# GOOD — resolve first, then verify containment
+def _safe_resolve(project: Path, rel: str) -> Path | None:
+    try:
+        candidate = (project / rel).resolve()
+    except (OSError, ValueError):
+        return None
+    try:
+        candidate.relative_to(project)
+    except ValueError:
+        return None
+    return candidate
+```
+
+The invariant: **any path derived from untrusted input must be resolved and verified to land inside the trusted root before being read, parsed, or globbed.** Silent `continue` on failure is usually the right call — don't error on traversal attempts, just ignore them. See memory: `path_traversal_project_root`.
+
 ## Type Hint Discipline
 
 **Every function gets type hints** — parameters, return types, and `None` where applicable:

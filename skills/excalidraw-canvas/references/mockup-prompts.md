@@ -17,16 +17,33 @@ All `.excalidraw` output must follow `references/excalidraw-schema.md` (supporte
 
 **Instructions to the executor:**
 
-For each screen/component:
+For each screen/component, produce one `.excalidraw` file **per UI state**. State matrix is required — happy-path-only mockups ship bugs in error and loading states that `visual-verify` cannot catch.
 
-1. Name the output file `docs/design/<feature>/mockups/<screen-slug>.excalidraw`. Create the directory if it doesn't exist.
-2. Enumerate the concrete UI elements the plan and acceptance criteria demand — a text input, a submit button, a validation region, a header, etc. Don't invent elements the plan doesn't require; don't omit elements the plan explicitly names.
-3. Lay out elements top-to-bottom, left-aligned, inside a roughly 800×600 canvas. Use the grouping pattern from `references/excalidraw-schema.md` (one `groupIds` entry per logical component so the user can drag whole units).
-4. For each element, pick the closest shape from the supported subset (rectangle, ellipse, text, arrow, line). Button = filled rectangle + text. Input = outlined rectangle + placeholder text. Section header = text. Flow between screens = arrow.
-5. Write the file using the Write tool. Validate against the checklist in `references/excalidraw-schema.md` before considering the step done.
-6. If the plan has a `diagrams` section (architecture one-way case), produce one `docs/design/<feature>/architecture.excalidraw` using rectangle/ellipse nodes and arrows, no mockup group conventions.
+**Default state set (generate all that apply to the screen):**
 
-**Output:** one or more written `.excalidraw` files plus a list of paths to pass to the open-command printer in the skill workflow.
+- `default` — normal populated view. Always required.
+- `loading` — spinner, skeleton rows, or disabled submit. Required for any screen with async data.
+- `error` — validation messages, API error, or recovery prompt. Required for any screen with a form, a network call, or acceptance criteria mentioning failure modes.
+- `empty` — "no data yet" state. Required for any screen listing user-generated content.
+- `success` — post-action confirmation. Required if an acceptance criterion names a success outcome distinct from `default`.
+
+If a state doesn't apply (e.g., a static marketing page has no `loading`), omit it and note the omission in the Phase 4 output so the manifest is consistent.
+
+**Per (screen, state):**
+
+1. Name the output file `docs/design/<feature>/mockups/<screen-slug>__<state>.excalidraw` (double underscore between slug and state). Create the directory if it doesn't exist.
+2. Enumerate the concrete UI elements the plan + acceptance criteria demand for *this state*. An error state shows an error message region; a loading state shows a spinner or skeleton; an empty state shows the empty-state CTA. Don't duplicate the `default` state's contents verbatim — each state mockup should differ in the elements the state itself introduces or removes.
+3. Lay out elements top-to-bottom, left-aligned, inside a roughly 800×600 canvas. Use the grouping pattern from `references/excalidraw-schema.md`.
+4. For each element, pick the closest shape from the supported subset (rectangle, ellipse, text, arrow, line). Button = filled rectangle + text. Input = outlined rectangle + placeholder text. Section header = text. Error banner = outlined rectangle + red-tinted text. Spinner = ellipse with a text label like "loading…".
+5. Write the file using the Write tool. Validate against the checklist in `references/excalidraw-schema.md`.
+
+**After all state mockups for a screen are written:**
+
+6. Emit `docs/design/<feature>/mockup-manifest.json` — a single manifest per feature covering every screen × state combination. Follow the schema in `skills/claude-flow/contracts/mockup-manifest.schema.md`. This is the artifact Phase 5 `visual-verify` iterates over.
+
+7. If the plan has a `diagrams` section (architecture one-way case), produce one `docs/design/<feature>/architecture.excalidraw` using rectangle/ellipse nodes and arrows, no mockup group conventions. Architecture diagrams are single-state — no matrix needed.
+
+**Output:** one `.excalidraw` file per (screen, state), one `mockup-manifest.json`, and optionally one `architecture.excalidraw`. Pass the list of mockup paths to the open-command printer.
 
 ---
 

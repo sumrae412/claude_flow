@@ -82,9 +82,21 @@ def extract_mockup_boxes(mockup: dict) -> list[dict]:
     return boxes
 
 
-def render_and_extract(url: str, max_wait: int) -> tuple[dict | None, str]:
+def render_and_extract(
+    url: str,
+    max_wait: int,
+    wait_for_selector: str | None = None,
+    trigger_script: str | None = None,
+) -> tuple[dict | None, str]:
     """Render URL via headless Playwright and extract DOM element bboxes
-    + viewport dimensions for normalization."""
+    + viewport dimensions for normalization.
+
+    Optional state-triggering:
+    - trigger_script: JS evaluated after navigation, before extraction. Use for
+      states reached by interaction (e.g. clicking submit to show validation).
+    - wait_for_selector: CSS selector to wait for before extraction. Use for
+      states where the marker element appears asynchronously.
+    """
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as e:
@@ -96,6 +108,16 @@ def render_and_extract(url: str, max_wait: int) -> tuple[dict | None, str]:
             try:
                 page = browser.new_page()
                 page.goto(url, timeout=max_wait * 1000, wait_until="domcontentloaded")
+                if trigger_script:
+                    try:
+                        page.evaluate(trigger_script)
+                    except Exception as e:
+                        return None, f"trigger_script failed: {type(e).__name__}: {e}"
+                if wait_for_selector:
+                    try:
+                        page.wait_for_selector(wait_for_selector, timeout=max_wait * 1000)
+                    except Exception as e:
+                        return None, f"wait_for_selector {wait_for_selector!r} failed: {type(e).__name__}: {e}"
                 boxes_js = """
                 () => {
                     const selectors = 'div, section, article, header, footer, nav, main, img, button, input, form, h1, h2, h3';
@@ -220,15 +242,132 @@ def compare_layouts(mockup_boxes: list[dict], rendered: dict, threshold: float) 
     return findings
 
 
+def load_manifest(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict) or "screens" not in data:
+        return None
+    return data
+
+
+def verify_manifest(manifest: dict, root: Path, render_fn, threshold: float = 0.15, max_wait: int = 10) -> list[dict]:
+    """Iterate every (screen, state) in the manifest and accumulate findings.
+
+    render_fn is injected for testability — in production it's render_and_extract.
+    Every finding is tagged with 'screen' and 'state' so the user knows which
+    state failed. A missing mockup_file is a HIGH-severity finding (not a skip),
+    because it indicates a generator bug: the manifest claims the mockup exists.
+    """
+    findings: list[dict] = []
+    base_url = manifest.get("base_url", "").rstrip("/")
+    for screen in manifest.get("screens", []):
+        screen_name = screen.get("name", "?")
+        path = screen.get("path", "")
+        for state in screen.get("states", []):
+            state_name = state.get("name", "?")
+            mockup_file = state.get("mockup_file", "")
+            full_mockup_path = root / mockup_file if mockup_file else None
+            url = f"{base_url}{path}{state.get('url_suffix', '')}"
+
+            if not full_mockup_path or not full_mockup_path.exists():
+                findings.append({
+                    "severity": "high",
+                    "message": f"Manifest references missing mockup file: {mockup_file}",
+                    "bbox": None,
+                    "screen": screen_name,
+                    "state": state_name,
+                })
+                continue
+
+            mockup = load_mockup(full_mockup_path)
+            if mockup is None:
+                findings.append({
+                    "severity": "high",
+                    "message": f"Malformed mockup file: {mockup_file}",
+                    "bbox": None,
+                    "screen": screen_name,
+                    "state": state_name,
+                })
+                continue
+
+            mockup_boxes = extract_mockup_boxes(mockup)
+            if not mockup_boxes:
+                findings.append({
+                    "severity": "medium",
+                    "message": f"Mockup has no elements to compare against: {mockup_file}",
+                    "bbox": None,
+                    "screen": screen_name,
+                    "state": state_name,
+                })
+                continue
+
+            rendered, err = render_fn(
+                url,
+                max_wait,
+                wait_for_selector=state.get("wait_for_selector"),
+                trigger_script=state.get("trigger_script"),
+            )
+            if rendered is None:
+                findings.append({
+                    "severity": "high",
+                    "message": f"Could not render {url}: {err}",
+                    "bbox": None,
+                    "screen": screen_name,
+                    "state": state_name,
+                })
+                continue
+
+            state_findings = compare_layouts(mockup_boxes, rendered, threshold)
+            for f in state_findings:
+                f["screen"] = screen_name
+                f["state"] = state_name
+                findings.append(f)
+
+    return findings
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url", required=True)
-    ap.add_argument("--mockup", required=True)
+    ap.add_argument("--url", help="(single-mockup mode) dev-server URL to render")
+    ap.add_argument("--mockup", help="(single-mockup mode) path to .excalidraw file")
+    ap.add_argument("--manifest", help="(state-matrix mode) path to mockup-manifest.json")
     ap.add_argument("--max-wait", type=int, default=10)
     ap.add_argument("--threshold", type=float, default=0.15)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
+    if not args.manifest and not (args.url and args.mockup):
+        ap.error("either --manifest, or both --url and --mockup, are required")
+
+    # Manifest mode (state matrix) takes precedence. Check manifest existence
+    # before playwright so an obviously-bad manifest path surfaces a clear
+    # reason instead of getting masked by the playwright-unavailable skip.
+    if args.manifest:
+        manifest_path = Path(args.manifest)
+        manifest = load_manifest(manifest_path)
+        if manifest is None:
+            print(json.dumps(skip(f"manifest not found or malformed: {args.manifest}")))
+            return 0
+
+        ok, reason = check_playwright_available()
+        if not ok:
+            print(json.dumps(skip(reason)))
+            return 0
+
+        # Repo root = parent of the manifest's closest `docs/` ancestor, or cwd.
+        # Mockup paths in the manifest are repo-root-relative.
+        root = Path.cwd()
+        findings = verify_manifest(manifest, root=root, render_fn=render_and_extract,
+                                   threshold=args.threshold, max_wait=args.max_wait)
+        out = {"reviewer": "visual-verify", "findings": findings, "skipped": False, "reason": ""}
+        print(json.dumps(out))
+        return 1 if findings else 0
+
+    # Single-mockup mode (backward-compat).
     ok, reason = check_playwright_available()
     if not ok:
         print(json.dumps(skip(reason)))

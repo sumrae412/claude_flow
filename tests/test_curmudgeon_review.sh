@@ -8,6 +8,9 @@ FIX="$REPO_ROOT/tests/fixtures/curmudgeon"
 
 fail() { echo "FAIL: $1"; exit 1; }
 
+# Clean up symlink on any exit (including mid-test assertion failures)
+trap 'rm -f "$FIX/codex"' EXIT
+
 # Case 1: codex present (via mock) → structured JSON output
 export PATH="$FIX:$PATH"
 chmod +x "$FIX/mock-codex"
@@ -19,9 +22,14 @@ echo "$out" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); \
   assert d.get('reviewer') == 'curmudgeon', 'reviewer must be curmudgeon'"
 rm -f "$FIX/codex"
 
-# Case 2: codex missing → exit 0 with "skipped" marker on stderr
-PATH_NO_CODEX="$(echo "$PATH" | tr ':' '\n' | grep -v "$FIX" | paste -sd: -)"
-out2=$(PATH="$PATH_NO_CODEX" "$REPO_ROOT/scripts/curmudgeon_review.sh" "$FIX/sample-diff.patch" 2>&1 >/dev/null || true)
+# Case 2: codex missing → exit 0 with "skipped" marker on stderr.
+# Use grep -Fv (literal match) so "." in $FIX doesn't match any char.
+PATH_NO_CODEX="$(echo "$PATH" | tr ':' '\n' | grep -Fv "$FIX" | paste -sd: -)"
+set +e
+out2=$(PATH="$PATH_NO_CODEX" "$REPO_ROOT/scripts/curmudgeon_review.sh" "$FIX/sample-diff.patch" 2>&1 >/dev/null)
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "missing CLI should exit 0, got $rc"
 echo "$out2" | grep -qi "skip\|not installed\|not found" || fail "missing CLI should log skip"
 
 echo "OK"

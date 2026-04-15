@@ -72,6 +72,8 @@ Dispatch Opus (`model: "opus"`, `subagent_type: "general-purpose"`) with:
 - Add: "Think step by step before responding."
 - Act on response: revise options, note advisor's recommendation
 
+**N-per-entity escalation:** If Step 1 produced **3 or more** architectural options (instead of the default 2), use N-per-entity fan-out for the critique — dispatch one Opus challenger per option, each focused on stress-testing one option independently. Synthesis collates challenger findings before user presentation. See `n_per_entity_fanout.md` (memory) for the trigger criteria and cost model. With 2 options the single-advisor critique is fine; the fan-out only pays off when each option warrants its own deep critique.
+
 ---
 
 ## Step 3: Present to User

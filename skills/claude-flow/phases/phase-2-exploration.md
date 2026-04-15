@@ -24,6 +24,13 @@ When the task path is `lite` or `fast`, the single-executor exploration (Steps 0
 
 > **Why branch here:** Research adds depth, breadth, and quality verification — but costs 3-6 agent round-trips. Lite/fast tasks don't need this overhead. The branch respects the existing path classification without replacing what works for simpler tasks.
 
+### Wave 1 dispatch shape: task-typed vs. N-per-entity
+
+The `/research` skill defaults to **task-typed** Wave 1 — 2-4 researchers covering different dimensions (backend, frontend, prior art, external API). When the research question is "compare these N alternatives" rather than "explore this feature area," switch to **N-per-entity fan-out**: dispatch one researcher per candidate library/approach, each running the same evaluation checklist. See `n_per_entity_fanout.md` (memory) for the full decision matrix. Triggers for the entity-typed shape:
+- Question explicitly compares ≥4 named alternatives ("OAuth providers: Auth0 vs Clerk vs Supabase Auth vs WorkOS")
+- $requirements lists multiple candidate technologies and asks for a recommendation
+- Prior exploration produced ≥4 viable approaches and the architect needs each evaluated independently
+
 ---
 
 ## Step 0: Prior Knowledge Check (Token Saver)

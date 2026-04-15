@@ -29,18 +29,48 @@ The caller provides a list of file paths that will be touched during this task. 
 - Phase 2 exploration findings (the deduplicated file list from context hydration)
 - The plan's "files to create/modify" list (available by Phase 4 onward)
 
-### Step 3: Match File Paths to Domains
+### Step 3+4: Match File Paths to Domains and Extract Gotcha Entries (script)
 
-Compare each file path against the domain table in `claude-flow/references/memory-injection.md`. A file can match multiple domains. Collect all matched domains.
+**Use the script — do not do this work in prose.** File-pattern matching and key lookup are mechanical operations. The LLM's job is to format and prioritize the result, not to walk the table.
 
-Examples:
+```bash
+python3 skills/claude-flow/scripts/match_memory_domains.py \
+    <memory_dir> \
+    --reference skills/claude-flow/references/memory-injection.md \
+    file1.py file2.py file3.html
+```
+
+Or via stdin:
+
+```bash
+echo -e "file1.py\nfile2.py" | python3 skills/claude-flow/scripts/match_memory_domains.py <memory_dir>
+```
+
+Output (JSON) gives you everything you need:
+
+```json
+{
+  "matched_domains": ["services", "models", "ui"],
+  "matched_keys": ["client-sync-map", "is-primary-contact", "..."],
+  "matched_entries": [
+    {"key": "is-primary-contact", "line": "- [...](...) — ...", "topic_file": "is_primary_contact.md"}
+  ],
+  "skipped": ["alembic-cli-only"]
+}
+```
+
+Notes on the script's behavior:
+- A file can match multiple domains; all matched gotcha keys are returned (deduplicated)
+- Keys present in the domain table but missing from MEMORY.md show up in `skipped` — surface them or ignore depending on caller intent
+- The script handles glob portability (`models/*` matches both `app/models/foo.py` and `models/foo.py`)
+- Stdlib only — no install needed
+
+Examples (reference; the script enforces them):
 - `services/client_service.py` → `services` domain
 - `models/client.py` + `alembic/versions/abc.py` → `models` domain
 - `templates/clients.html` + `static/app.css` → `ui` domain
 
-### Step 4: Extract Matching Gotcha Entries
-
-For each matched domain, look up the gotcha keys listed in the domain table. Find the corresponding 1-line entries in MEMORY.md by semantic key. Extract only the entries whose keys appear in the matched domains' key lists.
+When NOT to use the script: if `claude-flow/references/memory-injection.md` doesn't exist (e.g., a project hasn't installed claude-flow), fall back to a graceful no-op — don't try to match by hand.
 
 ### Step 4a: 1-Hop Expansion via `## Related`
 

@@ -83,7 +83,8 @@ def extract_mockup_boxes(mockup: dict) -> list[dict]:
 
 
 def render_and_extract(url: str, max_wait: int) -> tuple[dict | None, str]:
-    """Render URL via headless Playwright and extract DOM element bboxes."""
+    """Render URL via headless Playwright and extract DOM element bboxes
+    + viewport dimensions for normalization."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as e:
@@ -110,20 +111,68 @@ def render_and_extract(url: str, max_wait: int) -> tuple[dict | None, str]:
                 }
                 """
                 boxes = page.evaluate(boxes_js)
+                viewport = page.evaluate(
+                    "() => ({width: window.innerWidth, height: window.innerHeight})"
+                )
                 broken_images = page.evaluate("""
                 () => Array.from(document.images)
                     .filter(img => !img.complete || img.naturalWidth === 0)
                     .map(img => ({src: img.src, alt: img.alt}))
                 """)
-                return {"boxes": boxes, "broken_images": broken_images}, ""
+                return {
+                    "boxes": boxes,
+                    "broken_images": broken_images,
+                    "viewport": viewport,
+                }, ""
             finally:
                 browser.close()
     except Exception as e:
         return None, f"render failed: {type(e).__name__}: {e}"
 
 
+def _normalize_boxes(boxes: list[dict], ref_w: float, ref_h: float) -> list[dict]:
+    """Normalize boxes into [0,1] × [0,1] using an explicit reference frame
+    so mockup and rendered coordinate spaces are comparable to each other.
+
+    ref_w, ref_h = the canvas/viewport dimensions the boxes live in.
+    """
+    ref_w = ref_w or 1
+    ref_h = ref_h or 1
+    out = []
+    for b in boxes:
+        out.append({
+            "id": str(b.get("id", b.get("tag", "?"))),
+            "x": b["x"] / ref_w,
+            "y": b["y"] / ref_h,
+            "w": b.get("width", 0) / ref_w,
+            "h": b.get("height", 0) / ref_h,
+        })
+    return out
+
+
+def _mockup_canvas_dims(mockup_boxes: list[dict]) -> tuple[float, float]:
+    """Derive a canvas frame from mockup element bounds.
+
+    Excalidraw files don't always include appState dimensions, so we use
+    the bounding box of all elements as the canvas reference.
+    """
+    if not mockup_boxes:
+        return 1.0, 1.0
+    w = max((b["x"] + b.get("width", 0)) for b in mockup_boxes)
+    h = max((b["y"] + b.get("height", 0)) for b in mockup_boxes)
+    return max(w, 1.0), max(h, 1.0)
+
+
 def compare_layouts(mockup_boxes: list[dict], rendered: dict, threshold: float) -> list[dict]:
-    """Compare mockup bboxes to rendered DOM bboxes. Returns findings."""
+    """Compare mockup bboxes to rendered DOM bboxes. Returns findings.
+
+    Both sides are normalized into [0,1] × [0,1] — mockup against its own
+    element-bbox canvas, rendered against the browser viewport. This is not
+    perfect (a designer framing a mockup at 400×400 is implicitly claiming
+    the layout scales proportionally to viewport), but it's proportionally
+    comparable across scale mismatches, which naive same-list normalization
+    was not.
+    """
     findings = []
 
     for img in rendered.get("broken_images", []):
@@ -142,21 +191,17 @@ def compare_layouts(mockup_boxes: list[dict], rendered: dict, threshold: float) 
         })
         return findings
 
-    def normalize(boxes):
-        if not boxes:
-            return []
-        max_x = max((b["x"] + b.get("width", 0)) for b in boxes) or 1
-        max_y = max((b["y"] + b.get("height", 0)) for b in boxes) or 1
-        return [{
-            "id": str(b.get("id", b.get("tag", "?"))),
-            "x": b["x"] / max_x,
-            "y": b["y"] / max_y,
-            "w": b.get("width", 0) / max_x,
-            "h": b.get("height", 0) / max_y,
-        } for b in boxes]
+    viewport = rendered.get("viewport") or {}
+    vw = viewport.get("width") or max(
+        (b["x"] + b.get("width", 0)) for b in rendered_boxes
+    ) or 1
+    vh = viewport.get("height") or max(
+        (b["y"] + b.get("height", 0)) for b in rendered_boxes
+    ) or 1
+    mw, mh = _mockup_canvas_dims(mockup_boxes)
 
-    norm_mockup = normalize(mockup_boxes)
-    norm_rendered = normalize(rendered_boxes)
+    norm_mockup = _normalize_boxes(mockup_boxes, mw, mh)
+    norm_rendered = _normalize_boxes(rendered_boxes, vw, vh)
 
     for m in norm_mockup:
         if not norm_rendered:

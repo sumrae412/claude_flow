@@ -34,8 +34,12 @@ def test_graceful_skip_on_empty_project():
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert data["scope"] == "plan"
-        # Both plan detectors should skip gracefully on empty project
-        assert len(data["skipped_detectors"]) == len(data["lookups"]) + 2
+        # Both plan detectors (alembic_heads, fastapi_routes) skip on empty project.
+        # Assert explicitly: lookups empty, skip list names both detectors.
+        assert data["lookups"] == {}
+        skip_names = [s.split(":", 1)[0] for s in data["skipped_detectors"]]
+        assert "alembic_heads" in skip_names
+        assert "fastapi_routes" in skip_names
 
 
 def test_sqlalchemy_columns_detects_real_cols():
@@ -113,6 +117,30 @@ def test_scope_plan_vs_step():
         assert step_data["scope"] == "step"
         # Different detector sets produce different skip lists
         assert plan_data["skipped_detectors"] != step_data["skipped_detectors"]
+
+
+def test_path_traversal_files_are_skipped():
+    """--files ../../etc/passwd or any path escaping project root must be ignored."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "project").mkdir()
+        (root / "outside.py").write_text(
+            "from sqlalchemy import Column\n"
+            "class Leaked:\n"
+            "    secret = Column(String)\n"
+        )
+        # Run with project=<d>/project, try to reach ../outside.py
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--scope", "step",
+             "--files", "../outside.py", "--project", str(root / "project"), "--json"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        # The leaked column name must NOT appear in any lookup output
+        for output in data.get("lookups", {}).values():
+            assert "secret" not in output
+            assert "Leaked" not in output
 
 
 def test_exit_code_always_zero_on_normal_paths():

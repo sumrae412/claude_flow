@@ -25,6 +25,12 @@ Output:
       "skipped_detectors": ["sqlalchemy_columns: no model files in scope"]
     }
 
+Note: this script uses a purpose-built output shape (lookups dict keyed by
+detector name), NOT the canonical `{reviewer, findings, skipped, reason}`
+envelope used by CLI-backed reviewers like visual_verify.py. The schemas
+serve different purposes — reviewers produce findings for fix loops; this
+produces reference facts for prompt injection.
+
 Exit codes: 0 always (unless internal error = 2).
 """
 from __future__ import annotations
@@ -55,6 +61,22 @@ def _matches_any(file_path: str, patterns: list[str]) -> bool:
 
 def _any_match(patterns: list[str], files: list[str]) -> bool:
     return any(_matches_any(f, patterns) for f in files)
+
+
+def _safe_resolve(project: Path, rel: str) -> Path | None:
+    """Resolve `rel` inside `project`; return None if it would escape the root.
+
+    Prevents `--files ../../etc/passwd` from reading outside the project.
+    """
+    try:
+        candidate = (project / rel).resolve()
+    except (OSError, ValueError):
+        return None
+    try:
+        candidate.relative_to(project)
+    except ValueError:
+        return None
+    return candidate
 
 
 # ---- Detectors ----
@@ -113,8 +135,8 @@ def detect_sqlalchemy_columns(files: list[str], project: Path) -> tuple[str | No
 
     results = []
     for rel in matched:
-        path = project / rel
-        if not path.exists():
+        path = _safe_resolve(project, rel)
+        if path is None or not path.exists():
             continue
         try:
             tree = ast.parse(path.read_text())
@@ -154,8 +176,8 @@ def detect_css_classes(files: list[str], project: Path) -> tuple[str | None, str
     pattern = re.compile(r'\.([a-zA-Z_][\w-]*)\s*[,{:]')
     classes: set[str] = set()
     for rel in matched:
-        path = project / rel
-        if not path.exists():
+        path = _safe_resolve(project, rel)
+        if path is None or not path.exists():
             continue
         try:
             text = path.read_text()
@@ -179,8 +201,8 @@ def detect_react_components(files: list[str], project: Path) -> tuple[str | None
     pattern = re.compile(r'export\s+(?:default\s+)?(?:function|const|class)\s+([A-Z]\w+)')
     comps = []
     for rel in matched:
-        path = project / rel
-        if not path.exists():
+        path = _safe_resolve(project, rel)
+        if path is None or not path.exists():
             continue
         try:
             text = path.read_text()

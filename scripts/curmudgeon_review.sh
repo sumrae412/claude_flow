@@ -37,8 +37,7 @@ fi
 # Persona lives in a separate plain-text file so future edits (contractions,
 # quotes, etc.) can't break bash string quoting.
 PROMPT_FILE=$(mktemp -t curmudgeon-prompt.XXXXXX)
-RAW_FILE=$(mktemp -t curmudgeon-raw.XXXXXX)
-trap 'rm -f "$PROMPT_FILE" "$RAW_FILE"' EXIT
+trap 'rm -f "$PROMPT_FILE"' EXIT
 
 {
     cat "$PERSONA_FILE"

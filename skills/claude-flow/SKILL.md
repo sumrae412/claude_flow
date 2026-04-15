@@ -34,6 +34,17 @@ Agentic multi-phase workflow for building features. **Executor/Advisor strategy:
 
 ---
 
+## Flags
+
+Optional flags modify specific phases without changing the path decision.
+
+| Flag | Phase | Effect |
+|------|-------|--------|
+| `--visual` | Phase 4 | Force the Visual Checkpoint step (Step 6): generate `.excalidraw` mockups under `docs/design/<feature>/mockups/`, pause for user edits, fold drift back into `$plan`. Auto-enabled when `$plan` touches frontend files or the task mentions "UI mockup" / "wireframe" / "visual review". |
+| `--no-visual` | Phase 4 | Skip the Visual Checkpoint step even when auto-enable signals fire. The always-emit `architecture.excalidraw` (one-way) still runs. |
+
+---
+
 ## Path Decision (Phase 1 Core Logic)
 
 ```

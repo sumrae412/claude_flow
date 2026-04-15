@@ -113,6 +113,46 @@ Dispatch Opus (`model: "opus"`, `subagent_type: "general-purpose"`) with:
 
 ---
 
+## Step 6: Visual Checkpoint (guarded)
+
+Optional UI-mockup loop that runs after `$plan` is finalized and before the user approval gate. Lets the user edit a concrete drawing rather than a prose description — drift between the edited mockup and `$plan` is then folded back into the plan.
+
+**Guard — run this step only if ALL apply:**
+- One of the following signals is present:
+  - `--visual` flag on the workflow invocation
+  - Task description contains "UI mockup", "visual review", "wireframe", or "mockup"
+  - `$plan` touches frontend files (`*.html`, `*.jsx`, `*.tsx`, `*.vue`, `*.svelte`, template dirs, or CSS files)
+- `$plan` has user-facing UI surface area (new screens, modified layouts, new components)
+
+**Skip branch — exit this step immediately if:**
+- Backend-only feature (no frontend files in `$plan`'s files_to_create / files_to_modify)
+- Task is a refactor, migration, or infra change with no visible UI delta
+- User explicitly set `--no-visual`
+
+### Substeps (when guard passes)
+
+1. **Load skill.** Read `skills/excalidraw-canvas/SKILL.md` — it routes to `references/excalidraw-schema.md` (JSON subset) and `references/mockup-prompts.md` (generation + drift-detection prompts).
+
+2. **Generate mockup(s).** Using the generation prompt from `skills/excalidraw-canvas/references/mockup-prompts.md`, synthesize one `.excalidraw` file per distinct screen or layout in `$plan`. Write them to `docs/design/<feature>/mockups/<screen-name>.excalidraw`. Feature slug comes from the branch name or `$requirements.feature_slug`.
+
+3. **Print open command.** For each generated file, print:
+   ```
+   scripts/open_excalidraw.sh docs/design/<feature>/mockups/<screen-name>.excalidraw
+   ```
+   Show the user the list of files written and remind them VS Code opens in an Excalidraw tab if the extension is installed; otherwise the script falls back to excalidraw.com.
+
+4. **Pause for user edits.** Prompt: "Edit the mockup(s) directly, then reply `continue` when done — or `skip` to proceed without re-reading." Do not touch the files during the pause.
+
+5. **Drift detection.** On `continue`, re-read each edited `.excalidraw` and diff against the generator's original output. Use the drift-detection prompt from `skills/excalidraw-canvas/references/mockup-prompts.md` to convert visual deltas into `$plan` deltas (new components, renamed fields, removed screens, etc.). Apply deltas inline to `$plan` and note them in a "Visual-driven plan changes" callout for the user approval gate. If no drift, note "Mockup approved as-is" and continue.
+
+### Always-emit architecture diagram (runs regardless of guard)
+
+Independent of `--visual` and independent of the guard above: if `$plan` has a `diagrams` or `component_map` section, emit a one-way (no re-read) `docs/design/<feature>/architecture.excalidraw` summarizing modules, data flow, and dependencies. This runs even for backend-only features so the plan has a visual record; it does NOT pause for user edits. Skip only if `$plan` has no diagrams/component_map content to represent.
+
+**Output:** Updated `$plan` (if drift detected), plus `.excalidraw` files under `docs/design/<feature>/`. Do not block the User Approval Gate on mockup perfection — the user sees the revised `$plan` at the next gate and can still reject.
+
+---
+
 ## User Approval Gate
 
 ```

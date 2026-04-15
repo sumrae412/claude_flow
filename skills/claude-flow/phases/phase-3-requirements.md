@@ -26,6 +26,37 @@ Present an organized question list to the user. Group questions by category. Wai
 
 ---
 
+## Step 1.5: Self-Answer Audit (Teach AI to Answer Its Own Questions)
+
+**Before** presenting the question list to the user, run the audit:
+
+```
+echo '["<question 1>", "<question 2>", ...]' | \
+    python skills/claude-flow/scripts/audit_phase3_questions.py --json
+```
+
+For each question flagged `self_answerable: true`:
+- Execute the `suggested_lookup` yourself (grep, ls, `alembic heads`, `inject_lookups.py`, etc.)
+- Record the result as a resolved ambiguity in `$requirements`
+- **Remove the question from the user-facing list**
+
+**Principle** (Brian Lovin, Notion): *"Anytime the AI asks you to do something,
+before responding, try your best to see if you could teach the AI to answer
+that question for itself."*
+
+Only present genuinely ambiguous (user-intent, preference, policy) questions
+to the user. This reduces Phase 3 friction and accelerates the hard gate.
+
+**Signal:** if the audit flags >50% of questions as self-answerable, that's a
+signal Phase 2 exploration was shallow — consider running an additional
+explorer rather than pestering the user.
+
+The audit is conservative: questions containing intent markers ("should", "do
+you want", "how should we handle") are NEVER flagged self-answerable, even if
+they mention files or schemas.
+
+---
+
 ## Step 2: Quality Gate
 
 <SKIP-CONDITION>
@@ -37,7 +68,7 @@ If the Phase 2 advisor already scored all 4 quality axes as PASS (carried forwar
 1. **Objective Clarity** — Deliverable stateable as one-sentence outcome? FAIL: vague, unmeasurable, or activity-not-outcome.
 2. **Service Scope** — Affected files/modules identifiable from exploration? FAIL: no specific locations.
 3. **Testability** — All behaviors expressible as WHEN/THEN? FAIL: "should work well", "be fast", etc.
-4. **Completeness** — All edge cases have resolutions? FAIL: unresolved edges, unspecified error handling.
+4. **Completeness** — All edge cases have resolutions (including those self-answered by the Step 1.5 audit)? FAIL: unresolved edges, unspecified error handling.
 
 **Gate:** All pass → Step 3. Any fail → present failures with questions, loop until all pass.
 

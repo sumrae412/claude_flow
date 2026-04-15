@@ -1,6 +1,6 @@
 ---
 name: lint-memory
-description: Run health checks on project memory files — broken links, orphan memories, stale entries, contradictions
+description: Run health checks on project memory files — broken links, orphan memories, stale entries, contradictions, oversized index lines
 user-invocable: true
 ---
 
@@ -10,7 +10,7 @@ user-invocable: true
 
 Run 4 health checks against a project's memory directory to catch broken references, forgotten files, stale code pointers, and contradictory entries. Use this skill to keep memory clean and trustworthy.
 
-The 4 checks, in order:
+The 5 checks, in order:
 
 | # | Check | Severity | Auto-fixable |
 |---|-------|----------|--------------|
@@ -18,11 +18,12 @@ The 4 checks, in order:
 | 2 | Orphan Memories | warning | yes |
 | 3 | Stale Entries | warning | no (manual review) |
 | 4 | Contradictions | error | no (manual review) |
+| 5 | Index Line Length | warning | yes (via `scripts/slim_memory_index.py`) |
 
 ### When to Use
 
-- Manually via `/lint-memory` — runs all 4 checks
-- Automatically during session-learnings compilation — runs checks 1-2 only (quick lint)
+- Manually via `/lint-memory` — runs all 5 checks
+- Automatically during session-learnings compilation — runs checks 1, 2, 5 only (quick lint)
 - After bulk editing or reorganizing memory files
 - Before committing memory changes to catch issues early
 
@@ -154,6 +155,46 @@ For each contradiction found, report:
 
 This check cannot auto-fix because resolving contradictions requires human judgment about which entry is correct or whether both need updating.
 
+## Check 5 — Index Line Length
+
+**Severity:** warning
+**Auto-fixable:** yes (via `skills/claude-flow/scripts/slim_memory_index.py`)
+
+### Why this exists
+
+`MEMORY.md` is loaded into context at every session start. When index entries balloon into multi-sentence summaries, the file blows past its load limit and gets silently truncated — entries near the bottom never reach the model. Index = pointer; detail belongs in the topic file.
+
+### What to scan
+
+`MEMORY.md` only. Skip topic files, knowledge articles, and runtime state.
+
+### Threshold
+
+Default max index-line length: **250 characters**. Override per project by setting `lint-memory.max_index_line` in `.claude/settings.json`. Keep it under 300.
+
+### What to look for
+
+Any line in `MEMORY.md` longer than the threshold that:
+- Starts with `- ` or `* ` (list item — i.e. an actual index entry)
+- Is not inside a fenced code block
+
+### Auto-fix
+
+The check is auto-fixable via `scripts/slim_memory_index.py <memory_dir> --apply`. The script:
+- Slims each over-long entry to `- [Title](slug.md) — <one-line hook>`
+- Creates the linked topic file when missing, seeded with the entry's full detail
+- Skips appending detail to existing topic files (the canonical file is already authoritative); pass `--append-detail` to override
+
+After auto-fix, re-run `/lint-memory` to confirm all entries are within the threshold.
+
+### Output
+
+For each over-long line, report:
+- Line number in `MEMORY.md`
+- First ~80 chars of the entry (preview)
+- Actual length and excess over threshold
+- Suggested action: "Run `python3 scripts/slim_memory_index.py <memory_dir> --apply` to migrate detail into topic file"
+
 ## Output Format
 
 Produce a markdown report with this structure:
@@ -167,9 +208,10 @@ Produce a markdown report with this structure:
 - [contradiction] Domain "auth": `feedback_jwt_rotation.md` says "rotate every 24h" vs `feedback_token_expiry.md` says "rotate every 7d"
 
 ## Warnings
-<!-- Check 2 (Orphan Memories) and Check 3 (Stale Entries) findings -->
+<!-- Check 2 (Orphan Memories), Check 3 (Stale Entries), Check 5 (Index Line Length) findings -->
 - [orphan] `feedback_api_retry_logic.md` — not referenced anywhere (auto-fixed: added to MEMORY.md)
 - [stale] `reference_db_schema.md`: references `src/models/legacy_user.py` — file not found
+- [oversized-index] `MEMORY.md:64`: 1502 chars (1252 over 250-char limit) — run `scripts/slim_memory_index.py --apply` to migrate
 
 ## Summary
 - Errors: N (M auto-fixed)
@@ -181,11 +223,11 @@ Produce a markdown report with this structure:
 
 ### Full Lint (manual `/lint-memory`)
 
-Run all 4 checks in order. Produce the complete report.
+Run all 5 checks in order. Produce the complete report.
 
 ### Quick Lint (auto during compilation)
 
-Run checks 1-2 only (Broken Links + Orphan Memories). Skip checks 3-4 to keep compilation fast. Produce an abbreviated report with just the Errors and Warnings from those two checks.
+Run checks 1, 2, and 5 (Broken Links + Orphan Memories + Index Line Length). Skip checks 3-4 (codebase grep + LLM judgment) to keep compilation fast. Check 5 is a single-file scan with a numeric threshold — fast enough to run every time. Produce an abbreviated report with Errors and Warnings from those three checks.
 
 ## Important Notes
 

@@ -1,0 +1,43 @@
+%% claude-flow Phase File Lifecycle: load-on-demand + drop-after-completion
+%% Source of truth: SKILL.md "How to Use This Workflow" + progressive-disclosure memory pattern
+%% Load when: explaining token budget behavior or debugging context bloat
+
+flowchart LR
+    subgraph AlwaysResident["Always Resident (~2.6K tokens)"]
+        Router[SKILL.md router<br/>~1.8K]
+        Contracts[contracts/*.schema.md<br/>~800]
+    end
+
+    subgraph LazyPhases["Lazy-Loaded Phase Files"]
+        direction TB
+        P0[phase-0-context.md]
+        P1[phase-1-discovery.md]
+        P2[phase-2-exploration.md]
+        P3[phase-3-requirements.md]
+        P4[phase-4-architecture.md]
+        P4c[phase-4c-verification.md]
+        P4d[phase-4d-skeletons.md]
+        P5[phase-5-implementation.md]
+        P55[phase-5.5-reflection.md]
+        P6[phase-6-quality.md]
+    end
+
+    subgraph LazyRefs["Lazy-Loaded References"]
+        FailTax[failure-taxonomy.md]
+        Diagrams[diagrams/*.mmd]
+        Scripts[scripts/*.py]
+    end
+
+    AlwaysResident -->|1. Read when entering phase| LazyPhases
+    LazyPhases -->|2. Populate contract| Contracts
+    LazyPhases -->|3. Drop after completion| Dropped[[Phase file context released<br/>Contract carries ~1/10 size]]
+    Dropped -->|4. Next phase| LazyPhases
+
+    AlwaysResident -.->|On-demand| LazyRefs
+
+    classDef resident fill:#d5f5e3,stroke:#229954,stroke-width:2px
+    classDef lazy fill:#fdebd0,stroke:#ca6f1e
+    classDef dropped fill:#fadbd8,stroke:#922b21,stroke-dasharray: 5 5
+    class Router,Contracts resident
+    class P0,P1,P2,P3,P4,P4c,P4d,P5,P55,P6,FailTax,Diagrams,Scripts lazy
+    class Dropped dropped

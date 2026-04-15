@@ -215,6 +215,24 @@
       "matcher": ["Bash"],
       "script": "hooks/tier1/metronome.py",
       "description": "Detects shortcut-taking language and blocks Bash to enforce step-by-step execution"
+    },
+    {
+      "id": "quality-gate-on-stop",
+      "tier": 2,
+      "trigger": "Stop",
+      "matcher": null,
+      "script": "hooks/tier2/quality-gate-on-stop.sh",
+      "description": "On Stop, runs the project quality gate (quick_ci.sh, npm test, pytest, cargo check, go build) and blocks turn-end if it fails so Claude can fix in-session. Auto-detects command; graceful no-op if none configured. Opt-in: activates only when a command is resolvable or .claude/quality-gate.json exists.",
+      "stack_tags": ["pytest", "jest", "npm", "cargo", "go", "quick_ci"],
+      "opt_in": true,
+      "config": {
+        "env": {
+          "CLAUDE_QUALITY_GATE_CMD": "Override command (takes precedence over auto-detection)",
+          "CLAUDE_QUALITY_GATE_TIMEOUT": "Seconds before timeout (default 120, does not block on timeout)",
+          "CLAUDE_QUALITY_GATE_DISABLED": "Set to 1 to disable without removing hook registration"
+        },
+        "project_config": ".claude/quality-gate.json with {\"command\": \"...\"}"
+      }
     }
   ]
 }

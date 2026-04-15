@@ -94,6 +94,43 @@ digraph process {
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
+## Pre-Dispatch: Per-Step Lookup Injection
+
+Before dispatching each implementer subagent, run the **step-scope** lookup
+pass to inject file-level facts the implementer needs for THIS task:
+
+```
+python skills/claude-flow/scripts/inject_lookups.py \
+    --scope step \
+    --files <files-this-task-touches> \
+    --json
+```
+
+Prepend the output's `lookups` section to the implementer prompt, in the
+PROJECT CONTEXT area:
+
+```
+STEP-SPECIFIC LOOKUPS (authoritative — use these exact names):
+[sqlalchemy_columns]
+<output>
+
+[css_classes]
+<output>
+
+[react_components]
+<output>
+```
+
+This is **narrower** than the plan-wide lookups injected in Phase 5
+pre-implementation (which cover alembic heads, all existing routes, etc.).
+Step-scope covers facts specific to the files THIS implementer is modifying.
+
+**Why:** prevents hallucinated column names, CSS class names, and component
+imports at authoring time — the implementer sees real names before writing
+any code. Inspired by Brian/Notion's `find-icon` skill.
+
+If `lookups` is empty (all step-scope detectors skipped), omit the section.
+
 ## Direct Execution — When to Skip the Subagent Cycle
 
 For very small, architecturally-unambiguous tasks, the controller executes directly instead of dispatching an implementer + two reviewers. Direct execution is an intentional efficiency move, not a shortcut around review — the controller self-verifies by reading the diff, running the test, and checking scope.

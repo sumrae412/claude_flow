@@ -86,6 +86,40 @@ Plan step touches external API?
   NO  → Skip, proceed to implementation
 ```
 
+### Pre-Implementation: Inject Plan-Wide Lookups
+
+Before dispatching any implementer subagent, run the plan-wide lookup pass.
+This gathers deterministic facts about the repo (current migration heads,
+existing route paths, etc.) and prevents hallucination at authoring time.
+
+Inspired by Brian/Notion's `find-icon` skill — don't let the LLM guess
+when a script can look up the truth.
+
+```
+Collect all file paths from $plan (files to create OR modify across all tasks).
+Run:
+    python skills/claude-flow/scripts/inject_lookups.py \
+        --scope plan \
+        --files <all-plan-files> \
+        --json
+
+Cache the output JSON. Inject its `lookups` section into the
+PROJECT CONTEXT block of every implementer subagent prompt:
+
+    REPO LOOKUPS (verified facts — do not invent alternatives):
+    [alembic_heads]
+    <output>
+
+    [fastapi_routes]
+    <output>
+```
+
+If `lookups` is empty (all detectors skipped for this project), omit the
+section from subagent prompts. Large `skipped_detectors` lists are fine —
+most projects won't match all detectors.
+
+See `skills/claude-flow/references/lookup-detectors.md` for the registry.
+
 ### Create TodoWrite Items
 
 Break the plan into individual TodoWrite items. Mark each complete as you finish it.
@@ -229,6 +263,46 @@ For each plan step:
     Why separate from step 3b: 3b catches regressions the FIX itself
     introduced. 3c catches tests that wouldn't catch regressions
     introduced by FUTURE changes. Different failure modes.
+
+3d. VISUAL VERIFICATION — UI layout drift check
+    After tests + mutation gate pass, if the task touched UI files AND a
+    Phase 4 mockup exists, verify the rendered UI matches the mockup.
+    Catches a class of bugs the test suite misses — broken images,
+    elements drifted from mockup position, structural layout regressions.
+
+    Inspired by Brian/Notion's /figma verification loop: AI-built UI
+    should be verified against the approved visual artifact, not just
+    against passing unit tests.
+
+    Trigger conditions (all must be true — otherwise skip):
+    - Task modified files matching: *.tsx, *.jsx, *.vue, *.svelte, *.html,
+      *.css, *.scss, app/templates/*, views/*, pages/*
+    - A dev server is running and reachable on a known URL (from plan
+      or from .claude/launch.json)
+    - docs/design/<feature>/mockups/*.excalidraw exists from Phase 4
+
+    Run:
+    ```
+    python skills/claude-flow/scripts/visual_verify.py \
+        --url <dev-server-url> \
+        --mockup docs/design/<feature>/mockups/<mockup>.excalidraw \
+        --threshold 0.15 \
+        --json
+    ```
+
+    Gate rule:
+    - skipped=True → SKIP, proceed to step 4 (Playwright not installed,
+      mockup missing, URL unreachable — all graceful, do not block)
+    - findings=[] → PASS, proceed to step 4
+    - findings with severity=high → FAIL, fix before step 4
+    - findings with severity=medium only → WARN, user confirms before step 4
+
+    Max 2 visual-fix cycles → escalate to user.
+    Emit failure event with tag: visual-verify-drift.
+
+    Dependency: install Playwright to enable this gate:
+        pip install playwright && playwright install chromium
+    Without Playwright the gate is a graceful no-op (skip envelope).
 
 4. Run static analysis on changed files (catch issues early):
    semgrep --config=.semgrep.yml <changed-files>

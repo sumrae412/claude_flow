@@ -264,6 +264,17 @@ def verify_manifest(manifest: dict, root: Path, render_fn, threshold: float = 0.
     """
     findings: list[dict] = []
     base_url = manifest.get("base_url", "").rstrip("/")
+    if not base_url:
+        # Without base_url, every URL ends up as e.g. "/signup" which Playwright
+        # rejects with a confusing protocol error. Fail fast with a clear message.
+        findings.append({
+            "severity": "high",
+            "message": "Manifest missing required 'base_url' field — cannot construct URLs for rendering",
+            "bbox": None,
+            "screen": None,
+            "state": None,
+        })
+        return findings
     for screen in manifest.get("screens", []):
         screen_name = screen.get("name", "?")
         path = screen.get("path", "")
@@ -358,8 +369,10 @@ def main():
             print(json.dumps(skip(reason)))
             return 0
 
-        # Repo root = parent of the manifest's closest `docs/` ancestor, or cwd.
-        # Mockup paths in the manifest are repo-root-relative.
+        # Mockup paths in the manifest are resolved relative to the current
+        # working directory (which is expected to be the repo root when run
+        # from Phase 5). This matches how visual_verify is invoked from the
+        # phase doc.
         root = Path.cwd()
         findings = verify_manifest(manifest, root=root, render_fn=render_and_extract,
                                    threshold=args.threshold, max_wait=args.max_wait)

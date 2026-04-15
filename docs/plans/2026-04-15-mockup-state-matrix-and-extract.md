@@ -26,7 +26,7 @@ Two related improvements to `excalidraw-canvas` + `visual-verify`:
 - files: `skills/excalidraw-canvas/references/mockup-prompts.md`
 - depends_on: none
 - test_requirements: none (docs change)
-- Update the "Generate Initial Mockup" prompt to require one `.excalidraw` file per (screen, state) tuple, using path convention `docs/design/<feature>/mockups/<screen-slug>__<state>.excalidraw`. Default state set: `default`, `loading`, `error`, `empty`. Add per-state scripting hints (state-trigger scripts).
+- Update the "Generate Initial Mockup" prompt to require one `.excalidraw` file per (screen, state) tuple, using path convention `docs/design/<feature>/mockups/<screen-slug>__<state>.excalidraw`. Default state set: `default`, `loading`, `error`, `empty`, `success`. Add per-state scripting hints (state-trigger scripts).
 
 #### Step 2 — Add mockup-manifest.schema.md contract
 - type: `shared_prerequisite`

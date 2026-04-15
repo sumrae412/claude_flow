@@ -37,9 +37,9 @@ If a state doesn't apply (e.g., a static marketing page has no `loading`), omit 
 4. For each element, pick the closest shape from the supported subset (rectangle, ellipse, text, arrow, line). Button = filled rectangle + text. Input = outlined rectangle + placeholder text. Section header = text. Error banner = outlined rectangle + red-tinted text. Spinner = ellipse with a text label like "loading…".
 5. Write the file using the Write tool. Validate against the checklist in `references/excalidraw-schema.md`.
 
-**After all state mockups for a screen are written:**
+**After all state mockups for every screen in the feature are written:**
 
-6. Emit `docs/design/<feature>/mockup-manifest.json` — a single manifest per feature covering every screen × state combination. Follow the schema in `skills/claude-flow/contracts/mockup-manifest.schema.md`. This is the artifact Phase 5 `visual-verify` iterates over.
+6. Emit `docs/design/<feature>/mockup-manifest.json` — a single manifest per feature covering every screen × state combination. Follow the schema in `skills/claude-flow/contracts/mockup-manifest.schema.md`. Emit this once, after the final screen's last state is written — not after each screen. This is the artifact Phase 5 `visual-verify` iterates over.
 
 7. If the plan has a `diagrams` section (architecture one-way case), produce one `docs/design/<feature>/architecture.excalidraw` using rectangle/ellipse nodes and arrows, no mockup group conventions. Architecture diagrams are single-state — no matrix needed.
 

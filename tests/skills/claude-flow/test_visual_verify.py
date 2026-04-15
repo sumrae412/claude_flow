@@ -224,7 +224,7 @@ def test_manifest_iterates_all_states():
     assert error_call["wait_for_selector"] == ".error"
     # loading state carries trigger_script
     loading_call = next(c for c in calls if "loading" in c["url"])
-    assert loading_call["trigger_script"] == "document.querySelector('form').submit()"
+    assert loading_call["trigger_script"] == "document.querySelector('form')?.submit()"
 
 
 def test_manifest_any_state_mismatch_blocks_gate():
@@ -279,3 +279,22 @@ def test_single_mockup_mode_still_works():
 
 def _stub_renderer_empty(url, max_wait, wait_for_selector=None, trigger_script=None):
     return {"boxes": [], "viewport": {"width": 800, "height": 600}, "broken_images": []}, ""
+
+
+def test_manifest_missing_base_url_is_high_severity_finding():
+    """Manifest without base_url would produce confusing playwright errors.
+    Fail fast with a clear finding instead."""
+    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    import visual_verify
+
+    manifest = {
+        "feature_slug": "broken",
+        "screens": [{"name": "signup", "path": "/signup", "states": [
+            {"name": "default", "mockup_file": "tests/fixtures/visual_verify/sample.excalidraw",
+             "url_suffix": "", "trigger_script": None, "wait_for_selector": None}
+        ]}],
+    }
+    findings = visual_verify.verify_manifest(manifest, root=ROOT, render_fn=_stub_renderer_empty)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "high"
+    assert "base_url" in findings[0]["message"]

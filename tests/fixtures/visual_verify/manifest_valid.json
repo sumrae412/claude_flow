@@ -24,7 +24,7 @@
           "name": "loading",
           "mockup_file": "tests/fixtures/visual_verify/sample.excalidraw",
           "url_suffix": "?simulate=loading",
-          "trigger_script": "document.querySelector('form').submit()",
+          "trigger_script": "document.querySelector('form')?.submit()",
           "wait_for_selector": null
         }
       ]

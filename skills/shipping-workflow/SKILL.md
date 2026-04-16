@@ -18,7 +18,7 @@ Automated ship-and-review pipeline: commit → push → PR → 10-step review �
 Before starting:
 
 1. **Tests pass** — Run project CI (e.g. `./scripts/quick_ci.sh`). If it fails, stop and fix first.
-2. **Feature branch** — If on `main`, create a branch: `git checkout -b fix/name` or `feat/name`.
+2. **Feature branch** — If on `main`, create a branch: `git checkout -b fix/name` or `feat/name`. **Personal-tooling exception:** For solo-authored workflow-tooling repos (claude_flow, dotfiles, personal skills), direct-push-to-main is authorized when the user confirms via AskUserQuestion at ship time. Ask once per session — do not infer from prior sessions. Does NOT apply to product/collaborative repos (courierflow). See `memory/direct_push_main_personal_repo.md`.
 3. **GitHub CLI** — `gh` installed and authenticated.
 4. **CodeRabbit CLI** (optional) — `coderabbit --version`. Install: `curl -fsSL https://cli.coderabbit.ai/install.sh | sh`.
 

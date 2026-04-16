@@ -332,6 +332,10 @@ For each approved skill/CLAUDE.md proposal:
 **MEMORY.md is auto-applied** by the background agent (no approval needed — it's the agent's own learnings repo).
 **Skills and CLAUDE.md require approval.** The background agent proposes; the user decides.
 
+## Gotchas
+
+**`projects/` gitignore + new memory files:** Memory files under `~/.claude/projects/<slug>/memory/` are covered by `projects/` in `~/.claude/.gitignore`. New memory entries must be added with `git add -f`. Bare `git add .` from the memory dir fails silently with "paths ignored" and does NOT stage the new file. Pre-existing tracked memory files update normally; only NEW files hit the ignore gate. The background agent must use `git add -f <file>` when creating new topic-slug memory files.
+
 ## Red Flags
 
 | Thought | Reality |

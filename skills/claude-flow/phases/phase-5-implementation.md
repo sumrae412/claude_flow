@@ -2,6 +2,7 @@
 
 <!-- Loaded: after Phase 4d (or Phase 4 for lite) | Dropped: after tests+lint pass -->
 <!-- Output: $diff contract -->
+<!-- Implementation detail for mutation gate, visual verify, authoring-time lookups, and cross-model retry has moved to memory/ entries (mutation_gate_component, visual_verify_gate, authoring_time_lookups, cross_model_retry_ladder). This file orchestrates; it no longer documents internals. See memory/phase5_inline_to_references.md. -->
 
 ---
 

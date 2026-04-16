@@ -1,0 +1,10 @@
+diff --git a/app/services/uploads.py b/app/services/uploads.py
+index 3333ccc..4444ddd 100644
+--- a/app/services/uploads.py
++++ b/app/services/uploads.py
+@@ -1,3 +1,6 @@
++def save_upload(filename: str, contents: bytes) -> str:
++    path = UPLOAD_DIR / filename
++    with open(path, "wb") as f:
++        f.write(contents)
++    return str(path)

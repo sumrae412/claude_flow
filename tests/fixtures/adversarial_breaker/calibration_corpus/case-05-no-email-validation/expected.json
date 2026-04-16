@@ -1,0 +1,14 @@
+{
+  "case_id": "case-05-no-email-validation",
+  "primary_criterion": "input_validation",
+  "planted_bug": "Subscription accepts any string as email \u2014 no format check, no length cap, no null/empty handling.",
+  "expected_scores": {
+    "input_validation": 3,
+    "error_handling": 5,
+    "concurrency_safety": 7,
+    "data_consistency": 6,
+    "failure_modes": 5,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "send_confirmation_email may crash on malformed email later, but local DB write succeeds with garbage. failure_modes mid because the downstream email send is unhandled."
+}

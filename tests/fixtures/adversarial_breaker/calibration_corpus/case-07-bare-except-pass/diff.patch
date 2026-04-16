@@ -1,0 +1,10 @@
+diff --git a/app/services/crm_sync.py b/app/services/crm_sync.py
+index 4444444..5555555 100644
+--- a/app/services/crm_sync.py
++++ b/app/services/crm_sync.py
+@@ -1,3 +1,6 @@
++def sync_user_to_crm(user):
++    try:
++        crm_client.upsert(user.dict())
++    except:
++        pass  # Silently swallow ALL errors

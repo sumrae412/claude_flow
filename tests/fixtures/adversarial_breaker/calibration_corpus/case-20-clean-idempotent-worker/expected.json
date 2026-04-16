@@ -1,0 +1,14 @@
+{
+  "case_id": "case-20-clean-idempotent-worker",
+  "primary_criterion": null,
+  "planted_bug": "None \u2014 idempotent webhook processor with claim-then-process, rollback on error, and outcome persistence.",
+  "expected_scores": {
+    "input_validation": 7,
+    "error_handling": 8,
+    "concurrency_safety": 9,
+    "data_consistency": 9,
+    "failure_modes": 8,
+    "test_coverage_gaps": 7
+  },
+  "rationale": "INSERT...ON CONFLICT DO NOTHING claim mechanism handles duplicate webhook delivery atomically. Rollback + status persistence on failure. input_validation mid because payload shape isn't validated up front."
+}

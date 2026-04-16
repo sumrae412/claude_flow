@@ -1,0 +1,14 @@
+{
+  "case_id": "case-10-two-table-no-transaction",
+  "primary_criterion": "data_consistency",
+  "planted_bug": "archive_user does two commits in sequence \u2014 if the second fails, user is half-archived (flag set, sessions still live).",
+  "expected_scores": {
+    "input_validation": 7,
+    "error_handling": 3,
+    "concurrency_safety": 6,
+    "data_consistency": 2,
+    "failure_modes": 4,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Two-commit anti-pattern. Should be one transaction. error_handling low because no rollback if delete fails."
+}

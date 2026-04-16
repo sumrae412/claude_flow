@@ -1,0 +1,14 @@
+{
+  "case_id": "case-03-double-submit-checkout",
+  "primary_criterion": "concurrency_safety",
+  "planted_bug": "POST /checkout has no idempotency key \u2014 double-click charges the card twice before cart.status flips to completed.",
+  "expected_scores": {
+    "input_validation": 6,
+    "error_handling": 3,
+    "concurrency_safety": 2,
+    "data_consistency": 3,
+    "failure_modes": 3,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Classic charge-before-mark-complete window. charge_card error not handled either, so a partial failure leaves cart in limbo."
+}

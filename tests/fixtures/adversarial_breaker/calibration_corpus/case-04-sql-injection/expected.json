@@ -1,0 +1,14 @@
+{
+  "case_id": "case-04-sql-injection",
+  "primary_criterion": "input_validation",
+  "planted_bug": "f-string interpolation of user_query directly into SQL \u2014 trivial injection (' OR 1=1 --).",
+  "expected_scores": {
+    "input_validation": 1,
+    "error_handling": 5,
+    "concurrency_safety": 7,
+    "data_consistency": 5,
+    "failure_modes": 5,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Textbook SQL injection. Everything else is fine because the code is so trivially broken on the input vector that adjacent criteria barely come into play."
+}

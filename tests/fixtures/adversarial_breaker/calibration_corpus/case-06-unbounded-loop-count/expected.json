@@ -1,0 +1,14 @@
+{
+  "case_id": "case-06-unbounded-loop-count",
+  "primary_criterion": "input_validation",
+  "planted_bug": "User-controlled count in bulk_create_invites \u2014 count=1_000_000 DoSes the DB.",
+  "expected_scores": {
+    "input_validation": 2,
+    "error_handling": 4,
+    "concurrency_safety": 6,
+    "data_consistency": 5,
+    "failure_modes": 4,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "No upper bound on count. failure_modes also low because db OOM is the realistic outcome of the validation gap."
+}

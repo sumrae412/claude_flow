@@ -1,0 +1,14 @@
+{
+  "case_id": "case-14-disk-full-no-handling",
+  "primary_criterion": "failure_modes",
+  "planted_bug": "save_upload writes a file with no disk-full handling, no filename sanitization (path traversal!), and a partial-write leak on failure.",
+  "expected_scores": {
+    "input_validation": 3,
+    "error_handling": 4,
+    "concurrency_safety": 6,
+    "data_consistency": 5,
+    "failure_modes": 3,
+    "test_coverage_gaps": 6
+  },
+  "rationale": "filename='../../../etc/passwd' lands the write outside UPLOAD_DIR. Disk-full leaves a zero-byte file behind. Both failure modes are realistic."
+}

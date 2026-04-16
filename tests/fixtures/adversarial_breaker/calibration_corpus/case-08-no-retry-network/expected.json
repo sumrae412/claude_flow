@@ -1,0 +1,14 @@
+{
+  "case_id": "case-08-no-retry-network",
+  "primary_criterion": "error_handling",
+  "planted_bug": "External weather API call has no retry, no fallback \u2014 single transient failure propagates as 500 to the caller.",
+  "expected_scores": {
+    "input_validation": 6,
+    "error_handling": 4,
+    "concurrency_safety": 8,
+    "data_consistency": 7,
+    "failure_modes": 3,
+    "test_coverage_gaps": 6
+  },
+  "rationale": "raise_for_status() at least surfaces failure, but no retry on transient errors. failure_modes especially weak since weather API outages are common."
+}

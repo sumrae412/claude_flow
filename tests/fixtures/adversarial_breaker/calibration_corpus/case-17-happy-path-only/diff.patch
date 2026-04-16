@@ -1,0 +1,10 @@
+diff --git a/tests/test_user_signup.py b/tests/test_user_signup.py
+index 9999ccc..aaaaddd 100644
+--- a/tests/test_user_signup.py
++++ b/tests/test_user_signup.py
+@@ -1,3 +1,8 @@
++def test_signup_creates_user(client, db):
++    response = client.post("/signup", json={"email": "alice@example.com", "password": "hunter2"})
++    assert response.status_code == 200
++    user = db.query(User).filter_by(email="alice@example.com").first()
++    assert user is not None

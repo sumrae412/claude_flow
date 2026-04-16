@@ -1,0 +1,12 @@
+diff --git a/app/routes/checkout.py b/app/routes/checkout.py
+index ccccccc..ddddddd 100644
+--- a/app/routes/checkout.py
++++ b/app/routes/checkout.py
+@@ -10,3 +10,9 @@
++@app.post("/checkout")
++def checkout(cart_id: str, user_id: int):
++    cart = db.query(Cart).get(cart_id)
++    charge_card(user_id, cart.total)
++    cart.status = "completed"
++    db.commit()
++    return {"ok": True}

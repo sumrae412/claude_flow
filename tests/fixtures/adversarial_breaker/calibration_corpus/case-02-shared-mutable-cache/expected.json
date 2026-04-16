@@ -1,0 +1,14 @@
+{
+  "case_id": "case-02-shared-mutable-cache",
+  "primary_criterion": "concurrency_safety",
+  "planted_bug": "Unlocked module-level dict mutated by multiple threads \u2014 last writer wins, value silently wrong under load.",
+  "expected_scores": {
+    "input_validation": 7,
+    "error_handling": 6,
+    "concurrency_safety": 3,
+    "data_consistency": 4,
+    "failure_modes": 6,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Module-level _cache shared across threads with no lock. expensive_compute may also have side effects, compounding the data-consistency hazard."
+}

@@ -1,0 +1,14 @@
+{
+  "case_id": "case-15-retry-exhaustion-silent",
+  "primary_criterion": "failure_modes",
+  "planted_bug": "send_sms retries 3 times then returns None silently \u2014 caller treats the falsy return as success.",
+  "expected_scores": {
+    "input_validation": 7,
+    "error_handling": 3,
+    "concurrency_safety": 7,
+    "data_consistency": 6,
+    "failure_modes": 3,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Retry logic is good intent but the post-exhaustion path is a silent swallow. data_consistency mid because callers may have marked the message 'sent' in the DB."
+}

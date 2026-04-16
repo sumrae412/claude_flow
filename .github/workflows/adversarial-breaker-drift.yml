@@ -1,0 +1,185 @@
+# Weekly drift detection for the adversarial-breaker reviewer.
+#
+# Runs the live LLM dispatch against the planted-bug fixture once a week and
+# compares the response against the cached recording. Two outcomes:
+#
+#   1. Test PASSED but recording changed (model output drifted but still hits
+#      the contract bounds): open a PR refreshing recorded_response.json so a
+#      human can review the score deltas before merge.
+#
+#   2. Test FAILED (model no longer catches the planted bug): open an issue
+#      with severity drift-detection-failure and the full pytest output. Do
+#      NOT auto-PR a broken recording — a capability regression deserves
+#      eyeballs, not silent overwrite.
+#
+# Advisory only. Not wired into branch protection. Estimated cost: ~$0.01/run
+# (one Sonnet call, ~2000 max_tokens) plus ~3 minutes of GitHub Actions time.
+#
+# Cron is set to Sunday 03:17 UTC — off-peak and off-the-minute to dodge the
+# every-cron-fires-at-:00 stampede. workflow_dispatch is included so a human
+# can trigger drift detection on demand (e.g. after a model alias bump).
+
+name: Adversarial Breaker Drift Detection
+
+on:
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write       # for the create-pull-request action
+  pull-requests: write  # for opening drift-refresh PRs
+  issues: write         # for opening capability-regression issues
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout claude_flow
+        uses: actions/checkout@v4
+
+      # The persona file lives in claude-skills (post-aed5f39 single-source
+      # layout). The live test resolves it via ~/.claude/skills, so we clone
+      # claude-skills and symlink ~/.claude/skills to it. CI is ephemeral, so
+      # creating ~/.claude is safe.
+      - name: Checkout claude-skills (for persona file)
+        uses: actions/checkout@v4
+        with:
+          repository: sumrae412/claude-skills
+          path: claude-skills
+          # Default branch is fine; persona changes that matter would have
+          # already been merged before this workflow runs.
+
+      - name: Symlink claude-skills into ~/.claude/skills
+        run: |
+          mkdir -p "$HOME/.claude"
+          ln -sfn "$GITHUB_WORKSPACE/claude-skills" "$HOME/.claude/skills"
+          # Sanity check — fail loudly if the persona resolves to nothing.
+          test -f "$HOME/.claude/skills/claude-flow/scripts/adversarial_breaker_persona.txt"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest anthropic
+
+      - name: Snapshot recording before dispatch
+        id: before
+        run: |
+          cp tests/fixtures/adversarial_breaker/recorded_response.json /tmp/recorded_before.json
+
+      - name: Dispatch live adversarial-breaker
+        id: dispatch
+        env:
+          RUN_LIVE_LLM: "1"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +e
+          pytest tests/test_adversarial_breaker_live.py -v 2>&1 | tee /tmp/pytest_output.log
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          # Always continue so the next steps can branch on the result.
+          exit 0
+
+      - name: Diff recording against snapshot
+        id: diff
+        run: |
+          if diff -q /tmp/recorded_before.json tests/fixtures/adversarial_breaker/recorded_response.json > /dev/null; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            diff -u /tmp/recorded_before.json tests/fixtures/adversarial_breaker/recorded_response.json > /tmp/recording_diff.txt || true
+          fi
+
+      # Branch A: test failed → capability regression. Open an issue, do NOT
+      # PR a partial overwrite of the recording.
+      - name: Open capability-regression issue
+        if: steps.dispatch.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          today=$(date -u +%Y-%m-%d)
+          # gh CLI is preinstalled on ubuntu-latest runners.
+          {
+            echo "Weekly drift detection for the adversarial-breaker reviewer FAILED on ${today}."
+            echo
+            echo "The live dispatch no longer satisfies the contract bounds in"
+            echo "\`tests/fixtures/adversarial_breaker/expected_scores.json\`. This usually means one of:"
+            echo
+            echo "1. The model behind the \`sonnet\` alias changed and the new model scores differently."
+            echo "2. The persona file in \`claude-skills/claude-flow/scripts/adversarial_breaker_persona.txt\` was edited and changed behavior."
+            echo "3. A genuine capability regression in the model."
+            echo
+            echo "**Do not blindly refresh \`recorded_response.json\`.** Investigate first."
+            echo
+            echo "## Pytest output"
+            echo
+            echo '```'
+            cat /tmp/pytest_output.log
+            echo '```'
+          } > /tmp/issue_body.md
+
+          gh issue create \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Adversarial breaker drift detection failed (${today})" \
+            --label "drift-detection-failure" \
+            --body-file /tmp/issue_body.md
+
+      # Branch B: test passed AND recording changed → drift refresh PR.
+      - name: Compose drift-refresh PR body
+        if: steps.dispatch.outputs.exit_code == '0' && steps.diff.outputs.changed == 'true'
+        run: |
+          {
+            echo "## What changed"
+            echo
+            echo "The weekly drift-detection workflow ran the live adversarial-breaker"
+            echo "dispatch and the response differs from the cached recording. The test"
+            echo "still passes — contract bounds in \`expected_scores.json\` are"
+            echo "satisfied — so this is drift, not a capability regression."
+            echo
+            echo "## What to check before merging"
+            echo
+            echo "- Score deltas: are they reasonable model variance, or has the"
+            echo "  reviewer gotten harsher / more lenient on a specific criterion?"
+            echo "- \`_meta.model\`: did the model alias resolve to a new version?"
+            echo "- Any criterion now scoring near the \`score_threshold\` (7)"
+            echo "  boundary deserves a second look."
+            echo
+            echo "## Diff"
+            echo
+            echo '```diff'
+            cat /tmp/recording_diff.txt
+            echo '```'
+            echo
+            echo "---"
+            echo
+            echo "Opened by \`.github/workflows/adversarial-breaker-drift.yml\`."
+            echo "Drift detection is advisory; this PR is not auto-merged."
+          } > /tmp/pr_body.md
+
+      - name: Open drift-refresh PR
+        if: steps.dispatch.outputs.exit_code == '0' && steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/adversarial-drift-refresh
+          delete-branch: true
+          commit-message: |
+            chore(adversarial): refresh recorded_response.json (drift detected)
+
+            Weekly drift-detection workflow saw the live dispatch produce a
+            response that differs from the cached recording but still satisfies
+            the contract bounds. Refreshing the cache so the replay test stays
+            aligned with current model behavior.
+          title: "chore(adversarial): refresh recorded_response.json (drift detected)"
+          body-path: /tmp/pr_body.md
+
+      # Branch C: test passed AND recording unchanged → no-op. The workflow
+      # finishes silently. No PR, no issue.
+      - name: No-op summary
+        if: steps.dispatch.outputs.exit_code == '0' && steps.diff.outputs.changed == 'false'
+        run: |
+          echo "Drift detection passed. Recording unchanged. No action taken."

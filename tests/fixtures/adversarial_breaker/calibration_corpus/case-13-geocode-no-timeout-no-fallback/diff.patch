@@ -1,0 +1,9 @@
+diff --git a/app/services/geocode.py b/app/services/geocode.py
+index 1111aaa..2222bbb 100644
+--- a/app/services/geocode.py
++++ b/app/services/geocode.py
+@@ -1,3 +1,5 @@
++def get_geocode(address: str) -> tuple[float, float]:
++    resp = requests.get(GOOGLE_GEOCODE_URL, params={"address": address})
++    data = resp.json()
++    return (data["lat"], data["lng"])

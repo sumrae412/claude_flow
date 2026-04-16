@@ -74,6 +74,33 @@
       "description": "Non-Anthropic second opinion — code smells, wrong abstractions, lazy tests"
     },
     {
+      "id": "adversarial-breaker",
+      "tier": "always",
+      "cascade_tier": 2,
+      "subagent_type": "general-purpose",
+      "model": "sonnet",
+      "description": "Adversarial evaluator — scores diff 1-10 on 6 break-criteria. Sub-threshold scores become blocking findings that feed Phase 5 retries.",
+      "persona_file": "claude-flow/scripts/adversarial_breaker_persona.txt",
+      "persona_file_root": "~/.claude/skills",
+      "score_threshold": 7,
+      "scored_criteria": [
+        "input_validation",
+        "error_handling",
+        "concurrency_safety",
+        "data_consistency",
+        "failure_modes",
+        "test_coverage_gaps"
+      ],
+      "calibration": {
+        "verdict_type": "scored",
+        "min_agreement": 0.7,
+        "sample_size": 20,
+        "last_calibrated": null,
+        "last_agreement": null,
+        "note": "Scored reviewer — agreement = (|judge_score - human_score| <= 2) / n"
+      }
+    },
+    {
       "id": "migration-reviewer",
       "tier": "conditional",
       "cascade_tier": 3,

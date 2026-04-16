@@ -147,6 +147,67 @@ For each plan step:
     (after the task is marked complete). Step 3b catches within-FIX
     regressions before you move on — cheaper to fix in place.
 
+3e. CONTEXT EXTRACTION — capture reusable domain facts
+    After tests pass and the guard clears, before static analysis,
+    extract reusable domain facts discovered during this task. Runs INLINE
+    (Sonnet executor, no subagent spawn) so facts are available immediately
+    for the next task and survive context compaction.
+
+    Run this extraction prompt against the just-completed task:
+
+    ```
+    Review the task you just completed. Extract reusable domain facts in
+    these categories:
+
+    1. SCHEMA: Column names, table relationships, enum values discovered
+    2. API: Endpoint signatures, response shapes, error codes encountered
+    3. PATTERN: Code patterns that worked (import paths, service method
+       signatures, conventions)
+    4. GOTCHA: Anything that failed first and required a different approach
+
+    Output as structured YAML matching the $diff.context_facts schema.
+    Max 10 facts per task. Only NOVEL discoveries — skip facts already
+    in $plan, $requirements, or earlier $diff.context_facts entries.
+    ```
+
+    Append the YAML output to $diff.context_facts under a new entry keyed
+    by the current task identifier:
+
+    ```yaml
+    context_facts:
+      - task: "<task-id-from-plan>"
+        facts:
+          - type: SCHEMA
+            fact: "HouseholdMember.is_primary_contact (not is_primary)"
+          - type: PATTERN
+            fact: "household_service.ensure_client_for_member() required after create"
+          - type: GOTCHA
+            fact: "scalar_one_or_none() crashes on email lookup — use scalars().first()"
+    ```
+
+    Skip conditions (no facts to extract; do not block):
+    - Task changed zero test files (documentation-only / config-only task)
+    - Task is a pure refactor with no new domain knowledge
+    - Extraction returned an empty array (no novel facts)
+
+    Performance budget:
+    - ~200 tokens in, ~100 tokens out per task
+    - Estimated overhead: 5-10 seconds per task (no subagent spawn)
+    - Hard cap: skip if extraction takes >30 seconds (log and continue)
+
+    Consumption points (no action needed here — downstream consumers handle):
+    - Next-task executor injects facts as "known context" in the task prompt
+      (see "Parallel Subagent Dispatch" section below)
+    - Phase 6 reviewers receive facts via $diff contract
+    - Session-learnings dedupes against context_facts before promoting to MEMORY.md
+    - GOTCHA-tagged facts are candidates for memory-injection promotion
+
+    Why separate from session-learnings: session-learnings runs at end of
+    workflow (or end of session) — facts captured there are lost across
+    context compaction and unavailable to subsequent in-workflow tasks.
+    Step 3e captures facts WHILE they are fresh and propagates them
+    forward.
+
 4. Run static analysis on changed files (catch issues early):
    semgrep --config=.semgrep.yml <changed-files>
    ast-grep scan <changed-directory>

@@ -213,3 +213,6 @@ memory/skill-backups/
 .claude/workflow-state.json
 .claude/workflow-state.tmp
 .claude/workflow-state.archived.json
+
+# Git worktrees (isolated dev workspaces)
+.worktrees/

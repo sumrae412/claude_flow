@@ -1,0 +1,21 @@
+diff --git a/app/services/booking_service.py b/app/services/booking_service.py
+index 1111111..2222222 100644
+--- a/app/services/booking_service.py
++++ b/app/services/booking_service.py
+@@ -12,8 +12,16 @@ def reserve_slot(db, user_id: int, slot_id: int) -> Booking:
+-    existing = db.query(Booking).filter_by(slot_id=slot_id).first()
+-    if existing:
+-        raise SlotTaken(slot_id)
+-    booking = Booking(user_id=user_id, slot_id=slot_id)
+-    db.add(booking)
+-    db.commit()
+-    return booking
++    # TOCTOU: check-then-insert without row lock or unique constraint.
++    # Two concurrent callers both see no existing booking, both insert.
++    existing = db.query(Booking).filter_by(slot_id=slot_id).first()
++    if existing:
++        raise SlotTaken(slot_id)
++    booking = Booking(user_id=user_id, slot_id=slot_id)
++    db.add(booking)
++    db.commit()
++    return booking

@@ -1,0 +1,78 @@
+{
+  "reviewer": "adversarial-breaker",
+  "scores": [
+    {
+      "criterion": "input_validation",
+      "score": 3,
+      "break_case": "user_id=-1 or slot_id=999999999 (non-existent) passes validation, creates orphaned booking referencing invalid FK, later queries crash on JOIN or cascade delete fails silently"
+    },
+    {
+      "criterion": "error_handling",
+      "score": 2,
+      "break_case": "db.commit() raises IntegrityError (FK violation or disk full) after db.add(), leaves session dirty with uncommitted booking object, next caller reuses session and commits phantom booking"
+    },
+    {
+      "criterion": "concurrency_safety",
+      "score": 1,
+      "break_case": "Two requests reserve_slot(user_id=10, slot_id=5) and reserve_slot(user_id=20, slot_id=5) execute line 17 simultaneously, both see existing=None, both insert, both commit, double-booking persists"
+    },
+    {
+      "criterion": "data_consistency",
+      "score": 2,
+      "break_case": "Slot's available_count not decremented atomically with booking insert; booking created but slot shows available=True forever, or slot marked unavailable but booking rollback leaves slot locked"
+    },
+    {
+      "criterion": "failure_modes",
+      "score": 3,
+      "break_case": "Database connection drops between db.add() and db.commit(), transaction auto-rollbacks, function returns None (no return on exception path), caller treats None as success and sends confirmation email"
+    },
+    {
+      "criterion": "test_coverage_gaps",
+      "score": 4,
+      "break_case": "Test mocks db.query().filter_by().first() to return None, never actually exercises real DB unique constraint or transaction isolation, hides that production DB has READ COMMITTED allowing phantom reads"
+    }
+  ],
+  "findings": [
+    {
+      "severity": "critical",
+      "file": "app/services/booking_service.py",
+      "line": 17,
+      "message": "TOCTOU race: two threads both read existing=None, both insert duplicate booking for same slot_id. Comment acknowledges bug but code unchanged.",
+      "fix": "Add db-level UNIQUE constraint on slot_id, wrap in try/except IntegrityError to raise SlotTaken, OR use SELECT FOR UPDATE: db.query(Booking).filter_by(slot_id=slot_id).with_for_update().first()"
+    },
+    {
+      "severity": "high",
+      "file": "app/services/booking_service.py",
+      "line": 20,
+      "message": "No validation of user_id or slot_id existence; foreign key violations deferred to commit() which may raise unhandled IntegrityError or silently create orphans if FK not enforced.",
+      "fix": "Preemptively query db.query(User).get(user_id) and db.query(Slot).get(slot_id), raise NotFound if None, before creating Booking instance."
+    },
+    {
+      "severity": "high",
+      "file": "app/services/booking_service.py",
+      "line": 22,
+      "message": "No rollback on commit() failure; if commit() raises, session left in inconsistent state, subsequent operations on same session may commit this aborted booking accidentally.",
+      "fix": "Wrap db.commit() in try/except, call db.rollback() in except block, then re-raise. Or use context manager: with db.begin_nested()."
+    },
+    {
+      "severity": "medium",
+      "file": "app/services/booking_service.py",
+      "line": 21,
+      "message": "Booking creation does not atomically decrement slot.available_count or set slot.is_available=False, allowing slot state divergence from booking state.",
+      "fix": "In same transaction, UPDATE slots SET available_count = available_count - 1 WHERE id = slot_id AND available_count > 0, check rowcount=1, rollback if 0."
+    },
+    {
+      "severity": "medium",
+      "file": "app/services/booking_service.py",
+      "line": 12,
+      "message": "Function lacks transaction boundary definition; unclear if caller already started transaction, risking auto-commit on each statement in some DB drivers (e.g., psycopg2 default).",
+      "fix": "Explicitly begin transaction: db.begin() at function start, or require caller to manage transaction and document with @transactional decorator."
+    }
+  ],
+  "_meta": {
+    "recorded_at": "2026-04-16T15:11:41+00:00",
+    "model": "claude-sonnet-4-5-20250929",
+    "persona_path": "skills/claude-flow/scripts/adversarial_breaker_persona.txt",
+    "source": "test_adversarial_breaker_live.py"
+  }
+}

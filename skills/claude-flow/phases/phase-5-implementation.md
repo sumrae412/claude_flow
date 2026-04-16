@@ -245,7 +245,24 @@ For parallel subagent dispatch:
   - The specific step(s) assigned to it
   - Key file paths + patterns (not full file contents)
   - Defensive patterns to apply
+  - $diff.context_facts entries from prior completed tasks
+    (injected as "Known context from earlier tasks: ..." preamble;
+    populated by Step 3e after each task)
   No prior step history — the plan is the contract.
+```
+
+**Inter-task fact injection (sequential dispatch too):** When the
+controller dispatches the NEXT task's subagent (sequential or parallel),
+prepend a "Known context from earlier tasks" section to the prompt
+containing all `$diff.context_facts` entries from prior tasks. This
+makes prior-task discoveries available without re-discovery and is the
+primary consumer of Step 3e output. Format the injected block as:
+
+```
+Known context from earlier tasks (from $diff.context_facts):
+- [task-1] SCHEMA: HouseholdMember.is_primary_contact (not is_primary)
+- [task-1] GOTCHA: scalar_one_or_none() crashes on email lookup — use scalars().first()
+- [task-2] PATTERN: ensure_client_for_member() required after create
 ```
 
 ### Advisor: Mid-Implementation (optional)

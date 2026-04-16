@@ -233,30 +233,57 @@ echo "This script installs hooks, scripts, MCP server, and memory files that the
 echo "system does not handle."
 echo ""
 
-# Check source files exist
-if [ ! -d "$SCRIPT_DIR/skills" ]; then
-  echo "Error: skills/ directory not found. Run this from the repo root."
+# Locate the claude-skills repo (single source of truth for all skills).
+# Preference order: sibling directory → existing symlink target → error.
+CLAUDE_SKILLS_DIR=""
+for candidate in \
+    "$SCRIPT_DIR/../claude-skills" \
+    "$HOME/claude_code/claude-skills" \
+    "$HOME/claude-skills"; do
+  if [ -d "$candidate" ] && [ -f "$candidate/shipping-workflow/SKILL.md" ]; then
+    CLAUDE_SKILLS_DIR="$(cd "$candidate" && pwd)"
+    break
+  fi
+done
+
+if [ -z "$CLAUDE_SKILLS_DIR" ]; then
+  echo "Error: claude-skills repo not found."
+  echo "Clone it as a sibling directory first:"
+  echo "  git clone git@github.com:sumrae412/claude-skills.git $HOME/claude_code/claude-skills"
   exit 1
 fi
 
-# Install skills (fallback for non-plugin installs)
-echo -e "${YELLOW}Installing skills to $SKILLS_DIR/ (fallback — plugin users skip this)${NC}"
-mkdir -p "$SKILLS_DIR"
+# Link skills: ~/.claude/skills/ → claude-skills repo
+# Symlink means edits in the canonical repo go live immediately; no reinstall.
+echo -e "${YELLOW}Linking skills: $SKILLS_DIR → $CLAUDE_SKILLS_DIR${NC}"
 
-installed=0
-for skill_dir in "$SCRIPT_DIR/skills"/*/; do
-  skill_name="$(basename "$skill_dir")"
-  target="$SKILLS_DIR/$skill_name"
-
-  # Remove existing version
-  if [ -d "$target" ]; then
-    rm -rf "$target"
+if [ -L "$SKILLS_DIR" ]; then
+  # Already a symlink — verify target, update if wrong
+  current_target="$(readlink "$SKILLS_DIR")"
+  if [ "$current_target" = "$CLAUDE_SKILLS_DIR" ]; then
+    echo "  ✓ symlink already points at $CLAUDE_SKILLS_DIR"
+  else
+    echo "  ↻ updating symlink from $current_target to $CLAUDE_SKILLS_DIR"
+    rm "$SKILLS_DIR"
+    ln -s "$CLAUDE_SKILLS_DIR" "$SKILLS_DIR"
   fi
+elif [ -d "$SKILLS_DIR" ]; then
+  # Regular directory — back up, replace with symlink
+  backup="$SKILLS_DIR.bak.$(date +%Y%m%d%H%M%S)"
+  echo "  ↻ backing up existing $SKILLS_DIR → $backup"
+  mv "$SKILLS_DIR" "$backup"
+  ln -s "$CLAUDE_SKILLS_DIR" "$SKILLS_DIR"
+  echo "  ✓ created symlink (previous dir preserved at $backup)"
+else
+  # Nothing there — just create the symlink
+  mkdir -p "$(dirname "$SKILLS_DIR")"
+  ln -s "$CLAUDE_SKILLS_DIR" "$SKILLS_DIR"
+  echo "  ✓ created symlink"
+fi
 
-  cp -R "$skill_dir" "$target"
-  echo "  + $skill_name"
-  installed=$((installed + 1))
-done
+# Count for summary
+installed="$(ls -1 "$CLAUDE_SKILLS_DIR" 2>/dev/null | grep -v "^\." | wc -l | tr -d ' ')"
+echo "  ↪ $installed skills available via the symlink"
 
 echo ""
 
@@ -415,11 +442,8 @@ echo "Usage:"
 echo "  In Claude Code, invoke the workflow with: /claude-flow"
 echo "  To generate a hooks.json for the current project: ./install.sh --generate-hooks"
 echo ""
-echo "Bundled skills:"
-for skill_dir in "$SKILLS_DIR"/*/; do
+echo "Available skills (via symlink to $CLAUDE_SKILLS_DIR):"
+for skill_dir in "$CLAUDE_SKILLS_DIR"/*/; do
   skill_name="$(basename "$skill_dir")"
-  # Check if it was one we installed
-  if [ -d "$SCRIPT_DIR/skills/$skill_name" ]; then
-    echo "  - $skill_name"
-  fi
+  echo "  - $skill_name"
 done

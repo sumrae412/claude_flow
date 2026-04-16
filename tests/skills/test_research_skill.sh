@@ -4,8 +4,21 @@
 
 set -euo pipefail
 
-SKILL_FILE="skills/research/SKILL.md"
-WORKFLOW_FILE="skills/code-creation-workflow/SKILL.md"
+# Locate claude-skills checkout (sibling preferred, runtime symlink fallback)
+for CS in "../claude-skills" "$HOME/.claude/skills" "$HOME/claude_code/claude-skills"; do
+  if [ -f "$CS/research/SKILL.md" ]; then
+    SKILLS_ROOT="$CS"
+    break
+  fi
+done
+
+if [ -z "${SKILLS_ROOT:-}" ]; then
+  echo "FAIL: claude-skills not found (tried ../claude-skills, ~/.claude/skills, ~/claude_code/claude-skills)"
+  exit 1
+fi
+
+SKILL_FILE="$SKILLS_ROOT/research/SKILL.md"
+WORKFLOW_FILE="$SKILLS_ROOT/claude-flow/SKILL.md"
 ERRORS=0
 
 echo "=== Research Skill Validation ==="
@@ -98,19 +111,20 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Test 11: Phase 2 integration documented
-if grep -q "code-creation-workflow" "$SKILL_FILE"; then
+# Test 11: Phase 2 integration documented (claude-flow is the local name;
+# code-creation-workflow is the generic name used in published skill text)
+if grep -qE "code-creation-workflow|claude-flow" "$SKILL_FILE"; then
     echo "PASS: Phase 2 integration documented"
 else
     echo "FAIL: Missing Phase 2 integration docs"
     ERRORS=$((ERRORS + 1))
 fi
 
-# Test 12: Research Team Branch exists in code-creation-workflow
+# Test 12: Research Team Branch exists in the workflow skill
 if grep -q "Research Team Branch" "$WORKFLOW_FILE"; then
-    echo "PASS: Research Team Branch in code-creation-workflow"
+    echo "PASS: Research Team Branch in workflow skill"
 else
-    echo "FAIL: Missing Research Team Branch in code-creation-workflow"
+    echo "FAIL: Missing Research Team Branch in workflow skill"
     ERRORS=$((ERRORS + 1))
 fi
 

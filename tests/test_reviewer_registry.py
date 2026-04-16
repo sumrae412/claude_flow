@@ -10,11 +10,22 @@ import pathlib
 import sys
 
 
+def _claude_skills_root():
+    """Locate the claude-skills checkout — sibling dir preferred, runtime symlink fallback."""
+    for candidate in (
+        pathlib.Path("../claude-skills"),
+        pathlib.Path.home() / ".claude/skills",
+    ):
+        if (candidate / "claude-flow/scripts/select_reviewers.py").exists():
+            return candidate
+    raise RuntimeError(
+        "claude-skills not found; clone it at ../claude-skills or run claude_flow/install.sh"
+    )
+
+
 def _load_selector():
     """Import select_reviewers.py as a module without needing an __init__.py."""
-    selector_path = (
-        pathlib.Path("skills/claude-flow/scripts/select_reviewers.py")
-    )
+    selector_path = _claude_skills_root() / "claude-flow/scripts/select_reviewers.py"
     spec = importlib.util.spec_from_file_location("select_reviewers", selector_path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["select_reviewers"] = mod

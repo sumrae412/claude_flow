@@ -41,13 +41,19 @@ flowchart LR
 
 ## Install
 
+Skills live in a separate repo ([claude-skills](https://github.com/sumrae412/claude-skills)) as the single source of truth. Clone it as a sibling directory first, then install claude_flow:
+
 ```bash
-git clone https://github.com/sumrae412/claude_flow.git
-cd claude_flow
+# 1. Clone claude-skills (the canonical skill library)
+git clone https://github.com/sumrae412/claude-skills.git ~/claude_code/claude-skills
+
+# 2. Clone and install claude_flow
+git clone https://github.com/sumrae412/claude_flow.git ~/claude_code/claude_flow
+cd ~/claude_code/claude_flow
 ./install.sh
 ```
 
-This copies all skills to `~/.claude/skills/`, scripts to `~/.claude/scripts/`, hooks to `~/.claude/hooks/claude-flow/`, memory files to `~/.claude/memory/`, and the MCP server to `~/.claude/mcp/claude-flow/`.
+`install.sh` symlinks `~/.claude/skills/` to the claude-skills checkout (edits go live immediately — no reinstall after changing a skill), copies scripts to `~/.claude/scripts/`, hooks to `~/.claude/hooks/claude-flow/`, memory files to `~/.claude/memory/`, and the MCP server to `~/.claude/mcp/claude-flow/`.
 
 To also generate stack-specific Tier 2 hooks (lint, test, migration check, type-check) based on your project's detected stack:
 
@@ -246,11 +252,6 @@ PRs under 200 lines skip the full agent pool and use a single-pass review.
 
 ```
 claude_flow/
-├── skills/                     # 23 bundled skills (SKILL.md + references)
-│   ├── claude-flow/  # Main orchestrator (1750+ lines)
-│   ├── bug-fix/                 # Dedicated bug-fix pipeline
-│   ├── debate-team/             # Cross-model adversarial review
-│   └── ...
 ├── hooks/                      # Tier 1 & 2 hook implementations
 │   ├── hook-registry.json       # Single source of truth for hook selection
 │   ├── tier1/                   # 15 universal hooks (always-on)
@@ -288,16 +289,8 @@ git pull
 Remove the installed skills, scripts, hooks, and MCP server:
 
 ```bash
-# Remove all bundled skills
-for skill in bug-fix claude-flow coding-best-practices debate-team \
-  defensive-backend-flows defensive-ui-flows executing-plans fetch-api-docs \
-  finishing-a-development-branch hook-doctor investigator lint-memory \
-  memory-injection production-readiness-check prompt-optimization research \
-  session-handoff session-learnings shipping-workflow smart-exploration \
-  subagent-driven-development test-driven-development \
-  verification-before-completion writing-plans; do
-  rm -rf ~/.claude/skills/$skill
-done
+# Remove the skills symlink (claude-skills repo itself is not deleted)
+rm -f ~/.claude/skills
 
 # Remove scripts
 rm -f ~/.claude/scripts/generate_repo_outline.py

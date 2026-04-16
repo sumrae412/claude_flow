@@ -32,15 +32,18 @@ REPEATED_FAILURE_MIN_SESSIONS = 3
 HIGH_RETRY_RATE_THRESHOLD = 0.50
 HIGH_RETRY_MIN_ATTEMPTS = 5
 
-# Domain → target skill file mapping
+# Domain → target skill file mapping.
+# Paths use the installed runtime location (~/.claude/skills/) which is a
+# symlink to the claude-skills repo. Portable across installs; no skill
+# content is read by this script — these are labels for proposals.
 DOMAIN_TARGET_MAP = {
-    "routes": "skills/defensive-backend-flows/SKILL.md",
-    "migrations": "skills/defensive-backend-flows/SKILL.md",
-    "auth": "skills/defensive-backend-flows/SKILL.md",
-    "ui": "skills/defensive-ui-flows/SKILL.md",
-    "tests": "skills/coding-best-practices/SKILL.md",
+    "routes": "~/.claude/skills/defensive-backend-flows/SKILL.md",
+    "migrations": "~/.claude/skills/defensive-backend-flows/SKILL.md",
+    "auth": "~/.claude/skills/defensive-backend-flows/SKILL.md",
+    "ui": "~/.claude/skills/defensive-ui-flows/SKILL.md",
+    "tests": "~/.claude/skills/coding-best-practices/SKILL.md",
 }
-DEFAULT_TARGET = "skills/claude-flow/SKILL.md"
+DEFAULT_TARGET = "~/.claude/skills/claude-flow/SKILL.md"
 
 
 def load_jsonl(path: Path) -> list[dict]:

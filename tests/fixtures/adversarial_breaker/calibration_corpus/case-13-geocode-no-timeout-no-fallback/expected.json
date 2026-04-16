@@ -1,0 +1,14 @@
+{
+  "case_id": "case-13-geocode-no-timeout-no-fallback",
+  "primary_criterion": "failure_modes",
+  "planted_bug": "get_geocode has no timeout, no retry, no fallback, AND blindly indexes data['lat']/['lng'] \u2014 three failure modes stacked.",
+  "expected_scores": {
+    "input_validation": 6,
+    "error_handling": 3,
+    "concurrency_safety": 8,
+    "data_consistency": 7,
+    "failure_modes": 2,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "When Google Maps is slow, this hangs forever. When response is shape-mismatched, KeyError. error_handling also low because the JSON access is unguarded."
+}

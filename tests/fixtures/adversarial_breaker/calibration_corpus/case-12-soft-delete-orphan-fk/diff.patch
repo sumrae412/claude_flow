@@ -1,0 +1,10 @@
+diff --git a/app/services/property_admin.py b/app/services/property_admin.py
+index eeeeeee..fffffff 100644
+--- a/app/services/property_admin.py
++++ b/app/services/property_admin.py
+@@ -1,3 +1,7 @@
++def soft_delete_property(db, property_id: int):
++    prop = db.query(Property).get(property_id)
++    prop.deleted_at = datetime.now(timezone.utc)
++    db.commit()
++    # HouseholdMembers, Bookings still reference this property

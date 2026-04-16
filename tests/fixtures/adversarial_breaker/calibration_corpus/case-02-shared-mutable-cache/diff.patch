@@ -1,0 +1,13 @@
+diff --git a/app/services/scoring.py b/app/services/scoring.py
+index aaaaaaa..bbbbbbb 100644
+--- a/app/services/scoring.py
++++ b/app/services/scoring.py
+@@ -1,3 +1,11 @@
++_cache: dict[int, int] = {}
++
++
++def get_user_score(user_id: int) -> int:
++    if user_id not in _cache:
++        # Two threads can both compute, last write wins
++        _cache[user_id] = expensive_compute(user_id)
++    return _cache[user_id]

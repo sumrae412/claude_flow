@@ -1,0 +1,14 @@
+{
+  "case_id": "case-01-toctou-race",
+  "primary_criterion": "concurrency_safety",
+  "planted_bug": "TOCTOU race in slot reservation: two concurrent reserve_slot calls both see existing=None, both insert, double-booking.",
+  "expected_scores": {
+    "input_validation": 5,
+    "error_handling": 4,
+    "concurrency_safety": 2,
+    "data_consistency": 4,
+    "failure_modes": 5,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "TOCTOU is the headline. No row lock or unique constraint. Adjacent: no rollback path on commit failure, no atomic decrement of slot.available_count."
+}

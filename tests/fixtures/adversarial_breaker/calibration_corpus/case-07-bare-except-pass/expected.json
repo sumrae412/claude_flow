@@ -1,0 +1,14 @@
+{
+  "case_id": "case-07-bare-except-pass",
+  "primary_criterion": "error_handling",
+  "planted_bug": "Bare except: pass swallows everything including KeyboardInterrupt and SystemExit; CRM sync silently fails forever.",
+  "expected_scores": {
+    "input_validation": 7,
+    "error_handling": 1,
+    "concurrency_safety": 7,
+    "data_consistency": 3,
+    "failure_modes": 3,
+    "test_coverage_gaps": 4
+  },
+  "rationale": "Most egregious error-handling pattern. CRM and local DB silently diverge over time \u2192 data_consistency hit. failure_modes hit because a CRM outage looks like success to callers."
+}

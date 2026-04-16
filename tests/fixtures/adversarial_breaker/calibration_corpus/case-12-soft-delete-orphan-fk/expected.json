@@ -1,0 +1,14 @@
+{
+  "case_id": "case-12-soft-delete-orphan-fk",
+  "primary_criterion": "data_consistency",
+  "planted_bug": "soft_delete_property sets deleted_at but leaves HouseholdMembers and Bookings pointing at it; queries crash on JOIN.",
+  "expected_scores": {
+    "input_validation": 7,
+    "error_handling": 6,
+    "concurrency_safety": 7,
+    "data_consistency": 3,
+    "failure_modes": 4,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Half-implemented soft-delete. The deletion 'looks done' but every consumer of the property graph now needs deleted_at filters they don't have."
+}

@@ -1,0 +1,14 @@
+{
+  "case_id": "case-19-clean-rest-endpoint",
+  "primary_criterion": null,
+  "planted_bug": "None \u2014 well-validated REST endpoint with idempotency, transaction, and proper error handling.",
+  "expected_scores": {
+    "input_validation": 8,
+    "error_handling": 8,
+    "concurrency_safety": 8,
+    "data_consistency": 8,
+    "failure_modes": 7,
+    "test_coverage_gaps": 7
+  },
+  "rationale": "Pydantic input validation, idempotency via request_id, transactional commit with IntegrityError handling. Not 10s because no rate limiting and no observability shown \u2014 there's always something a real adversarial reviewer can find."
+}

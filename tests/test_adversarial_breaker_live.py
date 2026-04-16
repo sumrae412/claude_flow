@@ -25,18 +25,24 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-LIVE = os.environ.get("RUN_LIVE_LLM") == "1"
-SKIP_REASON = "set RUN_LIVE_LLM=1 to dispatch real LLM (requires ANTHROPIC_API_KEY)"
-MODEL = os.environ.get("ADVERSARIAL_BREAKER_MODEL", "claude-sonnet-4-5-20250929")
-
 REPO_ROOT = Path(__file__).parent.parent
 FIXTURE_DIR = Path(__file__).parent / "fixtures/adversarial_breaker"
+
+# Make scripts/ importable so we can pull in the dispatch helper that the
+# calibration script also uses. Both surfaces share one code path so contract
+# drift hits both at once instead of diverging silently.
+if str(REPO_ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from adversarial_dispatch import dispatch_via_anthropic_api, get_model  # noqa: E402
+
+LIVE = os.environ.get("RUN_LIVE_LLM") == "1"
+SKIP_REASON = "set RUN_LIVE_LLM=1 to dispatch real LLM (requires ANTHROPIC_API_KEY)"
 
 # Persona file lives in the claude-skills repo (post-aed5f39 single-source-of-truth
 # refactor). Resolve via the ~/.claude/skills symlink so the test works on any
@@ -45,41 +51,6 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures/adversarial_breaker"
 PERSONA = (
     Path.home() / ".claude/skills/claude-flow/scripts/adversarial_breaker_persona.txt"
 )
-
-
-def _extract_json(text: str) -> str:
-    """The persona instructs 'no prose outside JSON', but be defensive about
-    the rare case where the model wraps the response in markdown fences."""
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if fenced:
-        return fenced.group(1)
-    # Otherwise, take the largest top-level brace span.
-    first = text.find("{")
-    last = text.rfind("}")
-    if first != -1 and last != -1 and last > first:
-        return text[first : last + 1]
-    return text
-
-
-def _dispatch_via_anthropic_api(persona: str, diff: str) -> dict:
-    """Direct API call. Approximates Phase 6 dispatch (same model + same
-    system prompt). See module docstring for the limitation."""
-    from anthropic import Anthropic  # imported lazily so the module loads in CI even without the SDK
-
-    client = Anthropic()  # uses ANTHROPIC_API_KEY
-    user_msg = (
-        "Review the following unified diff against the criteria in your "
-        "instructions. Emit only the JSON envelope, nothing else.\n\n"
-        f"```diff\n{diff}\n```"
-    )
-    resp = client.messages.create(
-        model=MODEL,
-        max_tokens=2000,
-        system=persona,
-        messages=[{"role": "user", "content": user_msg}],
-    )
-    raw = resp.content[0].text
-    return json.loads(_extract_json(raw))
 
 
 @pytest.mark.skipif(not LIVE, reason=SKIP_REASON)
@@ -91,7 +62,7 @@ def test_breaker_live_catches_planted_concurrency_bug():
     expected = json.loads((FIXTURE_DIR / "expected_scores.json").read_text())
     persona = PERSONA.read_text()
 
-    result = _dispatch_via_anthropic_api(persona, diff)
+    result = dispatch_via_anthropic_api(persona, diff)
 
     # Contract: shape
     assert result.get("reviewer") == "adversarial-breaker", result
@@ -130,7 +101,7 @@ def test_breaker_live_catches_planted_concurrency_bug():
     # _meta carries provenance the replay test ignores but humans care about.
     result["_meta"] = {
         "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "model": MODEL,
+        "model": get_model(),
         "persona_path": "claude-flow/scripts/adversarial_breaker_persona.txt",
         "source": "test_adversarial_breaker_live.py",
     }

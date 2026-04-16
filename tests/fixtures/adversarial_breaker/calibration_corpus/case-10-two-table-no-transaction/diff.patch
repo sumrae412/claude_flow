@@ -1,0 +1,12 @@
+diff --git a/app/services/user_admin.py b/app/services/user_admin.py
+index aaaaaaa..bbbbbbb 100644
+--- a/app/services/user_admin.py
++++ b/app/services/user_admin.py
+@@ -1,3 +1,9 @@
++def archive_user(db, user_id: int):
++    user = db.query(User).get(user_id)
++    user.archived = True
++    db.commit()  # commit 1
++
++    db.query(UserSession).filter_by(user_id=user_id).delete()
++    db.commit()  # commit 2 — if this fails, user half-archived

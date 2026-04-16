@@ -1,0 +1,35 @@
+diff --git a/app/routes/properties.py b/app/routes/properties.py
+index ddddggg..eeeehhh 100644
+--- a/app/routes/properties.py
++++ b/app/routes/properties.py
+@@ -1,3 +1,28 @@
++@app.post("/api/properties")
++@require_auth
++def create_property(
++    request: CreatePropertyRequest,
++    db: Session = Depends(get_db),
++    current_user: User = Depends(get_current_user),
++):
++    # Idempotency: replay returns the prior result, doesn't double-create
++    if request.request_id:
++        existing = db.query(Property).filter_by(
++            owner_id=current_user.id,
++            request_id=request.request_id,
++        ).first()
++        if existing:
++            return PropertyResponse.from_orm(existing)
++
++    try:
++        prop = Property(
++            owner_id=current_user.id,
++            address=request.address,
++            request_id=request.request_id,
++        )
++        db.add(prop)
++        db.commit()
++        db.refresh(prop)
++    except IntegrityError:
++        db.rollback()
++        raise HTTPException(status_code=409, detail="Property already exists")
++
++    return PropertyResponse.from_orm(prop)

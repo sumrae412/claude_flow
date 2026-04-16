@@ -1,0 +1,10 @@
+diff --git a/app/services/invites.py b/app/services/invites.py
+index 2222222..3333333 100644
+--- a/app/services/invites.py
++++ b/app/services/invites.py
+@@ -1,3 +1,7 @@
++def bulk_create_invites(db, count: int, sender_id: int):
++    for i in range(count):
++        invite = Invite(sender_id=sender_id, code=generate_code())
++        db.add(invite)
++    db.commit()

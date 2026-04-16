@@ -1,0 +1,14 @@
+{
+  "case_id": "case-09-no-rollback-on-commit-fail",
+  "primary_criterion": "error_handling",
+  "planted_bug": "transfer_funds has no try/except around db.commit() \u2014 if commit fails, session left dirty, sender debited but receiver may not be credited.",
+  "expected_scores": {
+    "input_validation": 4,
+    "error_handling": 2,
+    "concurrency_safety": 3,
+    "data_consistency": 2,
+    "failure_modes": 3,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Money-transfer pattern with no rollback path. Also no row lock (concurrency) and no negative-amount check (input). This case is bad in multiple dimensions on purpose."
+}

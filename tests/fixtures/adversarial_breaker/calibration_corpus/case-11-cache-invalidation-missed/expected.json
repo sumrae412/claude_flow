@@ -1,0 +1,14 @@
+{
+  "case_id": "case-11-cache-invalidation-missed",
+  "primary_criterion": "data_consistency",
+  "planted_bug": "update_user_email writes to DB but doesn't invalidate the redis profile cache \u2014 UI shows stale email.",
+  "expected_scores": {
+    "input_validation": 4,
+    "error_handling": 5,
+    "concurrency_safety": 6,
+    "data_consistency": 3,
+    "failure_modes": 6,
+    "test_coverage_gaps": 5
+  },
+  "rationale": "Classic cache-aside invalidation gap. Also no email format check on the new value."
+}

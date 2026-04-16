@@ -1,0 +1,10 @@
+diff --git a/app/services/newsletter.py b/app/services/newsletter.py
+index 1234567..89abcde 100644
+--- a/app/services/newsletter.py
++++ b/app/services/newsletter.py
+@@ -1,3 +1,7 @@
++def subscribe_newsletter(db, email: str, name: str):
++    sub = Subscription(email=email, name=name)
++    db.add(sub)
++    db.commit()
++    send_confirmation_email(email)

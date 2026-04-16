@@ -255,27 +255,40 @@ def run_calibration(
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     from adversarial_dispatch import dispatch_via_anthropic_api
 
+    # Per-case dispatch errors (malformed JSON, network glitch, rate limit)
+    # do NOT abort the whole run — that would let one flaky response waste the
+    # spend on the other 19 cases. Errored cases count as 0.0 agreement (the
+    # reviewer didn't produce parseable scores, which is a real failure to
+    # agree, not a missing data point). We track them separately so the
+    # report can distinguish capability problems from infrastructure problems.
     case_agreements: list[float] = []
+    errored_cases: list[tuple[str, str]] = []
     for case in cases:
         try:
             response = dispatch_via_anthropic_api(persona, case.diff)
-        except Exception as e:
-            print(
-                f"\nERROR dispatching {case.case_id}: {type(e).__name__}: {e}",
-                file=sys.stderr,
-            )
-            sys.exit(2)
-        judge_scores = extract_judge_scores(response)
-        agreement = compute_case_agreement(case.expected_scores, judge_scores)
-        case_agreements.append(agreement)
-        _print_case_breakdown(case, judge_scores, agreement)
+            judge_scores = extract_judge_scores(response)
+            agreement = compute_case_agreement(case.expected_scores, judge_scores)
+            case_agreements.append(agreement)
+            _print_case_breakdown(case, judge_scores, agreement)
+        except Exception as e:  # noqa: BLE001
+            err = f"{type(e).__name__}: {e}"
+            errored_cases.append((case.case_id, err))
+            case_agreements.append(0.0)
+            print(f"\n  {case.case_id} (DISPATCH ERROR): {err}")
+            print("    case agreement: 0.00% (counted as full disagreement)")
 
     overall = compute_overall_agreement(case_agreements)
-    passed = overall >= min_agreement
+    passed = overall >= min_agreement and not errored_cases
 
     print("\n" + "=" * 60)
     print(f"  Overall agreement: {overall:.2%}  (threshold: {min_agreement:.0%})")
-    print(f"  Verdict: {'PASS' if passed else 'FAIL'}")
+    if errored_cases:
+        print(f"  Errored cases:     {len(errored_cases)} of {len(cases)} (counted as 0.0 agreement)")
+        for case_id, err in errored_cases:
+            print(f"    - {case_id}: {err}")
+        print("  Verdict: FAIL  (any dispatch error fails the run)")
+    else:
+        print(f"  Verdict: {'PASS' if passed else 'FAIL'}")
     print("=" * 60)
 
     if not dry_run and passed:

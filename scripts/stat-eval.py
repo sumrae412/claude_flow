@@ -44,7 +44,7 @@ def std_dev(values: list[float]) -> float:
 
 
 def confidence_interval_95(values: list[float]) -> tuple[float, float]:
-    """Wilson score interval for proportions, normal approx for continuous."""
+    """Normal approximation 95% CI for continuous scores in [0, 1]."""
     n = len(values)
     if n == 0:
         return (0.0, 0.0)
@@ -104,17 +104,33 @@ def chi_squared_2x2(observed_a: tuple[int, int], observed_b: tuple[int, int]) ->
                 chi2 += (observed[i][j] - e) ** 2 / e
 
     # Approximate p-value for 1 df using chi-squared survival function
-    # Simple approximation sufficient for our threshold checks
+    # Piecewise linear interpolation between critical values for 1 df
     if chi2 <= 0:
         return 1.0
-    if chi2 > 10.83:
-        return 0.001
-    if chi2 > 6.63:
-        return 0.01
-    if chi2 > 3.84:
-        return 0.05
-    if chi2 > 2.71:
-        return 0.10
+    # Critical values for 1 df: (chi2, p-value)
+    table = [
+        (0.455, 0.50),
+        (1.323, 0.25),
+        (2.706, 0.10),
+        (3.841, 0.05),
+        (5.024, 0.025),
+        (6.635, 0.01),
+        (7.879, 0.005),
+        (10.828, 0.001),
+    ]
+    if chi2 >= table[-1][0]:
+        return table[-1][1]
+    # Linear interpolation between bracketing entries
+    for i in range(len(table) - 1):
+        if chi2 <= table[i + 1][0]:
+            x0, y0 = table[i]
+            x1, y1 = table[i + 1]
+            # Interpolate in log-p space for better accuracy
+            if chi2 <= x0:
+                return y0
+            t = (chi2 - x0) / (x1 - x0)
+            log_p = math.log(y0) + t * (math.log(y1) - math.log(y0))
+            return math.exp(log_p)
     return 0.5
 
 
@@ -205,11 +221,23 @@ def analyze_behavioral_consistency(agent_type: str, category: str = "") -> list[
             if agent_type == "explorer":
                 behaviors = set(ev.get("files_found", []))
             elif agent_type == "reviewer":
-                # Use issue categories or a hash of findings
+                # Bucket counts into ranges to avoid Jaccard over-sensitivity
+                # (exact count differences like 5 vs 6 shouldn't tank consistency)
+                def _bucket(n: int) -> str:
+                    if n == 0: return "0"
+                    if n <= 3: return "1-3"
+                    if n <= 7: return "4-7"
+                    return "8+"
                 issues = ev.get("issues_found", 0)
                 fixed = ev.get("issues_fixed", 0)
                 fps = ev.get("false_positives", 0)
-                behaviors = {f"found:{issues}", f"fixed:{fixed}", f"fps:{fps}"}
+                tpr = ev.get("true_positive_rate", 0)
+                behaviors = {
+                    f"found:{_bucket(issues)}",
+                    f"fixed:{_bucket(fixed)}",
+                    f"fps:{_bucket(fps)}",
+                    f"tpr:{'high' if tpr > 0.7 else 'low'}",
+                }
             else:
                 behaviors = {f"score:{ev.get('score', 0):.1f}"}
             behavior_sets.append(behaviors)
@@ -476,7 +504,27 @@ def should_promote(agent_type: str, category: str) -> list[dict]:
             (chal_pass, len(chal_scores) - chal_pass),
         )
 
-        should = ci_dominant or (best["sufficient_data"] and challenger["sufficient_data"] and p_value < 0.05 and best["mean_score"] > challenger["mean_score"])
+        statistically_significant = ci_dominant or (
+            best["sufficient_data"] and challenger["sufficient_data"]
+            and p_value < 0.05 and best["mean_score"] > challenger["mean_score"]
+        )
+
+        # Enforce consistency/flakiness blockers (SKILL.md Step 3)
+        blocker = None
+        if statistically_significant:
+            consistency_results = analyze_behavioral_consistency(agent_type, category)
+            consistency_by_vid = {r["variant_id"]: r.get("consistency", 1.0) for r in consistency_results}
+            winner_consistency = consistency_by_vid.get(best["variant_id"], 1.0)
+            if winner_consistency < 0.5:
+                blocker = f"Winner consistency {winner_consistency:.2f} < 0.5 (unstable)"
+
+            flakiness_results = analyze_flakiness(agent_type, category)
+            flakiness_by_vid = {r["variant_id"]: r.get("flakiness", 0.0) for r in flakiness_results}
+            winner_flakiness = flakiness_by_vid.get(best["variant_id"], 0.0)
+            if winner_flakiness > 0.6:
+                blocker = f"Winner flakiness {winner_flakiness:.2f} > 0.6 (unreliable)"
+
+        should = statistically_significant and blocker is None
 
         promotions.append({
             "role": role,
@@ -490,9 +538,11 @@ def should_promote(agent_type: str, category: str) -> list[dict]:
             "ci_dominant": ci_dominant,
             "p_value": p_value,
             "should_promote": should,
+            "blocker": blocker,
             "reason": (
-                "CI lower bound exceeds challenger upper bound" if ci_dominant
-                else f"Significant difference (p={p_value})" if should
+                f"BLOCKED: {blocker}" if blocker
+                else "CI lower bound exceeds challenger upper bound" if ci_dominant
+                else f"Significant difference (p={p_value:.4f})" if should
                 else "Not enough evidence for promotion"
             ),
         })

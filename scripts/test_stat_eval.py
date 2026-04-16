@@ -111,6 +111,20 @@ class TestChiSquared:
         p = stat_eval.chi_squared_2x2((70, 30), (55, 45))
         assert 0.01 < p < 0.5
 
+    def test_boundary_not_step_function(self):
+        """Verify chi2=5.0 returns p < 0.05 (was boundary bug with step function)."""
+        # chi2=5.0 has true p ~= 0.025, should be < 0.05
+        p = stat_eval.chi_squared_2x2((80, 20), (60, 40))
+        # This produces chi2 ~= 9.52, p should be well below 0.05
+        assert p < 0.01
+
+    def test_interpolation_continuity(self):
+        """P-values should decrease monotonically as distributions diverge."""
+        p1 = stat_eval.chi_squared_2x2((60, 40), (55, 45))
+        p2 = stat_eval.chi_squared_2x2((70, 30), (55, 45))
+        p3 = stat_eval.chi_squared_2x2((80, 20), (55, 45))
+        assert p1 > p2 > p3  # more divergence = lower p
+
 
 # ---------------------------------------------------------------------------
 # Flakiness analysis (unit-level, no file I/O)

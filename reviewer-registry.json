@@ -1,6 +1,13 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "description": "Declarative reviewer selection for Phase 6. 'always' reviewers run every time. 'conditional' reviewers run when file_patterns match the diff (and optionally content_pattern exceeds threshold).",
+  "judge_calibration": {
+    "enabled": false,
+    "description": "When enabled, scripts/calibrate_reviewers.py samples recent reviewer findings, asks the user (or a labeled corpus) to mark each pass/fail, and computes agreement = (judge_verdict == human_verdict) / n. Reviewers below the min_agreement threshold are flagged for review or demotion. Reviewers without a calibration block use the fallback threshold.",
+    "fallback_min_agreement": 0.7,
+    "fallback_sample_size": 20,
+    "refresh_interval_days": 30
+  },
   "reviewers": [
     {
       "id": "coderabbit",
@@ -16,7 +23,14 @@
       "cascade_tier": 2,
       "subagent_type": "pr-review-toolkit:silent-failure-hunter",
       "model": "sonnet",
-      "description": "Swallowed errors, empty catches, hidden failures"
+      "description": "Swallowed errors, empty catches, hidden failures",
+      "calibration": {
+        "verdict_type": "binary",
+        "min_agreement": 0.75,
+        "sample_size": 20,
+        "last_calibrated": null,
+        "last_agreement": null
+      }
     },
     {
       "id": "security-reviewer",
@@ -24,7 +38,15 @@
       "cascade_tier": 2,
       "subagent_type": "security-reviewer",
       "model": "sonnet",
-      "description": "Auth, data exposure, injection, OWASP"
+      "description": "Auth, data exposure, injection, OWASP",
+      "calibration": {
+        "verdict_type": "binary",
+        "min_agreement": 0.8,
+        "sample_size": 25,
+        "last_calibrated": null,
+        "last_agreement": null,
+        "note": "Security findings have higher cost-of-miss — stricter agreement floor"
+      }
     },
     {
       "id": "test-coverage-analyzer",

@@ -80,6 +80,20 @@ Dispatch Opus (`model: "opus"`, `subagent_type: "general-purpose"`) with:
 
 ---
 
+## Step 2.5: Offer Visual Mockup (UI Features)
+
+If the feature includes a visual/UI component, ask the user before proceeding:
+
+> "Would you like to see a mockup or diagram before I start building?"
+
+If yes: create a standalone HTML mockup (write to `/tmp/`) showing the proposed UI layout, interactions, and visual design. Use the project's design system colors and patterns. Present for feedback before moving to Step 3.
+
+If no: proceed directly to Step 3.
+
+**Why this matters:** Validating visual design before writing code prevents wasted effort when the UX direction is wrong. A 10-minute mockup can save hours of rework.
+
+---
+
 ## Step 3: Present to User
 
 Present both options (post-advisor-refinement) to the user with the advisor's analysis included:
@@ -114,6 +128,21 @@ Dispatch Opus (`model: "opus"`, `subagent_type: "general-purpose"`) with:
 - Add: "Think step by step before responding."
 - Triage: CRITICAL (must fix) / HIGH (should fix) / MEDIUM (note) / LOW (informational)
 - Revise plan for HIGH+ findings. Present to user.
+
+### Step 5b: Conditional Re-Grade (only if iter-1 revision was substantive)
+
+**Gate:** skip this step unless Step 5 surfaced ≥1 CRITICAL or ≥2 HIGH findings AND the plan was materially rewritten (not just annotated).
+
+When the gate fires, dispatch one more Opus pass on the revised plan:
+- Input: revised `$plan` (post-Step-5 edits)
+- Question: "Did the revisions introduce new risks, or leave the original HIGH/CRITICAL issues unresolved? One-pass verdict: PASS / REVISE-AGAIN / ABANDON."
+- No new triage categories — the output is one of three verdicts.
+
+If `PASS` → proceed to user approval. If `REVISE-AGAIN` → one more edit pass, then proceed regardless (don't loop). If `ABANDON` → surface to user; the plan may need requirements rework.
+
+**Why gated:** Phase 4 already has two advisor calls (Step 2 + Step 5). An unconditional third pass duplicates work and violates `advisor_prompt_compression` (one-line question, contract reference only). The gate ensures the third pass only fires when substantive rewrites risk introducing *new* problems — which is exactly when a fresh read adds signal.
+
+**Why rejected:** The 8-question rubric import from vercel-labs/open-agents (see `memory/abandoned_phase4_advisor_rubric.md`). This design is the lightweight alternative — single one-line question, hard gate, no rubric.
 
 ---
 

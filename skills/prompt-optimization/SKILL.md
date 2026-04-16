@@ -55,21 +55,56 @@ Present the report to the user. Key things to highlight:
 **Architects:** Which optimization target users prefer (selection rate), convergence speed, resulting code quality
 **Reviewers:** Which review style finds more real issues (true positive rate) vs noise (false positives)
 
-### Step 3: Check for Promotions
+### Step 3: Check for Promotions (CI-Aware)
 
-For each category where both variants of a role have 10+ sessions:
+Promotions now use **statistical confidence intervals** instead of raw score gaps. A variant wins only when the evidence is significant — not just when it's ahead on average.
 
-1. Compare avg F1 scores
-2. If gap > 0.05: the higher scorer wins
-3. Update `current_best_A` / `current_best_B` in prompt-variants.json
-4. Update `prompt-library.md` with the winning prompt text
-5. Announce: "Promoted {variant_id} as best for {category}/{role} (F1: {score})"
+```bash
+# Run CI-aware promotion check
+python3 scripts/stat-eval.py promote <agent_type> <category>
+
+# Also check behavioral consistency and flakiness
+python3 scripts/stat-eval.py consistency <agent_type> <category>
+python3 scripts/stat-eval.py flakiness <agent_type> <category>
+```
+
+**Promotion criteria (any of):**
+1. Winner's CI lower bound exceeds challenger's CI upper bound (CI dominance)
+2. Both variants have 10+ sessions AND chi-squared p-value < 0.05 AND winner mean > challenger mean
+
+**Block promotion if:**
+- Either variant has behavioral consistency < 0.5 (unstable — investigate first)
+- Winner has flakiness > 0.6 (unreliable — run more sessions)
+- Regression detected against baseline (`stat-eval.py regression`)
+
+If promoted:
+1. Update `current_best_A` / `current_best_B` in prompt-variants.json
+2. Update `prompt-library.md` with the winning prompt text
+3. Announce: "Promoted {variant_id} as best for {category}/{role} (mean: {score}, CI: [{lo}, {hi}])"
+
+### Step 3.5: Trace-Sample Error Analysis (Before Drafting Challengers)
+
+Aggregate metrics tell you *which* variant lost, not *why*. Before synthesizing a challenger, do a brief manual review so the challenger is grounded in actual failure modes rather than the winner's surface differences.
+
+```bash
+# Sample 20 traces (or all, if fewer) from the losing variant's event log
+python3 ~/.claude/scripts/prompt-tracker.py sample-traces \
+    <agent_type> <variant_id> --n 20
+```
+
+For each sampled trace, write ONE sentence about the earliest observable failure (the "open coding" pass — see Hamel Husain's error-analysis workflow for the technique). Stop at the first error per trace; downstream errors are usually consequences, not causes.
+
+Aggregate the notes into error categories (3-7 buckets). Count each bucket. The top 2-3 buckets are the challenger's target — everything else is noise.
+
+**When to skip:** If the loser has < 10 sessions, skip this step and just use aggregate metrics — there isn't enough signal to warrant manual review.
+
+**Why it matters:** Aggregate F1 gives a correct answer to the wrong question. A challenger that only copies the winner's surface structure will often regress on cases the winner also handles poorly. Counting beats vibes.
 
 ### Step 4: Generate Challengers (User Approval Required)
 
 For each losing variant:
 
-1. Analyze its miss patterns — what files does it consistently miss?
+1. Analyze its miss patterns — what files does it consistently miss? (Use the Step 3.5 bucket counts; they give you the concrete failure modes.)
 2. Analyze the winning variant — what does it do differently?
 3. Draft a challenger prompt that addresses the loser's blind spots while keeping its unique strengths
 4. Present the challenger to the user for approval
@@ -88,6 +123,9 @@ WINNING PROMPT:
 
 COMMONLY MISSED FILES BY LOSER:
 {missed_files_list}
+
+TOP FAILURE BUCKETS FROM TRACE-SAMPLING (Step 3.5):
+{bucket_counts}  # e.g. "schema-miss: 7, wrong-file-scope: 5, no-test-context: 3"
 
 Rewrite the losing prompt to better discover these file types.
 Keep the same exploration scope and thinking budget.
@@ -115,6 +153,7 @@ Output:
 | `memory/episodic/architect-events.jsonl` | Architect outcome data (Phase 4 → Phase 6) |
 | `memory/episodic/reviewer-events.jsonl` | Reviewer outcome data (Phase 6) |
 | `scripts/prompt-tracker.py` | CLI for selection, recording, metrics, reporting |
+| `scripts/stat-eval.py` | Statistical analysis: CIs, consistency, regression, calibration, flakiness |
 
 ---
 

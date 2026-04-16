@@ -1,0 +1,70 @@
+name: Update Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/workflows/update-docs.yml'
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    # Skip docs-update commits to prevent infinite loops
+    if: "!contains(github.event.head_commit.message, '[docs-update]')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff analysis
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are updating repository documentation after a merge to main.
+
+            COMMIT: ${{ github.sha }}
+            COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+
+            ## Instructions
+
+            1. Run `git diff HEAD~1 --stat` to see what files changed in this merge.
+            2. Run `git log --oneline HEAD~5..HEAD` for recent commit context.
+
+            ### CHANGELOG.md
+            - Read the current CHANGELOG.md
+            - Add new entries under `## [Unreleased]` based on the commit(s) in this push
+            - Group by type: Added, Fixed, Changed, Removed
+            - Use conventional commit prefixes to classify (feat→Added, fix→Fixed, etc.)
+            - Do NOT duplicate entries already in the changelog
+            - Write concise, user-facing descriptions (not raw commit messages)
+
+            ### README.md
+            - Read the current README.md
+            - Only update if the changes affect:
+              - New or removed skills/hooks/scripts
+              - Changed install steps or dependencies
+              - Modified workflow phases or architecture
+              - New commands or configuration options
+            - If no structural changes detected, leave README.md unchanged
+            - Preserve existing formatting and style
+
+            ### Commit + PR
+            - If you made changes, commit them on a new branch `docs/auto-update-${{ github.sha }}`
+            - Commit message MUST include `[docs-update]` to prevent workflow loops
+            - Open a PR titled "docs: auto-update from <short-sha>" against main
+            - Include a summary of what changed and why in the PR body
+
+            ### Rules
+            - Do NOT update any other files
+            - Do NOT add entries for CI/workflow changes, minor refactors, or internal-only changes
+            - If neither file needs updates, exit without creating a PR
+          claude_args: |
+            --max-turns 15
+            --model claude-sonnet-4-6
+            --allowedTools Read,Edit,Write,Bash,Glob,Grep

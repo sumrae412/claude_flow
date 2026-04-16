@@ -1,0 +1,15 @@
+{
+  "must_score_below_threshold": ["concurrency_safety"],
+  "must_find_break_case_mentioning_any_of": [
+    "race",
+    "lock",
+    "concurrent",
+    "toctou",
+    "double-book",
+    "double book",
+    "simultaneous",
+    "two requests",
+    "two posts",
+    "both insert"
+  ]
+}

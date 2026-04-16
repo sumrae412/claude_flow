@@ -1,0 +1,45 @@
+%% claude-flow Phase 1 Triage: 8 paths
+%% Source of truth: SKILL.md "Path Decision" + phases/phase-1-discovery.md
+%% Load when: choosing a path in Phase 1 or explaining path selection to users
+
+flowchart TD
+    Start([User task]) --> P0[Phase 0: Context<br/>Load project skills]
+    P0 --> P1{Phase 1: Triage}
+
+    P1 -->|Bug / regression / stack trace| BugFix[/bug-fix skill/]
+    BugFix --> ExitBug([EXIT workflow])
+
+    P1 -->|Single file, no schema, no endpoints| Fast[FAST PATH<br/>change → test → commit]
+    Fast --> ExitFast([EXIT workflow])
+
+    P1 -->|Existing plan / PRP document| Plan[PLAN PATH<br/>read plan → jump to Phase 5]
+    Plan --> P5a[Phase 5]
+
+    P1 -->|Near-identical existing feature| Clone[CLONE PATH<br/>clone + adapt]
+    Clone --> P6a[Phase 6 review]
+
+    P1 -->|1-2 files, no schema, no models| Lite[LITE PATH<br/>Phases 2-6 inline architecture]
+    Lite --> P2a[Phase 2]
+
+    P1 -->|Spike / prototype / try this| Explore[EXPLORE PATH<br/>60/100 bar, no TDD, no Phase 6]
+    Explore -->|Graduate| P4a[Phase 4]
+    Explore -->|Archive| Abandon[/session-handoff --abandon/]
+
+    P1 -->|Audit / review existing code| Audit[AUDIT PATH<br/>read-only, $audit_scope → $assessment]
+    Audit --> P2b[Phase 2] --> P3a[Phase 3] --> P4b[Phase 4] --> P6b[Phase 6] --> AuditReport[docs/audits/ report]
+
+    P1 -->|New feature, schema or multi-endpoint| Full[FULL WORKFLOW<br/>all phases]
+    Full --> P2c[Phase 2]
+
+    P2a --> P3b[Phase 3] --> P4c[Phase 4] --> P5a
+    P2c --> P3c[Phase 3] --> P4d[Phase 4] --> P4dc[Phase 4c verify] --> P4dd[Phase 4d skeletons] --> P5a
+    P5a --> P6c[Phase 6] --> Done([Complete])
+    P6a --> Done
+    AuditReport --> Done
+
+    classDef exitNode fill:#f9e79f,stroke:#d4ac0d,stroke-width:2px
+    classDef bugNode fill:#f5b7b1,stroke:#c0392b
+    classDef phaseNode fill:#d4e6f1,stroke:#2874a6
+    class ExitBug,ExitFast,Done exitNode
+    class BugFix,Abandon bugNode
+    class P0,P1,P2a,P2b,P2c,P3a,P3b,P3c,P4a,P4b,P4c,P4d,P4dc,P4dd,P5a,P6a,P6b,P6c phaseNode

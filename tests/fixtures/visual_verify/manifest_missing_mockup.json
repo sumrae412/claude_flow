@@ -1,0 +1,19 @@
+{
+  "feature_slug": "broken-feature",
+  "base_url": "http://localhost:3000",
+  "screens": [
+    {
+      "name": "signup",
+      "path": "/signup",
+      "states": [
+        {
+          "name": "default",
+          "mockup_file": "tests/fixtures/visual_verify/does_not_exist.excalidraw",
+          "url_suffix": "",
+          "trigger_script": null,
+          "wait_for_selector": null
+        }
+      ]
+    }
+  ]
+}

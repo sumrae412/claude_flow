@@ -132,6 +132,31 @@ Right-size each task using these indicators:
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
 
+## Gate Validation: Verify Every Script/Command Path Against the Target Repo
+
+Before handoff, enumerate every shell command and script path the plan references for gates, tests, or CI, and verify each exists in the **target repo** — not in whatever CLAUDE.md happens to be resident in context. Cross-project command import is a real failure mode: global CLAUDE.md may document `./scripts/quick_ci.sh`, `make test`, `npm run verify`, etc. from a different project, and a plan authored with that CLAUDE.md resident will quietly carry those commands into an unrelated codebase where they do not exist.
+
+**Checklist before handoff:**
+
+```bash
+# For every script referenced in the plan, verify it exists in the target repo:
+TARGET_REPO=/path/to/target/repo
+for cmd in ./scripts/quick_ci.sh ./scripts/validate_all.sh ./scripts/release.py; do
+    [ -x "$TARGET_REPO/$cmd" ] || echo "MISSING: $cmd"
+done
+
+# For every bare binary (pytest, npm test, cargo check, make), verify either:
+#   - it is on PATH on a clean shell, or
+#   - it is documented in the target repo's README/CLAUDE.md
+command -v pytest >/dev/null || echo "MISSING binary: pytest"
+```
+
+If any commands are missing, either:
+1. Replace them with their target-repo equivalents (check the target repo's `README.md`, `package.json` scripts, or its own `CLAUDE.md`), or
+2. Drop the gate from the plan and substitute a repo-native check (e.g., `pytest` on a Python project with tests, `npm test` on a node project, `cargo check` on a Rust project — whichever the target repo uses).
+
+**Signal for "which CLAUDE.md is this command from":** if a command feels standard but you cannot find the script in the target repo, grep across your global CLAUDE.md files — the command probably belongs to a sibling project. Only cross-project universal tools (git, pytest, npm, cargo, make itself) are safe to carry across projects without verification.
+
 ## Execution Handoff
 
 After saving the plan, offer execution choice:

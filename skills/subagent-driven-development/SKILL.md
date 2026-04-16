@@ -94,6 +94,92 @@ digraph process {
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
+## Pre-Dispatch: Per-Step Lookup Injection
+
+Before dispatching each implementer subagent, run the **step-scope** lookup
+pass to inject file-level facts the implementer needs for THIS task:
+
+```
+python skills/claude-flow/scripts/inject_lookups.py \
+    --scope step \
+    --files <files-this-task-touches> \
+    --json
+```
+
+Prepend the output's `lookups` section to the implementer prompt, in the
+PROJECT CONTEXT area:
+
+```
+STEP-SPECIFIC LOOKUPS (authoritative — use these exact names):
+[sqlalchemy_columns]
+<output>
+
+[css_classes]
+<output>
+
+[react_components]
+<output>
+```
+
+This is **narrower** than the plan-wide lookups injected in Phase 5
+pre-implementation (which cover alembic heads, all existing routes, etc.).
+Step-scope covers facts specific to the files THIS implementer is modifying.
+
+**Why:** prevents hallucinated column names, CSS class names, and component
+imports at authoring time — the implementer sees real names before writing
+any code. Inspired by Brian/Notion's `find-icon` skill.
+
+If `lookups` is empty (all step-scope detectors skipped), omit the section.
+
+**Skip-envelope contract:** `inject_lookups.py` uses a graceful-skip design (see memory: `optional_dep_gate_policy`) — missing tools, inapplicable detectors, or absent project structure all produce a skip entry, never a non-zero exit. Only a non-zero exit code or malformed JSON is a real failure that should block dispatch.
+
+## Direct Execution — When to Skip the Subagent Cycle
+
+For very small, architecturally-unambiguous tasks, the controller executes directly instead of dispatching an implementer + two reviewers. Direct execution is an intentional efficiency move, not a shortcut around review — the controller self-verifies by reading the diff, running the test, and checking scope.
+
+**Direct execution is appropriate when ALL of the following hold:**
+
+- Change is **under ~50 lines** (typical: 1-20 lines)
+- Change is **architecturally unambiguous** — the plan specifies exact content or the edit is mechanical (e.g. "add this row to the table", "add this JSON entry to the array")
+- No new behavioral code (no new functions, no new control flow) — docs, config, fixtures, or small test extensions only
+- Controller has read-access to the target file already (no unfamiliar context)
+- Verification is deterministic (JSON validates, tests run green, diff stats match expectation)
+
+**Allowed shapes (observed to work cleanly):**
+
+| Shape | Example |
+|---|---|
+| Registry / config additions (<20 lines) | Adding a reviewer entry to `reviewer-registry.json` |
+| Single-row table prose edits | Adding a row to the Phase 6 Default Reviewers table |
+| Pytest assertion appendages | Adding 2 new `test_*` assertions to an existing `test_file.py` |
+| Small markdown doc blocks | 17-line additive section in a phase file |
+| Post-review cleanups | 2-line dead-code removal flagged by code-quality reviewer |
+
+**Direct execution is NOT appropriate when:**
+
+- New file with behavioral code (even a small script) — dispatch an implementer for TDD
+- Any change that could legitimately have multiple correct implementations — reviewer value is in catching divergence
+- Cross-cutting changes (same rule applied to 3+ files) — the review catches coherence problems
+- Anything where the controller has not read the target file recently
+
+**Verification obligation when executing directly:**
+
+After the edit, the controller MUST run — in the same turn — the same checks a code-quality reviewer would:
+1. Diff-stat check: `git diff --cached --stat` touches only the intended file(s)
+2. Syntactic validity: JSON parses / Markdown renders / Python test runs
+3. Behavioral check: the test the change is supposed to affect passes (or fails in the intended way for TDD red)
+
+If any check fails, revert and dispatch a subagent instead. Direct execution without self-verification is the anti-pattern this section is trying to prevent.
+
+## Clarification Windows
+
+Implementers follow a two-window clarification model:
+
+- **Pre-start (wide):** ask freely about requirements, approach, dependencies, anything unclear in the task description. This is the authorized window for questions.
+- **Mid-work (narrow):** only plan-breaking blockers (plan contradiction, unreachable acceptance criteria, critical architectural blocker the plan didn't anticipate). Routine ambiguity is resolved by judgment; assumptions are documented in the final report for reviewer validation.
+
+See `implementer-prompt.md` for the authoritative prompt. Rationale: parallel-dispatched implementers stall the whole batch on any single mid-work clarifier — documented assumptions are reviewable, but mid-task stalls are pure latency.
+
 ## Example Workflow
 
 ```

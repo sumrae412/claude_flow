@@ -320,37 +320,53 @@ echo -e "${YELLOW}Installing memory files to $MEMORY_DIR/${NC}"
 mkdir -p "$MEMORY_DIR"
 
 memory_count=0
-if [ ! -f "$MEMORY_DIR/failure-catalog.md" ]; then
-  cp "$SCRIPT_DIR/memory/failure-catalog.md" "$MEMORY_DIR/failure-catalog.md"
-  echo "  + failure-catalog.md"
-  memory_count=$((memory_count + 1))
-else
-  echo "  ~ failure-catalog.md (exists, skipped)"
-fi
 
-if [ ! -f "$MEMORY_DIR/failure-events.jsonl" ]; then
-  touch "$MEMORY_DIR/failure-events.jsonl"
-  echo "  + failure-events.jsonl (created empty)"
+# Install a template file from the repo if not already present locally.
+# Tolerates missing source files (e.g. template renamed/removed upstream) —
+# warns but does not fail the install. Searches both the new subdir layout
+# (memory/semantic/, memory/procedural/, memory/episodic/) and the legacy
+# flat layout (memory/<file>) so older/branched repos still work.
+install_memory_template() {
+  local target_name="$1"
+  local target="$MEMORY_DIR/$target_name"
+  shift
+  if [ -f "$target" ]; then
+    echo "  ~ $target_name (exists, skipped)"
+    return 0
+  fi
+  local source=""
+  for candidate in "$@"; do
+    if [ -f "$SCRIPT_DIR/$candidate" ]; then
+      source="$SCRIPT_DIR/$candidate"
+      break
+    fi
+  done
+  if [ -z "$source" ]; then
+    echo "  ⚠ $target_name (no template found in repo — skipping)"
+    return 0
+  fi
+  cp "$source" "$target"
+  echo "  + $target_name"
   memory_count=$((memory_count + 1))
-else
-  echo "  ~ failure-events.jsonl (exists, skipped)"
-fi
+}
 
-if [ ! -f "$MEMORY_DIR/prompt-variants.json" ]; then
-  cp "$SCRIPT_DIR/memory/prompt-variants.json" "$MEMORY_DIR/prompt-variants.json"
-  echo "  + prompt-variants.json"
+# Create an empty jsonl if missing (append-only event log, no template needed).
+install_empty_eventlog() {
+  local target_name="$1"
+  local target="$MEMORY_DIR/$target_name"
+  if [ -f "$target" ]; then
+    echo "  ~ $target_name (exists, skipped)"
+    return 0
+  fi
+  touch "$target"
+  echo "  + $target_name (created empty)"
   memory_count=$((memory_count + 1))
-else
-  echo "  ~ prompt-variants.json (exists, skipped)"
-fi
+}
 
-if [ ! -f "$MEMORY_DIR/exploration-events.jsonl" ]; then
-  touch "$MEMORY_DIR/exploration-events.jsonl"
-  echo "  + exploration-events.jsonl (created empty)"
-  memory_count=$((memory_count + 1))
-else
-  echo "  ~ exploration-events.jsonl (exists, skipped)"
-fi
+install_memory_template  failure-catalog.md     memory/semantic/failure-catalog.md     memory/failure-catalog.md
+install_memory_template  prompt-variants.json   memory/procedural/prompt-variants.json memory/prompt-variants.json
+install_empty_eventlog   failure-events.jsonl
+install_empty_eventlog   exploration-events.jsonl
 
 echo ""
 

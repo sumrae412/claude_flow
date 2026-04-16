@@ -13,7 +13,7 @@ Run through these questions. If any answer is "no" or "unsure", fix before Phase
 1. **Plan adherence** — Does the diff match every numbered step in the plan? Any steps skipped or partially done?
 2. **Requirement coverage** — Does `$requirements` from Phase 3 have full coverage? Check each resolved edge case.
 3. **Pattern consistency** — Does new code follow the patterns discovered in `$exploration`? Any deviations?
-4. **Test quality** — Do tests verify behavior (not implementation)? Are edge cases from Phase 3 tested?
+4. **Test quality** — Do tests verify behavior (not implementation)? Are edge cases from Phase 3 tested? For Python targets this is confirmed objectively by Phase 5 step 3c (mutation gate); for non-Python targets it remains a manual check.
 5. **Obvious issues** — Read the full diff as if seeing it for the first time. Any code smells, missing error handling, or hardcoded values?
 6. **Eval contamination check** — Are you evaluating the diff against `$requirements` (the original spec), or against patterns you see in the code itself? The latter is circular validation.
 

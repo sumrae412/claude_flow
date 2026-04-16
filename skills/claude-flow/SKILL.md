@@ -30,6 +30,22 @@ Agentic multi-phase workflow for building features. **Executor/Advisor strategy:
 3. **On entering each phase:** load `phases/phase-N-*.md` via Read tool
 4. **On completing each phase:** the phase file can be dropped — the populated contract (`$exploration`, `$requirements`, `$plan`, `$diff`) carries forward at 1/10th the size
 5. **Reference files** in `references/` are lazy-loaded only when a phase needs them
+6. **Architecture diagrams** in `diagrams/*.mmd` are lazy-loaded — read when reasoning about path selection (`triage-paths.mmd`), token budget behavior (`phase-lifecycle.mmd`), or contract data flow (`contract-flow.mmd`). Not resident.
+
+---
+
+## Flags
+
+Optional flags modify specific phases without changing the path decision.
+
+**Two flag scopes:**
+- **Path-scoped** flags pick the whole workflow path — e.g. `--fast`, `--lite`, `--clone`, `--explore`, `--full`. These interact with Phase 1 triage (see Path Decision below) and typically skip later phases entirely.
+- **Phase-scoped** flags modify one phase's behavior without changing the path — e.g. `--visual` / `--no-visual` below. Path selection is unaffected; only the named phase runs differently. New phase-scoped flags should name the phase in the `Phase` column of this table so the scope stays obvious.
+
+| Flag | Phase | Effect |
+|------|-------|--------|
+| `--visual` | Phase 4 | Force the Visual Checkpoint step (Step 6): generate `.excalidraw` mockups under `docs/design/<feature>/mockups/`, pause for user edits, fold drift back into `$plan`. Auto-enabled when `$plan` touches frontend files or the task mentions "UI mockup" / "wireframe" / "visual review". |
+| `--no-visual` | Phase 4 | Skip the Visual Checkpoint step even when auto-enable signals fire. The always-emit `architecture.excalidraw` (one-way) still runs. |
 
 ---
 
@@ -99,6 +115,8 @@ Load `phases/phase-1-discovery.md` for full path criteria and artifact requireme
 Contracts are the interface between phases. When dispatching subagents, pass the named contract — not raw conversation. See each schema file for field definitions and notes.
 
 **Never pass to subagents:** advisor transcripts, rejected architecture details, Phase 0 skill loading decisions, raw clarification Q&A (pass `$requirements` instead).
+
+**Authoring-time verification:** Phase 3 audits self-answerable questions; Phase 5 injects deterministic lookups (alembic, routes, columns, CSS, React) and runs a visual-drift gate. Optional deps graceful-skip — never block the workflow. See concept: `knowledge/concepts/authoring-time-verification.md`.
 
 ---
 

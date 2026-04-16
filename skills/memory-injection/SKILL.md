@@ -29,18 +29,82 @@ The caller provides a list of file paths that will be touched during this task. 
 - Phase 2 exploration findings (the deduplicated file list from context hydration)
 - The plan's "files to create/modify" list (available by Phase 4 onward)
 
-### Step 3: Match File Paths to Domains
+### Step 3+4: Match File Paths to Domains and Extract Gotcha Entries (script)
 
-Compare each file path against the domain table in `claude-flow/references/memory-injection.md`. A file can match multiple domains. Collect all matched domains.
+**Use the script — do not do this work in prose.** File-pattern matching and key lookup are mechanical operations. The LLM's job is to format and prioritize the result, not to walk the table.
 
-Examples:
+```bash
+python3 skills/claude-flow/scripts/match_memory_domains.py \
+    <memory_dir> \
+    --reference skills/claude-flow/references/memory-injection.md \
+    file1.py file2.py file3.html
+```
+
+Or via stdin:
+
+```bash
+echo -e "file1.py\nfile2.py" | python3 skills/claude-flow/scripts/match_memory_domains.py <memory_dir>
+```
+
+Output (JSON) gives you everything you need:
+
+```json
+{
+  "matched_domains": ["services", "models", "ui"],
+  "matched_keys": ["client-sync-map", "is-primary-contact", "..."],
+  "matched_entries": [
+    {"key": "is-primary-contact", "line": "- [...](...) — ...", "topic_file": "is_primary_contact.md"}
+  ],
+  "skipped": ["alembic-cli-only"]
+}
+```
+
+Notes on the script's behavior:
+- A file can match multiple domains; all matched gotcha keys are returned (deduplicated)
+- Keys present in the domain table but missing from MEMORY.md show up in `skipped` — surface them or ignore depending on caller intent
+- The script handles glob portability (`models/*` matches both `app/models/foo.py` and `models/foo.py`)
+- Stdlib only — no install needed
+
+Examples (reference; the script enforces them):
 - `services/client_service.py` → `services` domain
 - `models/client.py` + `alembic/versions/abc.py` → `models` domain
 - `templates/clients.html` + `static/app.css` → `ui` domain
 
-### Step 4: Extract Matching Gotcha Entries
+When NOT to use the script: if `claude-flow/references/memory-injection.md` doesn't exist (e.g., a project hasn't installed claude-flow), fall back to a graceful no-op — don't try to match by hand.
 
-For each matched domain, look up the gotcha keys listed in the domain table. Find the corresponding 1-line entries in MEMORY.md by semantic key. Extract only the entries whose keys appear in the matched domains' key lists.
+### Step 4a: 1-Hop Expansion via `## Related`
+
+After Step 4 produces its initial matches, walk the matched memory files for a `## Related` section and pull in neighbor entries. This surfaces connective tissue that file-pattern matching alone misses — e.g., a gotcha about Phase 3 quality gate is more useful if the design decision that introduced it also comes along.
+
+**Convention:** Memory files may declare relationships with a plain-markdown footer (no frontmatter migration required):
+
+```markdown
+## Related
+- [slug] — why it's related (one line)
+- [other-slug] — ...
+```
+
+Where `slug` matches a filename in the memory directory without the `.md` extension (e.g. `fold_check_upstream` → `fold_check_upstream.md`).
+
+**Expansion rules:**
+1. For each file matched in Step 4, open it and grep for `## Related`. If absent, move on.
+2. Parse `- [slug] — ...` bullets. Resolve each slug to a file path; skip if the file doesn't exist.
+3. Collect expanded entries. Deduplicate against Step 4 matches (by filename).
+4. Cap total expansion at **3 additional entries** across all matched files combined. These 3 entries are **additive** — they do NOT count toward Section 1's 10-entry cap (see Step 5). When more than 3 candidates exist, select deterministically:
+   - **Score:** co-citation count = number of matched files whose `## Related` list names this slug.
+   - **Rank:** descending by co-citation count.
+   - **Tiebreak:** ascending alphabetical slug order (stable across runs).
+   - **Fallback:** if fewer than 3 slugs are co-cited (score ≥ 2), fill remaining slots with singly-cited candidates using the same alphabetical tiebreak. If fewer than 3 candidates exist total, include all of them (the cap is a ceiling, not a target).
+5. Emit expanded entries into Section 1 of the injection block, tagged as `[related]` so the subagent sees they were pulled via 1-hop:
+
+```
+PROJECT GOTCHAS (verified for this codebase — do not ignore):
+- [direct match entry]
+- [direct match entry]
+- [related] [expanded entry from ## Related footer]
+```
+
+**When this is empty:** most existing memory files don't have `## Related` footers yet. That's fine — Step 4a is a graceful no-op in that case. The backfill compilation (Step 4b) provides relational coverage via compiled concept articles; Step 4a becomes more useful as new entries are written with `## Related` footers going forward.
 
 ### Step 4b: Select Matching Compiled Articles
 
@@ -61,7 +125,8 @@ Assemble two sections:
 ```
 PROJECT GOTCHAS (verified for this codebase — do not ignore):
 - [1-line entry for each matching key]
-- [... up to 10 entries]
+- [... up to 10 direct-match entries]
+- [related] [up to 3 additional entries from Step 4a, appended after direct matches]
 ```
 
 **Section 2 — Compiled knowledge (new):**
@@ -77,12 +142,12 @@ COMPILED KNOWLEDGE (from knowledge/concepts/):
 - If total injection exceeds 2000 chars, truncate compiled article excerpts with `... [truncated]` (not raw gotchas)
 - If no compiled articles match, omit Section 2 entirely
 
-**Priority when more than 10 raw gotcha entries match** (truncate to 10, highest priority first — this applies only to Section 1; compiled articles have their own cap of 3):
+**Priority when more than 10 raw gotcha entries match** (truncate to 10, highest priority first — this applies only to direct matches from Step 4; Step 4a `[related]` expansions and Step 4b compiled articles have their own caps and are not subject to this truncation):
 1. Exact file match — the gotcha mentions a specific file being touched
 2. Direct domain match — the file pattern matches the primary domain
 3. Cross-cutting concern — the gotcha applies broadly (e.g., `no-aliases`, `counts-endpoint`)
 
-If truncated, append: `[N more gotchas omitted — see MEMORY.md]`
+If truncated, append: `[N more gotchas omitted — see MEMORY.md]`. The Section 1 render order is: up to 10 direct-match entries first, then up to 3 `[related]` entries appended. Total Section 1 entries therefore cap at 13 (10 + 3), not 10.
 
 ### Step 5b: Check Abandoned Approaches
 

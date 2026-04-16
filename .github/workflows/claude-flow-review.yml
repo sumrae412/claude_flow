@@ -1,3 +1,10 @@
+# Advisory (not a required status check). This workflow posts AI PR review
+# comments but is not wired into branch protection. Merges are not blocked
+# on its outcome. If we ever want it blocking, add it to the repo's
+# required_status_checks list AND backfill review on any PRs merged during
+# a broken window. Historically this check silently failed between
+# 05aedde (workflow added) and e087f26 (lockfile generated) — intentionally
+# not blocking merges, so no retroactive review needed.
 name: Claude Flow PR Review
 
 on:

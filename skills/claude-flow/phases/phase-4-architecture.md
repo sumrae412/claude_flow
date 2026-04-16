@@ -2,6 +2,10 @@
 
 <!-- Loaded: after Phase 3 | Dropped: after user approves plan -->
 <!-- Output: $plan contract -->
+<!-- Step numbers are cross-referenced from other skills (search "Phase 4 Step N"
+     across skills/, references/, docs/ before renumbering). Add new steps at
+     the END or as `Step X.5` to preserve existing cross-refs.
+     See memory/phase_step_renumbering.md. -->
 
 The **executor (Sonnet)** drafts two competing architecture options. It has full context from Phase 2 exploration — it read the files firsthand, knows the patterns, understands the integration points. No architect subagents needed.
 
@@ -72,6 +76,8 @@ Dispatch Opus (`model: "opus"`, `subagent_type: "general-purpose"`) with:
 - Add: "Think step by step before responding."
 - Act on response: revise options, note advisor's recommendation
 
+**N-per-entity escalation:** If Step 1 produced **3 or more** architectural options (instead of the default 2), use N-per-entity fan-out for the critique — dispatch one Opus challenger per option, each focused on stress-testing one option independently. Synthesis collates challenger findings before user presentation. See `n_per_entity_fanout.md` (memory) for the trigger criteria and cost model. With 2 options the single-advisor critique is fine; the fan-out only pays off when each option warrants its own deep critique.
+
 ---
 
 ## Step 3: Present to User
@@ -108,6 +114,56 @@ Dispatch Opus (`model: "opus"`, `subagent_type: "general-purpose"`) with:
 - Add: "Think step by step before responding."
 - Triage: CRITICAL (must fix) / HIGH (should fix) / MEDIUM (note) / LOW (informational)
 - Revise plan for HIGH+ findings. Present to user.
+
+---
+
+## Step 6: Visual Checkpoint (guarded)
+
+Optional UI-mockup loop that runs after `$plan` is finalized and before the user approval gate. Lets the user edit a concrete drawing rather than a prose description — drift between the edited mockup and `$plan` is then folded back into the plan.
+
+**Guard — run this step only if ALL apply:**
+- One of the following signals is present:
+  - `--visual` flag on the workflow invocation
+  - Task description contains "UI mockup", "visual review", "wireframe", or "mockup"
+  - `$plan` touches frontend files (`*.html`, `*.jsx`, `*.tsx`, `*.vue`, `*.svelte`, template dirs, or CSS files)
+- `$plan` has user-facing UI surface area (new screens, modified layouts, new components)
+
+**Skip branch — exit this step immediately if:**
+- Backend-only feature (no frontend files in `$plan`'s files_to_create / files_to_modify)
+- Task is a refactor, migration, or infra change with no visible UI delta
+- User explicitly set `--no-visual`
+
+### Substeps (when guard passes)
+
+1. **Load skill.** Read `skills/excalidraw-canvas/SKILL.md` — it routes to `references/excalidraw-schema.md` (JSON subset), `references/mockup-prompts.md` (generation + drift-detection prompts), and `skills/claude-flow/contracts/mockup-manifest.schema.md` (state-matrix manifest).
+
+2. **Refactor-path extract (conditional).** If `$requirements.task_type == "refactor"` AND `$requirements.target_url` is set, seed the `default` state from the live page before generating other states:
+   ```
+   python skills/claude-flow/scripts/extract_mockup.py \
+       --url <target_url> \
+       --output docs/design/<feature>/mockups/<screen>__default.excalidraw
+   ```
+   If the script returns a skip envelope (Playwright missing, URL unreachable) or writes a visibly lossy output (empty, single-box flattening), discard the extract and fall back to blank-canvas generation — note the fallback in the Phase 4 output. Greenfield (non-refactor) tasks skip this substep.
+
+3. **Generate state-matrix mockups.** Using the generation prompt from `skills/excalidraw-canvas/references/mockup-prompts.md`, synthesize one `.excalidraw` file per (screen, state) tuple. Required-state sets per screen type are listed in `skills/claude-flow/contracts/mockup-manifest.schema.md`. Paths follow `docs/design/<feature>/mockups/<screen-slug>__<state>.excalidraw`. Feature slug comes from the branch name or `$requirements.feature_slug`.
+
+4. **Emit manifest.** After all state mockups for the feature are written, emit `docs/design/<feature>/mockup-manifest.json` per the schema in `skills/claude-flow/contracts/mockup-manifest.schema.md`. Every state entry must point to an existing `.excalidraw` file — a manifest that references a missing file is a HIGH-severity finding at the Phase 5 visual-verify gate.
+
+5. **Print open commands.** For each generated file, print:
+   ```
+   scripts/open_excalidraw.sh docs/design/<feature>/mockups/<screen-slug>__<state>.excalidraw
+   ```
+   Show the user the list of files written and remind them VS Code opens in an Excalidraw tab if the extension is installed; otherwise the script falls back to excalidraw.com.
+
+6. **Pause for user edits.** Prompt: "Edit the mockup(s) directly, then reply `continue` when done — or `skip` to proceed without re-reading." Do not touch the files during the pause.
+
+7. **Drift detection.** On `continue`, re-read each edited `.excalidraw` and diff against the generator's original output. Use the drift-detection prompt from `skills/excalidraw-canvas/references/mockup-prompts.md` to convert visual deltas into `$plan` deltas (new components, renamed fields, removed screens, etc.). Apply deltas inline to `$plan` and note them in a "Visual-driven plan changes" callout for the user approval gate. If no drift, note "Mockup approved as-is" and continue. If states were added or removed during editing, update `mockup-manifest.json` to match.
+
+### Always-emit architecture diagram (runs regardless of guard)
+
+Independent of `--visual` and independent of the guard above: if `$plan` has a `diagrams` or `component_map` section, emit a one-way (no re-read) `docs/design/<feature>/architecture.excalidraw` summarizing modules, data flow, and dependencies. This runs even for backend-only features so the plan has a visual record; it does NOT pause for user edits. Skip only if `$plan` has no diagrams/component_map content to represent.
+
+**Output:** Updated `$plan` (if drift detected), plus `.excalidraw` files under `docs/design/<feature>/`. Do not block the User Approval Gate on mockup perfection — the user sees the revised `$plan` at the next gate and can still reject.
 
 ---
 

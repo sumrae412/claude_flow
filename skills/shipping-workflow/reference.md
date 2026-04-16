@@ -39,7 +39,11 @@ Check deletions: `git diff --diff-filter=D --name-only origin/main..origin/<pr-b
 
 ### Step 3: Broad Code Review Sweep
 
-- Run code review tool if available (e.g. CodeRabbit: `coderabbit review --plain`).
+- Run code review tool if available. **For PRs where the changes are already committed and pushed** (the normal shipping-workflow state), invoke CodeRabbit with:
+  ```
+  coderabbit review --plain --base <base-branch> --type committed
+  ```
+  The default mode only reviews uncommitted changes and returns `No files found for review` when the diff is already on a pushed branch — exactly the state after Stage 1/2. `--type committed --base main` is what actually runs the review.
 - Check the diff for **defensive patterns** (see project-level checklists below).
 
 ### Step 4: Determine Deep-Dive Triggers
@@ -174,6 +178,8 @@ Do **not** flag:
 ## Fix-What-You-Find Rule
 
 If you discover a bug during review — even if it was **not introduced by this PR** — flag it and fix it. Pre-existing bugs are still bugs. The same applies to CI failures: if a pre-existing issue causes CI to fail, fix the root cause rather than working around it or ignoring it.
+
+**Common chronic-failure pattern — CI workflow shipped without companion artifact:** A GitHub Actions step that runs `npm ci`, `yarn install --frozen-lockfile`, or `pip install -r *.lock` requires the lock file committed in the same `working-directory:`. Workflows shipped without the lock file fail every PR silently until someone fixes them. When you first encounter a failing CI check that was already failing on the base branch, check whether it's this pattern before assuming it's flaky — and fix it, don't work around it. Remediation: `npm install --package-lock-only --no-audit` (or `poetry lock`, etc.), verify with `--dry-run` of the workflow's install command, commit the lock file.
 
 ---
 

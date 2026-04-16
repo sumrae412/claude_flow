@@ -1,0 +1,33 @@
+{
+  "feature_slug": "test-feature",
+  "base_url": "http://localhost:3000",
+  "screens": [
+    {
+      "name": "signup",
+      "path": "/signup",
+      "states": [
+        {
+          "name": "default",
+          "mockup_file": "tests/fixtures/visual_verify/sample.excalidraw",
+          "url_suffix": "",
+          "trigger_script": null,
+          "wait_for_selector": null
+        },
+        {
+          "name": "error",
+          "mockup_file": "tests/fixtures/visual_verify/sample.excalidraw",
+          "url_suffix": "?simulate=error",
+          "trigger_script": null,
+          "wait_for_selector": ".error"
+        },
+        {
+          "name": "loading",
+          "mockup_file": "tests/fixtures/visual_verify/sample.excalidraw",
+          "url_suffix": "?simulate=loading",
+          "trigger_script": "document.querySelector('form')?.submit()",
+          "wait_for_selector": null
+        }
+      ]
+    }
+  ]
+}

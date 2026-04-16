@@ -35,6 +35,23 @@
       "description": "Test coverage gaps, missing edge cases, untested error paths"
     },
     {
+      "id": "production-readiness-check",
+      "tier": "always",
+      "cascade_tier": 2,
+      "subagent_type": "production-readiness-check",
+      "model": "sonnet",
+      "description": "27-point pre-ship checklist — SECURITY, DATABASE, DEPLOYMENT, CODE. Advisory mode; infra-confirm items prompt the user."
+    },
+    {
+      "id": "curmudgeon-review",
+      "tier": "always",
+      "cascade_tier": 2,
+      "runner": "codex-cli",
+      "runner_script": "scripts/curmudgeon_review.sh",
+      "model": "gpt-5-codex",
+      "description": "Non-Anthropic second opinion — code smells, wrong abstractions, lazy tests"
+    },
+    {
       "id": "migration-reviewer",
       "tier": "conditional",
       "cascade_tier": 3,

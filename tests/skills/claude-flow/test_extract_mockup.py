@@ -11,8 +11,18 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).parents[3]
-SCRIPT = ROOT / "skills" / "claude-flow" / "scripts" / "extract_mockup.py"
+def _resolve_scripts_dir():
+    for p in (
+        Path.home() / ".claude" / "skills" / "claude-flow" / "scripts",
+        Path(__file__).parents[4] / "claude-skills" / "claude-flow" / "scripts",
+    ):
+        if (p / "extract_mockup.py").exists():
+            return p
+    raise RuntimeError("extract_mockup.py not found; install claude-skills via claude_flow/install.sh")
+
+
+SCRIPTS_DIR = _resolve_scripts_dir()
+SCRIPT = SCRIPTS_DIR / "extract_mockup.py"
 
 
 def run(args, env_extra=None):
@@ -52,7 +62,7 @@ def test_skip_when_output_path_missing():
 
 def test_dom_to_excalidraw_valid_json_with_unique_ids():
     """DOM box list → Excalidraw JSON: every element has unique id, supported type."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import extract_mockup
 
     dom_boxes = [
@@ -74,7 +84,7 @@ def test_dom_to_excalidraw_valid_json_with_unique_ids():
 
 def test_dom_to_excalidraw_caps_output_elements():
     """If DOM has hundreds of boxes, cap to keep file Claude-writable."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import extract_mockup
 
     dom_boxes = [
@@ -87,7 +97,7 @@ def test_dom_to_excalidraw_caps_output_elements():
 
 def test_dom_to_excalidraw_preserves_text_content():
     """Text-bearing elements should round-trip their text string."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import extract_mockup
 
     dom_boxes = [
@@ -102,7 +112,7 @@ def test_dom_to_excalidraw_preserves_text_content():
 def test_empty_dom_returns_empty_excalidraw():
     """Zero-box DOM should still produce a valid (empty) Excalidraw file,
     not a crash or a corrupted file."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import extract_mockup
 
     excal = extract_mockup.dom_to_excalidraw([])
@@ -130,7 +140,7 @@ def test_cli_skip_envelope_shape():
 def test_dom_to_excalidraw_filters_tiny_boxes():
     """Pixel-perfect DOM has lots of 1x1 tracking spans, spacers, etc.
     The skeleton should ignore boxes smaller than a meaningful threshold."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import extract_mockup
 
     dom_boxes = [
@@ -147,7 +157,7 @@ def test_skip_envelope_on_zero_dom_extracted():
     """If Playwright runs but returns 0 elements, emit skip (likely SPA
     before hydration, or wrong URL) — do not write an empty file that
     downstream treats as ground truth."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import extract_mockup
 
     # Emulate: extract_from_url returns empty box list

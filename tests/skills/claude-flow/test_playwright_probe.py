@@ -4,7 +4,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).parents[3] / "skills" / "claude-flow" / "scripts" / "_playwright_probe.py"
+def _resolve_script(name):
+    for p in (
+        Path.home() / ".claude" / "skills" / "claude-flow" / "scripts" / name,
+        Path(__file__).parents[4] / "claude-skills" / "claude-flow" / "scripts" / name,
+    ):
+        if p.exists():
+            return p
+    raise RuntimeError(f"{name} not found; install claude-skills via claude_flow/install.sh")
+
+
+SCRIPT = _resolve_script("_playwright_probe.py")
 
 
 def test_probe_returns_json():

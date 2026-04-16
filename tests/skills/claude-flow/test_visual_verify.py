@@ -6,7 +6,20 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parents[3]
-SCRIPT = ROOT / "skills" / "claude-flow" / "scripts" / "visual_verify.py"
+
+
+def _resolve_script(name):
+    for p in (
+        Path.home() / ".claude" / "skills" / "claude-flow" / "scripts" / name,
+        ROOT.parent / "claude-skills" / "claude-flow" / "scripts" / name,
+    ):
+        if p.exists():
+            return p
+    raise RuntimeError(f"{name} not found; install claude-skills via claude_flow/install.sh")
+
+
+SCRIPT = _resolve_script("visual_verify.py")
+SCRIPTS_DIR = SCRIPT.parent
 FIXTURES = ROOT / "tests" / "fixtures" / "visual_verify"
 
 
@@ -70,7 +83,7 @@ def test_compare_layouts_no_false_drift_on_scale_mismatch():
     rendered div at (300, 300, 600, 150) in a 1200px viewport — same
     proportional layout, different absolute scale.
     """
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     mockup = [{"id": "1", "type": "rectangle", "x": 100, "y": 100, "width": 200, "height": 50}]
@@ -89,7 +102,7 @@ def test_compare_layouts_no_false_drift_on_scale_mismatch():
 
 
 def test_compare_layouts_flags_broken_image():
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     mockup = [{"id": "1", "type": "rectangle", "x": 0, "y": 0, "width": 100, "height": 100}]
@@ -104,7 +117,7 @@ def test_compare_layouts_flags_broken_image():
 
 
 def test_compare_layouts_blank_page_is_high_severity():
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     mockup = [{"id": "1", "type": "rectangle", "x": 0, "y": 0, "width": 100, "height": 100}]
@@ -188,7 +201,7 @@ def test_manifest_malformed_json_skips_gracefully():
 def test_manifest_missing_mockup_file_is_high_severity_finding():
     """If the manifest points to a .excalidraw that doesn't exist, that's a
     generator bug — block the gate, don't silently skip."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     manifest = json.loads((FIXTURES / "manifest_missing_mockup.json").read_text())
@@ -201,7 +214,7 @@ def test_manifest_missing_mockup_file_is_high_severity_finding():
 
 def test_manifest_iterates_all_states():
     """3-state manifest must call the renderer 3 times with 3 distinct URLs."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     calls = []
@@ -229,7 +242,7 @@ def test_manifest_iterates_all_states():
 
 def test_manifest_any_state_mismatch_blocks_gate():
     """If 1 of 3 states has broken image, overall exit = 1."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     call_num = [0]
@@ -252,7 +265,7 @@ def test_manifest_any_state_mismatch_blocks_gate():
 
 def test_manifest_findings_carry_state_name():
     """Every finding from manifest mode must be tagged with the screen + state."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     def blank_renderer(url, max_wait, wait_for_selector=None, trigger_script=None):
@@ -284,7 +297,7 @@ def _stub_renderer_empty(url, max_wait, wait_for_selector=None, trigger_script=N
 def test_manifest_missing_base_url_is_high_severity_finding():
     """Manifest without base_url would produce confusing playwright errors.
     Fail fast with a clear finding instead."""
-    sys.path.insert(0, str(ROOT / "skills" / "claude-flow" / "scripts"))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     import visual_verify
 
     manifest = {

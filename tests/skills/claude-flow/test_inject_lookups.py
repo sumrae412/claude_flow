@@ -6,7 +6,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-SCRIPT = Path(__file__).parents[3] / "skills" / "claude-flow" / "scripts" / "inject_lookups.py"
+# Resolve via the runtime symlink (~/.claude/skills/ → claude-skills repo)
+# or sibling claude-skills checkout if the symlink isn't set up yet.
+def _resolve_script(name):
+    for p in (
+        Path.home() / ".claude" / "skills" / "claude-flow" / "scripts" / name,
+        Path(__file__).parents[4] / "claude-skills" / "claude-flow" / "scripts" / name,
+    ):
+        if p.exists():
+            return p
+    raise RuntimeError(f"{name} not found; install claude-skills via claude_flow/install.sh")
+
+
+SCRIPT = _resolve_script("inject_lookups.py")
 
 
 def run(args, cwd=None):

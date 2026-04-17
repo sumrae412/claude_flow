@@ -1,0 +1,14 @@
+{
+  "case_id": "case-18-untested-invariant-claim",
+  "primary_criterion": "test_coverage_gaps",
+  "planted_bug": "Docstring claims an invariant (creates a Client record to keep tenants listing visible) but the body never calls Client.create(). No test in the diff exercises the claimed invariant.",
+  "expected_scores": {
+    "input_validation": 5,
+    "error_handling": 5,
+    "concurrency_safety": 7,
+    "data_consistency": 2,
+    "failure_modes": 5,
+    "test_coverage_gaps": 3
+  },
+  "rationale": "Untested invariant claim is the headline (test_coverage_gaps). data_consistency is also low because the invariant is factually false \u2014 the member is orphaned from Client, breaking the join that the docstring promises. input_validation mid (no email format check). error_handling mid (no rollback on commit failure)."
+}

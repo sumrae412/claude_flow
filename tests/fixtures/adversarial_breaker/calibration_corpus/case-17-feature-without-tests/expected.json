@@ -1,0 +1,14 @@
+{
+  "case_id": "case-17-feature-without-tests",
+  "primary_criterion": "test_coverage_gaps",
+  "planted_bug": "New password-reset endpoints (request + confirm) added to app/routes/password_reset.py with no test file in the diff. Two endpoints, zero tests.",
+  "expected_scores": {
+    "input_validation": 5,
+    "error_handling": 5,
+    "concurrency_safety": 6,
+    "data_consistency": 6,
+    "failure_modes": 5,
+    "test_coverage_gaps": 3
+  },
+  "rationale": "A full multi-endpoint feature shipped with no tests at all. input_validation mid because token format unchecked, unknown-email not handled. concurrency_safety mid because tokens aren't claimed atomically (two confirms could both succeed). error_handling/data_consistency mid because missing user / missing token paths are unhandled."
+}

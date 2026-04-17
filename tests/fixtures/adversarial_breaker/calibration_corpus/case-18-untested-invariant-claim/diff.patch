@@ -1,0 +1,17 @@
+diff --git a/app/services/household_service.py b/app/services/household_service.py
+index 4444ddd..5555eee 100644
+--- a/app/services/household_service.py
++++ b/app/services/household_service.py
+@@ -10,0 +11,12 @@ from app.models import HouseholdMember
++def create_household_member(db, household_id: int, name: str, email: str) -> HouseholdMember:
++    """Create a household member.
++
++    Invariant: also creates corresponding Client record so the tenants
++    listing query (which joins through Client) finds this member.
++    """
++    member = HouseholdMember(household_id=household_id, name=name, email=email)
++    db.add(member)
++    # NOTE: No Client.create() here, despite the docstring claim.
++    db.commit()
++    return member
++

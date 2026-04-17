@@ -1,0 +1,10 @@
+diff --git a/app/services/payment_service.py b/app/services/payment_service.py
+index 1111aaa..2222bbb 100644
+--- a/app/services/payment_service.py
++++ b/app/services/payment_service.py
+@@ -3,6 +3,8 @@ import stripe
+ def charge_user(user_id: int, amount: int):
+     user = db.query(User).get(user_id)
++    if user.account_locked:
++        raise AccountLockedError(user_id)
+     return stripe.Charge.create(amount=amount, customer=user.stripe_id)

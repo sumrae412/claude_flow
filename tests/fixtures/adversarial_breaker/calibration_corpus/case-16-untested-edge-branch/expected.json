@@ -1,0 +1,14 @@
+{
+  "case_id": "case-16-untested-edge-branch",
+  "primary_criterion": "test_coverage_gaps",
+  "planted_bug": "New error branch (account_locked) added to charge_user without a corresponding test for the locked-account path. Diff has no tests/ changes.",
+  "expected_scores": {
+    "input_validation": 6,
+    "error_handling": 5,
+    "concurrency_safety": 7,
+    "data_consistency": 7,
+    "failure_modes": 5,
+    "test_coverage_gaps": 3
+  },
+  "rationale": "A new control-flow branch shipped without a test exercising it. input_validation mid because amount has no lower-bound check. error_handling mid because raw Stripe errors propagate. failure_modes mid because Stripe down returns a 500."
+}

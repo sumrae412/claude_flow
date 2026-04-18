@@ -13,7 +13,9 @@ case "$TOOL_NAME" in
 esac
 
 FILE_PATH="$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')"
+shopt -s nocasematch
 [[ "$FILE_PATH" != *.py ]] && exit 0
+shopt -u nocasematch
 
 if ! command -v ruff >/dev/null 2>&1; then
   echo '{"reviewer":"pre-edit-lint-gate-python","skipped":true,"reason":"ruff not installed"}'
@@ -32,16 +34,20 @@ elif [[ "$TOOL_NAME" == "Edit" ]] && [[ -f "$FILE_PATH" ]]; then
   CONTENT="$(OLD="$OLD" NEW="$NEW" FILE="$FILE_PATH" python3 - <<'PY'
 import os, sys
 src = open(os.environ["FILE"]).read()
-sys.stdout.write(src.replace(os.environ["OLD"], os.environ["NEW"], 1))
+old = os.environ["OLD"]
+if old and old not in src:
+    sys.exit(0)  # Edit will fail at tool-call time; avoid blocking on unrelated errors
+sys.stdout.write(src.replace(old, os.environ["NEW"], 1))
 PY
 )"
 fi
 
 [[ -z "$CONTENT" ]] && exit 0
 
-TMP=""
-trap '[[ -n "$TMP" ]] && rm -f "$TMP"' EXIT
-TMP="$(mktemp -t preeditlint.XXXXXX).py"
+TMPD=""
+trap '[[ -n "$TMPD" ]] && rm -rf "$TMPD"' EXIT
+TMPD="$(mktemp -d -t preeditlint.XXXXXX)"
+TMP="$TMPD/x.py"
 printf '%s' "$CONTENT" > "$TMP"
 
 OUTPUT="$(ruff check --no-fix "$TMP" 2>&1 || true)"

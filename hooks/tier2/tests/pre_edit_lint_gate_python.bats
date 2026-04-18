@@ -43,3 +43,30 @@ teardown() { rm -rf "$TMPDIR_TEST"; }
   run bash "$HOOK" <<< '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
   [ "$status" -eq 0 ]
 }
+
+@test "allows Edit that replaces cleanly" {
+  if ! command -v ruff >/dev/null; then skip "ruff not available"; fi
+  FIXTURE="$TMPDIR_TEST/edit_me.py"
+  echo "x = 1" > "$FIXTURE"
+  JSON=$(jq -n --arg f "$FIXTURE" '{tool_name:"Edit",tool_input:{file_path:$f,old_string:"x = 1",new_string:"x = 2"}}')
+  run bash "$HOOK" <<< "$JSON"
+  [ "$status" -eq 0 ]
+}
+
+@test "blocks Edit that introduces ruff error" {
+  if ! command -v ruff >/dev/null; then skip "ruff not available"; fi
+  FIXTURE="$TMPDIR_TEST/edit_err.py"
+  echo "x = 1" > "$FIXTURE"
+  JSON=$(jq -n --arg f "$FIXTURE" '{tool_name:"Edit",tool_input:{file_path:$f,old_string:"x = 1",new_string:"import os\nimport os"}}')
+  run bash "$HOOK" <<< "$JSON"
+  [ "$status" -ne 0 ]
+}
+
+@test "skips Edit when old_string does not match" {
+  if ! command -v ruff >/dev/null; then skip "ruff not available"; fi
+  FIXTURE="$TMPDIR_TEST/edit_nomatch.py"
+  printf "import os\nimport os\n" > "$FIXTURE"   # pre-existing errors
+  JSON=$(jq -n --arg f "$FIXTURE" '{tool_name:"Edit",tool_input:{file_path:$f,old_string:"NOT_PRESENT",new_string:"also_not"}}')
+  run bash "$HOOK" <<< "$JSON"
+  [ "$status" -eq 0 ]   # don't block on unrelated pre-existing errors
+}

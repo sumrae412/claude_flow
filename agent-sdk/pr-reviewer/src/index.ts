@@ -1,6 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { execSync } from 'child_process';
-import { selectReviewers } from './reviewers.js';
+import {
+  selectReviewers,
+  COMBINED_SMALL_PR_SYSTEM,
+  combinedSmallPRUserMessage,
+} from './reviewers.js';
 import { parseFindings, deduplicateFindings, triageFindings } from './triage.js';
 import type { Finding } from './triage.js';
 import { formatPRComment, postToGitHub } from './github.js';
@@ -52,18 +56,22 @@ function parseArgs(): {
   return { prNumber, dryRun, maxAgents };
 }
 
-// ─── Small PR combined prompt ─────────────────────────────────────────────────
+// ─── Cache usage logging ───────────────────────────────────────────────────────
 
-function combinedSmallPRPrompt(diff: string): string {
-  return `You are a thorough code reviewer. This is a small PR diff (under 50 lines). Review it comprehensively for bugs, security issues, silent failures, and any other problems.
-
-Here is the diff:
-
-\`\`\`diff
-${diff}
-\`\`\`
-
-Format each finding as: [SEVERITY] file:line — description. Severities: CRITICAL, HIGH, MEDIUM, LOW, NITPICK.`;
+// Surfaces prompt-cache behavior from the response so CI runs can see when
+// caching is hitting (cache_read_input_tokens > 0) vs warming (cache_creation_input_tokens > 0).
+function logCacheUsage(
+  reviewer: string,
+  usage: { cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null; input_tokens?: number | null } | undefined,
+): void {
+  if (!usage) return;
+  const created = usage.cache_creation_input_tokens ?? 0;
+  const read = usage.cache_read_input_tokens ?? 0;
+  const input = usage.input_tokens ?? 0;
+  if (created === 0 && read === 0) return;
+  console.log(
+    `  ${reviewer} cache: read=${read} created=${created} fresh_input=${input}`,
+  );
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
@@ -93,7 +101,18 @@ async function main(): Promise<void> {
       const response = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
-        messages: [{ role: 'user', content: combinedSmallPRPrompt(diff) }],
+        // Static reviewer instructions are marked ephemeral so repeat runs
+        // within the 5-minute cache TTL get ~90% input-token discount.
+        system: [
+          {
+            type: 'text',
+            text: COMBINED_SMALL_PR_SYSTEM,
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
+        messages: [
+          { role: 'user', content: combinedSmallPRUserMessage(diff) },
+        ],
       });
 
       const text = response.content
@@ -104,6 +123,7 @@ async function main(): Promise<void> {
       const findings = parseFindings('combined', text);
       allFindings.push(...findings);
       console.log(`  combined: ${findings.length} findings`);
+      logCacheUsage('combined', response.usage);
     } catch (err) {
       console.error('Anthropic API error (combined reviewer):', err);
     }
@@ -129,7 +149,19 @@ async function main(): Promise<void> {
         const response = await client.messages.create({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 4096,
-          messages: [{ role: 'user', content: reviewer.prompt(diff) }],
+          // Per-reviewer system prompt is static across PRs; mark ephemeral so
+          // the same reviewer reading a second PR within 5 min pays ~10% on
+          // the instructions portion.
+          system: [
+            {
+              type: 'text',
+              text: reviewer.system,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          messages: [
+            { role: 'user', content: reviewer.userMessage(diff) },
+          ],
         });
 
         const text = response.content
@@ -139,6 +171,7 @@ async function main(): Promise<void> {
 
         const findings = parseFindings(reviewer.name, text);
         console.log(`  ${reviewer.name}: ${findings.length} findings`);
+        logCacheUsage(reviewer.name, response.usage);
         return findings;
       } catch (err) {
         console.error(`Anthropic API error (${reviewer.name}):`, err);

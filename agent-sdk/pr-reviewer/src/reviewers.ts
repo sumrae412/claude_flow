@@ -1,9 +1,17 @@
+// Each reviewer is split into (system, user) so the static system prompt can be
+// marked with `cache_control: { type: "ephemeral" }` at the call site. This gives
+// a ~90% discount on the system portion when the same reviewer runs within the
+// cache TTL (5 minutes by default). See index.ts for the cache_control wiring.
+
 const FORMAT_INSTRUCTION = `Format each finding as: [SEVERITY] file:line — description. Severities: CRITICAL, HIGH, MEDIUM, LOW, NITPICK.`;
+
+function userMessage(diff: string): string {
+  return `Here is the diff to review:\n\n\`\`\`diff\n${diff}\n\`\`\``;
+}
 
 // ─── Core reviewers (always run) ──────────────────────────────────────────────
 
-export function codeReviewPrompt(diff: string): string {
-  return `You are an expert code reviewer performing a thorough analysis of a pull request diff.
+const CODE_REVIEW_SYSTEM = `You are an expert code reviewer performing a thorough analysis of a pull request diff.
 
 I'm positive there are at least 30 issues in this code — find them all. Look exhaustively for:
 - Bugs and logic errors
@@ -17,19 +25,11 @@ I'm positive there are at least 30 issues in this code — find them all. Look e
 - Type mismatches or unsafe casts
 - Dead code or unreachable branches
 
-Here is the diff to review:
-
-\`\`\`diff
-${diff}
-\`\`\`
-
 Be thorough. Do not stop at the obvious issues — look deep. Report every problem you find, no matter how small.
 
 ${FORMAT_INSTRUCTION}`;
-}
 
-export function silentFailurePrompt(diff: string): string {
-  return `You are a reliability engineer reviewing a pull request diff for silent failures and hidden error states.
+const SILENT_FAILURE_SYSTEM = `You are a reliability engineer reviewing a pull request diff for silent failures and hidden error states.
 
 I'm positive there are at least 30 silent failure issues in this code — find them all. Look exhaustively for:
 - Swallowed exceptions (empty catch blocks, catch blocks that only log)
@@ -43,19 +43,11 @@ I'm positive there are at least 30 silent failure issues in this code — find t
 - Misleading success indicators that hide underlying failures
 - Retry logic that masks persistent errors
 
-Here is the diff to review:
-
-\`\`\`diff
-${diff}
-\`\`\`
-
 Be exhaustive. Even subtle cases where a caller might not realize an operation failed should be reported.
 
 ${FORMAT_INSTRUCTION}`;
-}
 
-export function securityReviewPrompt(diff: string): string {
-  return `You are a senior application security engineer performing a security review of a pull request diff.
+const SECURITY_REVIEW_SYSTEM = `You are a senior application security engineer performing a security review of a pull request diff.
 
 I'm positive there are at least 30 security issues in this code — find them all. Apply OWASP Top 10 and beyond. Look exhaustively for:
 - Authentication and authorization flaws
@@ -74,21 +66,13 @@ I'm positive there are at least 30 security issues in this code — find them al
 - Overly permissive CORS or CSP settings
 - Missing security headers
 
-Here is the diff to review:
-
-\`\`\`diff
-${diff}
-\`\`\`
-
 Be exhaustive. Flag anything that could be exploited by a malicious actor.
 
 ${FORMAT_INSTRUCTION}`;
-}
 
 // ─── Conditional reviewers ─────────────────────────────────────────────────────
 
-export function migrationReviewPrompt(diff: string): string {
-  return `You are a database engineer reviewing an Alembic migration for safety and correctness.
+const MIGRATION_REVIEW_SYSTEM = `You are a database engineer reviewing an Alembic migration for safety and correctness.
 
 Review this migration diff with extreme care. Look exhaustively for:
 - Irreversible operations without a proper downgrade path
@@ -102,19 +86,11 @@ Review this migration diff with extreme care. Look exhaustively for:
 - Sequence or auto-increment issues
 - Migration ordering dependencies that are not captured
 
-Here is the diff to review:
-
-\`\`\`diff
-${diff}
-\`\`\`
-
 Flag anything that could cause data loss, production downtime, or irreversible changes.
 
 ${FORMAT_INSTRUCTION}`;
-}
 
-export function asyncReviewPrompt(diff: string): string {
-  return `You are a concurrency specialist reviewing async/await Python code for correctness.
+const ASYNC_REVIEW_SYSTEM = `You are a concurrency specialist reviewing async/await Python code for correctness.
 
 Review this diff exhaustively for async correctness issues. Look for:
 - Blocking calls inside async functions (sync I/O, time.sleep, blocking DB calls)
@@ -128,19 +104,11 @@ Review this diff exhaustively for async correctness issues. Look for:
 - Missing cancellation handling
 - Race conditions in async code (shared mutable state without locks)
 
-Here is the diff to review:
-
-\`\`\`diff
-${diff}
-\`\`\`
-
 Be exhaustive. Async bugs are subtle and dangerous.
 
 ${FORMAT_INSTRUCTION}`;
-}
 
-export function apiDocReviewPrompt(diff: string): string {
-  return `You are an API design reviewer checking route documentation and schema consistency.
+const API_DOC_REVIEW_SYSTEM = `You are an API design reviewer checking route documentation and schema consistency.
 
 Review this diff exhaustively for API quality issues. Look for:
 - Undocumented routes or endpoints
@@ -155,50 +123,54 @@ Review this diff exhaustively for API quality issues. Look for:
 - Missing authentication/authorization documentation on secured routes
 - Response schemas that expose internal implementation details
 
-Here is the diff to review:
-
-\`\`\`diff
-${diff}
-\`\`\`
-
 Flag anything that would confuse API consumers or break existing integrations.
 
 ${FORMAT_INSTRUCTION}`;
-}
 
 // ─── Reviewer selector ─────────────────────────────────────────────────────────
 
-interface Reviewer {
+export interface Reviewer {
   name: string;
-  prompt: (diff: string) => string;
+  system: string;
+  userMessage: (diff: string) => string;
+}
+
+function make(name: string, system: string): Reviewer {
+  return { name, system, userMessage };
 }
 
 export function selectReviewers(diff: string): Array<Reviewer> {
   const reviewers: Array<Reviewer> = [
-    { name: 'code', prompt: codeReviewPrompt },
-    { name: 'silentFailure', prompt: silentFailurePrompt },
-    { name: 'security', prompt: securityReviewPrompt },
+    make('code', CODE_REVIEW_SYSTEM),
+    make('silentFailure', SILENT_FAILURE_SYSTEM),
+    make('security', SECURITY_REVIEW_SYSTEM),
   ];
 
-  // Check for Python migration files
   const hasMigrationFile = /\+\+\+ b\/.*\.(py)/.test(diff) &&
     /alembic|migration/i.test(diff);
   if (hasMigrationFile) {
-    reviewers.push({ name: 'migration', prompt: migrationReviewPrompt });
+    reviewers.push(make('migration', MIGRATION_REVIEW_SYSTEM));
   }
 
-  // Check for async/await usage in Python files
   const hasPythonAsync = /\+\+\+ b\/.*\.py/.test(diff) &&
     /\b(async|await)\b/.test(diff);
   if (hasPythonAsync) {
-    reviewers.push({ name: 'async', prompt: asyncReviewPrompt });
+    reviewers.push(make('async', ASYNC_REVIEW_SYSTEM));
   }
 
-  // Check for route/endpoint files
   const hasRouteFiles = /\+\+\+ b\/.*(route|endpoint|router|view|controller|api)\.(py|ts|js|go|rb)/.test(diff);
   if (hasRouteFiles) {
-    reviewers.push({ name: 'apiDoc', prompt: apiDocReviewPrompt });
+    reviewers.push(make('apiDoc', API_DOC_REVIEW_SYSTEM));
   }
 
   return reviewers;
+}
+
+// Combined reviewer for small PRs. Split the same way so the static portion caches.
+export const COMBINED_SMALL_PR_SYSTEM = `You are a thorough code reviewer. This is a small PR diff (under 50 lines). Review it comprehensively for bugs, security issues, silent failures, and any other problems.
+
+${FORMAT_INSTRUCTION}`;
+
+export function combinedSmallPRUserMessage(diff: string): string {
+  return userMessage(diff);
 }

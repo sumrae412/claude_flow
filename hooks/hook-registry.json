@@ -233,6 +233,16 @@
         },
         "project_config": ".claude/quality-gate.json with {\"command\": \"...\"}"
       }
+    },
+    {
+      "id": "pre-edit-lint-gate-python",
+      "tier": 2,
+      "trigger": "PreToolUse",
+      "matcher": ["Edit", "Write"],
+      "script": "hooks/tier2/pre-edit-lint-gate-python.sh",
+      "stack_tags": ["python+ruff"],
+      "opt_in": true,
+      "description": "Blocks Edit/Write on *.py when the resulting content fails `ruff check` — forces fix-before-move-on. Skips when ruff is not installed."
     }
   ]
 }

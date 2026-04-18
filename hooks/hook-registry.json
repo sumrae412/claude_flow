@@ -253,6 +253,15 @@
       "stack_tags": ["js+eslint", "ts+eslint"],
       "opt_in": true,
       "description": "Blocks Edit/Write on *.js/*.jsx/*.ts/*.tsx when the resulting content fails `eslint`. Skips when eslint is not installed."
+    },
+    {
+      "id": "memory-triage-on-stop",
+      "tier": 2,
+      "trigger": "Stop",
+      "matcher": ["*"],
+      "script": "hooks/tier2/memory-triage-on-stop.sh",
+      "opt_in": true,
+      "description": "On session Stop, writes REVIEW_QUEUE.md listing memory files not indexed in MEMORY.md. Advisory only — never auto-commits. Override MEMORY_DIR env var to point elsewhere."
     }
   ]
 }

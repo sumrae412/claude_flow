@@ -243,6 +243,16 @@
       "stack_tags": ["python+ruff"],
       "opt_in": true,
       "description": "Blocks Edit/Write on *.py when the resulting content fails `ruff check` — forces fix-before-move-on. Skips when ruff is not installed."
+    },
+    {
+      "id": "pre-edit-lint-gate-js",
+      "tier": 2,
+      "trigger": "PreToolUse",
+      "matcher": ["Edit", "Write"],
+      "script": "hooks/tier2/pre-edit-lint-gate-js.sh",
+      "stack_tags": ["js+eslint", "ts+eslint"],
+      "opt_in": true,
+      "description": "Blocks Edit/Write on *.js/*.jsx/*.ts/*.tsx when the resulting content fails `eslint`. Skips when eslint is not installed."
     }
   ]
 }

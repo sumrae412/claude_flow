@@ -1,0 +1,12 @@
+{
+  "name": "phase4_architecture_tradeoff",
+  "phase_analog": "Phase 4b — architecture stress test",
+  "context": "A claude-flow plan proposes adding a real-time event bus between workflow phases. Two architecture options are on the table:\n\nOption A — In-process Python asyncio queue: phases publish/subscribe via a shared asyncio.Queue inside the same process. Zero new infrastructure. Bounded by single-process memory and interpreter lifetime; cannot survive a session restart or fan out to separate worker processes.\n\nOption B — Redis Streams: phases publish to a Redis Streams topic, workers consume via consumer groups. Adds a Redis dependency and ops burden but supports multi-process fan-out, durable replay, and cross-session handoff.\n\nThe plan author is leaning toward Option A because it is 'simpler.' Current workflows are single-session and single-process. There is an outstanding request to support cross-session resume (Phase 5 checkpointing) that is on the roadmap but not yet scheduled.",
+  "question": "Which option should we pick, and what are the trade-offs the plan author is likely missing?",
+  "rubric": [
+    {"criterion": "names durability", "keywords": ["durab", "persist", "surviv"]},
+    {"criterion": "names cross-session resume implication", "keywords": ["cross-session", "checkpoint", "resume"]},
+    {"criterion": "names ops/dependency cost of Redis", "keywords": ["redis", "ops", "dependenc"]},
+    {"criterion": "recommends explicit decision or ADR", "keywords": ["adr", "decision", "recommend"]}
+  ]
+}

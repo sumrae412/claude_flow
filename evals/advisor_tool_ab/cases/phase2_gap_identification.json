@@ -1,0 +1,13 @@
+{
+  "name": "phase2_gap_identification",
+  "phase_analog": "Phase 2 — research gap identification (should stay Sonnet)",
+  "note": "This case is expected to NOT benefit from Opus or the advisor tool. It is a breadth-not-depth task: enumerating gaps across a research corpus. Including it prevents Opus-bias in the final recommendation. Expected outcome: sonnet_solo should score comparably to the other arms, since gap enumeration is a mechanical pattern-match task over known inputs, not a tradeoff that warrants escalation.",
+  "context": "Research Wave 1 produced three notes on 'event bus design patterns for single-developer multi-agent tooling':\n- Note A covers Redis Streams with consumer groups.\n- Note B covers in-process asyncio.Queue.\n- Note C covers SQLite-as-queue using WAL mode.\n\nThe synthesis task is to identify which gaps remain before Wave 2 dispatches targeted researchers. Known constraints: the target deployment is a single developer's laptop, no container orchestration, and the system must survive laptop sleep/wake cycles without losing queued events.",
+  "question": "What gaps in the Wave 1 research should Wave 2 fill? List them as specific, scoped follow-up questions.",
+  "rubric": [
+    {"criterion": "identifies durability-across-sleep gap", "keywords": ["sleep", "durab", "surviv"]},
+    {"criterion": "identifies operational-simplicity gap", "keywords": ["ops", "simpl", "maintenance"]},
+    {"criterion": "identifies benchmark/perf gap", "keywords": ["benchmark", "perf", "throughput"]},
+    {"criterion": "frames gaps as scoped questions", "keywords": ["?", "question", "how"]}
+  ]
+}

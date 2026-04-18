@@ -258,7 +258,7 @@
       "id": "memory-triage-on-stop",
       "tier": 2,
       "trigger": "Stop",
-      "matcher": ["*"],
+      "matcher": null,
       "script": "hooks/tier2/memory-triage-on-stop.sh",
       "opt_in": true,
       "description": "On session Stop, writes REVIEW_QUEUE.md listing memory files not indexed in MEMORY.md. Advisory only — never auto-commits. Override MEMORY_DIR env var to point elsewhere."

@@ -33,7 +33,7 @@ elif [[ "$TOOL_NAME" == "Edit" ]] && [[ -f "$FILE_PATH" ]]; then
   # Use python to do the replacement safely (no shell escaping pitfalls).
   CONTENT="$(OLD="$OLD" NEW="$NEW" FILE="$FILE_PATH" python3 - <<'PY'
 import os, sys
-src = open(os.environ["FILE"]).read()
+src = open(os.environ["FILE"], encoding="utf-8").read()
 old = os.environ["OLD"]
 if old and old not in src:
     sys.exit(0)  # Edit will fail at tool-call time; avoid blocking on unrelated errors

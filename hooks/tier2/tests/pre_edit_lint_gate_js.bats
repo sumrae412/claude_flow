@@ -13,16 +13,23 @@ setup() {
   "type": "module"
 }
 EOF
+  # files: pattern explicitly lists .ts/.tsx so the default espree parser is
+  # applied to TS extensions too. Tests use pure-JS-compatible syntax in .ts/.tsx
+  # files to avoid needing @typescript-eslint/parser as a dev dep.
   cat > "$TMPDIR_TEST/eslint.config.js" <<'EOF'
 export default [
   {
+    files: ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
     rules: {
       "no-unused-vars": "error",
       "no-undef": "error"
     },
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: "module"
+      sourceType: "module",
+      parserOptions: {
+        ecmaFeatures: { jsx: true }
+      }
     }
   }
 ];
@@ -96,4 +103,37 @@ teardown() { rm -rf "$TMPDIR_TEST"; }
   JSON=$(jq -n --arg f "$FIXTURE" '{tool_name:"Edit",tool_input:{file_path:$f,old_string:"NOT_PRESENT",new_string:"also_not"}}')
   run bash "$HOOK" <<< "$JSON"
   [ "$status" -eq 0 ]   # don't block on unrelated pre-existing errors
+}
+
+@test "allows clean ts" {
+  if ! command -v eslint >/dev/null 2>&1 && ! npx --no-install eslint --version >/dev/null 2>&1; then
+    skip "eslint not available"
+  fi
+  # Pure-JS syntax written to a .ts file exercises the EXT switch's ts branch
+  # without requiring the @typescript-eslint/parser dev dep.
+  run bash "$HOOK" <<< '{"tool_name":"Write","tool_input":{"file_path":"x.ts","content":"const x = 1; export default x;\n"}}'
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'"deny":true'* ]]
+}
+
+@test "allows clean tsx" {
+  if ! command -v eslint >/dev/null 2>&1 && ! npx --no-install eslint --version >/dev/null 2>&1; then
+    skip "eslint not available"
+  fi
+  # JSX-in-TS file: exercises the tsx branch of the EXT switch. Content is a
+  # minimal JSX expression wrapped in an arrow-function component that parses
+  # under espree with ecmaFeatures.jsx enabled.
+  run bash "$HOOK" <<< '{"tool_name":"Write","tool_input":{"file_path":"x.tsx","content":"const Greet = () => (<div>hi</div>); export default Greet;\n"}}'
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'"deny":true'* ]]
+}
+
+@test "blocks ts with eslint errors" {
+  if ! command -v eslint >/dev/null 2>&1 && ! npx --no-install eslint --version >/dev/null 2>&1; then
+    skip "eslint not available"
+  fi
+  # Unused-var on a .ts path — verifies both extension routing and error blocking.
+  run bash "$HOOK" <<< '{"tool_name":"Write","tool_input":{"file_path":"x.ts","content":"const x = 1;\n"}}'
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"eslint"* ]]
 }

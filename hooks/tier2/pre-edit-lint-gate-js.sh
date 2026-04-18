@@ -21,11 +21,12 @@ esac
 shopt -u nocasematch
 
 # eslint discovery: prefer PATH, fall back to npx --no-install for node_modules/.bin.
-ESLINT_CMD=""
+# Use a bash array so arguments are not subject to word-splitting (SC2086-safe).
+ESLINT_CMD=()
 if command -v eslint >/dev/null 2>&1; then
-  ESLINT_CMD="eslint"
+  ESLINT_CMD=(eslint)
 elif command -v npx >/dev/null 2>&1 && npx --no-install eslint --version >/dev/null 2>&1; then
-  ESLINT_CMD="npx --no-install eslint"
+  ESLINT_CMD=(npx --no-install eslint)
 else
   echo '{"reviewer":"pre-edit-lint-gate-js","skipped":true,"reason":"eslint not installed"}'
   exit 0
@@ -64,8 +65,12 @@ case "$FILE_PATH" in
 esac
 shopt -u nocasematch
 
-# ESLint v9+ searches for eslint.config.js upward from the linted file, not cwd.
-# So the tempfile must live inside CLAUDE_PROJECT_DIR for project config to apply.
+# ESLint v9 flat-config discovery walks up from CWD (verified against 9.39), and
+# its basePath check compares the linted file's absolute path against the resolved
+# basePath — which means on macOS `/tmp` or `/var/folders` (symlinks to `/private/...`)
+# cause spurious "File ignored because outside of base path" warnings when an
+# absolute path is passed. Work around by placing the tempfile under PROJECT_DIR
+# and invoking eslint with the relative path from that cwd.
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 TMPD=""
 trap '[[ -n "$TMPD" ]] && rm -rf "$TMPD"' EXIT
@@ -73,8 +78,13 @@ TMPD="$(mktemp -d "$PROJECT_DIR/.preeditlintjs.XXXXXX" 2>/dev/null || mktemp -d 
 TMP="$TMPD/x.$EXT"
 printf '%s' "$CONTENT" > "$TMP"
 
-cd "$PROJECT_DIR" 2>/dev/null || true
-OUTPUT="$($ESLINT_CMD "$TMP" 2>&1)"
+# Prefer relative path when the tempfile lives under PROJECT_DIR, else fall back
+# to the absolute path (the fallback mktemp path above, outside PROJECT_DIR).
+REL_TMP="$TMP"
+case "$TMP" in
+  "$PROJECT_DIR"/*) REL_TMP="${TMP#$PROJECT_DIR/}" ;;
+esac
+OUTPUT="$(cd "$PROJECT_DIR" && "${ESLINT_CMD[@]}" "$REL_TMP" 2>&1)"
 RC=$?
 if [[ $RC -ne 0 ]]; then
   echo "[pre-edit-lint-gate-js] BLOCKED: eslint errors in $FILE_PATH"

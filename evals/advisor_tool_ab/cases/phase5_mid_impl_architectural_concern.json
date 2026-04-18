@@ -1,0 +1,12 @@
+{
+  "name": "phase5_mid_impl_architectural_concern",
+  "phase_analog": "Phase 5.5 — mid-implementation escalation",
+  "context": "Halfway through implementing Task 3 of a 5-task plan, the implementer subagent discovers that the chosen data model cannot represent a case the requirements implicitly require: a HouseholdMember who is primary contact for one property but non-primary on a second property they also occupy. The current schema treats `is_primary_contact` as a column on HouseholdMember, which forces one global primary per member. The plan assumed a single-property-per-member world. Task 3 has a half-landed migration that renames a column; rolling it back is possible but adds two more migrations to the chain.\n\nOptions under consideration:\n1. Proceed with current schema, document the limitation, and defer multi-property support.\n2. Stop, amend the plan (move `is_primary_contact` onto a join table), roll back Task 3's migration, and replan Tasks 3-5.\n3. Introduce a scoped exception table as a shim now, with a migration ticket to consolidate later.",
+  "question": "Should we escalate this to a full replan, patch it with a shim, or defer? What is the risk of each path?",
+  "rubric": [
+    {"criterion": "names data-integrity / correctness risk", "keywords": ["integrity", "correct", "wrong"]},
+    {"criterion": "names migration cost/complexity", "keywords": ["migration", "rollback", "chain"]},
+    {"criterion": "names future-debt risk of shim", "keywords": ["debt", "shim", "later"]},
+    {"criterion": "gives a prioritized recommendation", "keywords": ["recommend", "should", "prefer"]}
+  ]
+}

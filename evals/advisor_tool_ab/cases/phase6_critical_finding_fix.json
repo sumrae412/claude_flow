@@ -1,0 +1,12 @@
+{
+  "name": "phase6_critical_finding_fix",
+  "phase_analog": "Phase 6 — iter-2 retry on critical reviewer finding",
+  "context": "A Phase 6 reviewer (skill-security-auditor) flagged a CRITICAL finding on a freshly-landed PR: a new API route `/api/household/members/search` accepts a `q` query parameter that is interpolated into a raw SQL LIKE clause via f-string. The route is annotated as admin-only but the auth decorator is on the parent blueprint, not the route itself; the reviewer is uncertain whether blueprint-level auth actually applies to this handler in the current FastAPI setup.\n\nIter-1 fix attempt: the executor replaced the f-string with a parameterized query (`%s` binding via SQLAlchemy `text()`). The reviewer re-ran and still flags CRITICAL, on the grounds that (a) SQLAlchemy `text()` with bound parameters is safer but still does not automatically escape SQL LIKE metacharacters (`%`, `_`), allowing denial-of-service via pathological patterns, and (b) the auth-scope question was not addressed.\n\nThe executor is about to retry iter-2 using the same approach. Cross-model diagnosis is being considered.",
+  "question": "Does iter-1's fix actually address the finding? What should iter-2 do differently, and should this escalate to cross-model diagnosis?",
+  "rubric": [
+    {"criterion": "identifies LIKE-metachar escaping as still-unaddressed", "keywords": ["like", "escape", "metachar", "wildcard"]},
+    {"criterion": "identifies auth-scope question as separately unaddressed", "keywords": ["auth", "scope", "decorator", "blueprint"]},
+    {"criterion": "recommends escalation or different approach", "keywords": ["escalat", "cross-model", "different"]},
+    {"criterion": "names confirmation-bias risk of same-model retry", "keywords": ["bias", "same", "confirm"]}
+  ]
+}

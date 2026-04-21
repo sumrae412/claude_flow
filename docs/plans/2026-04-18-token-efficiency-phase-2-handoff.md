@@ -72,3 +72,20 @@ Per-item verification is in the plan. Do not skip the verification step — Item
 2. Start Item 1 (MEMORY.md trim) with the invocation above.
 
 Ask before doing anything destructive (memory-repo reset, skill deletions, etc.). Auto-approval does NOT cover those.
+
+---
+
+## Execution log
+
+### 2026-04-21 — CI side-quest (no Phase 2 progress)
+
+**Side-quest:** Fixed the `Update Documentation` workflow, which had been failing on every push to `main` since at least commit `fc8e694` (5 consecutive failures on runs 24594192332, 24594217414, 24614443824, 24614873866, 24728638488).
+
+- **Root cause:** `anthropics/claude-code-action@v1` does not support the `push` event type. The workflow at `.github/workflows/update-docs.yml` was triggered on `push: branches: [main]`.
+- **Fix:** Swapped trigger to `workflow_dispatch:` (1-file, 6-line diff). Preserves the workflow for manual invocation without further churn on merges.
+- **Shipped in:** [claude_flow#45](https://github.com/sumrae412/claude_flow/pull/45) — branch `claude/angry-lederberg-071860` (worktree), pending review + merge.
+- **Out of scope (deferred):** Restoring auto-trigger via `pull_request: types: [closed]` + merged filter. Would require updating the prompt's push-only `github.event.head_commit.message` reference. Note for future work, not blocking.
+
+**Phase 2 status unchanged.** Items 1–5 all still pending. Next action remains Item 1 (MEMORY.md trim) per the main handoff above. The failing docs workflow did not block Phase 2 work, so no dependency was cleared — this was purely opportunistic cleanup.
+
+**Next session pre-flight:** verify PR #45 merged (`gh pr view 45 --json state`), then proceed with Item 1 as specified.

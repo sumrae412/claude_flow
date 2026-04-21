@@ -1,12 +1,7 @@
 name: Update Documentation
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '.github/workflows/update-docs.yml'
-      - 'CHANGELOG.md'
+  workflow_dispatch:
 
 permissions:
   contents: write

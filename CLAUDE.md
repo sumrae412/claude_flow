@@ -58,13 +58,14 @@ No database, no daemon. Reads `.claude/handoff.md`, `docs/plans/`, MEMORY.md, `h
 ### Overshoot technique exemptions
 "Find at least 30 issues" framing applies to OPEN-ENDED bug hunters (code reviewer, silent failure, security). It does NOT apply to deterministic/structured-checklist reviewers — those have fixed scope and overshoot prompts actively degrade them. See MEMORY `overshoot_prompt_scope`.
 
-## Two-Clones Gotcha
+## Multi-Clone Gotcha
 
-Two independent clones of this repo exist:
-- `/Users/summerrae/claude_code/claude_flow/` — **canonical** (git cwd, active dev)
-- `/Users/summerrae/claude_flow/` — shadow path (can drift within a session)
+The "two-clones" gotcha is not unique to this repo. Any project cloned more than once on the same filesystem can trigger it. Confirmed instances:
 
-Always run `git rev-parse --show-toplevel` on the first turn. If cwd is the shadow path, switch to the canonical one before writing. The shadow path can appear populated in one turn and nearly empty the next. See MEMORY `two_clones_same_repo` and `shadow_path_drift_within_session`.
+- **claude_flow:** canonical `/Users/summerrae/claude_code/claude_flow/` vs shadow `/Users/summerrae/claude_flow/`
+- **courierflow:** canonical `/Users/summerrae/courierflow/` plus `/Users/summerrae/courierflow/.claude/worktrees/*/` — a 2026-04-20 parallel-agent PR (#443) shipped byte-identical `docs/routines/*.md` files from a shadow clone BEFORE the author's commit could land.
+
+Always run `git rev-parse --show-toplevel` on the first turn. If cwd is a shadow path, switch to canonical before writing. A shadow clone can appear populated in one turn and nearly empty the next. When your local commit can't cherry-pick onto `origin/main` cleanly — suspect parallel-agent pickup, verify with `git diff origin/main HEAD -- <paths>`, and if empty your work is already upstream. See MEMORY `two_clones_same_repo`, `shadow_path_drift_within_session`, `two_clones_gotcha_generalized`, `git_cherry_pick_empty_signal`, and `reset_hard_after_upstream_verification`.
 
 ## Bundled Skills (relevant to claude-flow authorship)
 

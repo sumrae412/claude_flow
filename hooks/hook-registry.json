@@ -95,6 +95,14 @@
       "description": "Commit and push failure catalog after novel failure resolution"
     },
     {
+      "id": "short-approval-challenge",
+      "tier": 1,
+      "trigger": "UserPromptSubmit",
+      "matcher": null,
+      "script": "hooks/tier1/short-approval-challenge.sh",
+      "description": "On terse approval (ship/yes/merge), injects a reminder to gut-check the last unverified claim"
+    },
+    {
       "id": "lint-on-save-python",
       "tier": 2,
       "trigger": "PostToolUse",

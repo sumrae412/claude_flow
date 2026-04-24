@@ -13,14 +13,31 @@ export interface ReviewResponse {
   };
 }
 
+// Both prompt variants are passed through to the client, which picks based on
+// its own `preferSoftPrompts`. This matters for FallbackModelClient: when
+// primary (NVIDIA, soft) fails and fallback (Anthropic, aggressive) takes
+// over, Anthropic gets the aggressive variant it prefers — not primary's
+// soft variant.
+export interface SystemPrompts {
+  aggressive: string;
+  soft?: string;
+}
+
 export interface ModelClient {
   readonly providerName: string;
   readonly modelId: string;
   // True for providers whose gateways filter/throttle aggressive overshoot
-  // framing (e.g. NVIDIA free tier). Reviewer-selection code uses this to pick
-  // `reviewer.systemSoft` over `reviewer.system`. See reviewers.ts.
+  // framing (e.g. NVIDIA free tier). The client uses this to pick between
+  // `systems.aggressive` and `systems.soft` at call time.
   readonly preferSoftPrompts: boolean;
-  createReview(system: string, user: string): Promise<ReviewResponse>;
+  createReview(systems: SystemPrompts, user: string): Promise<ReviewResponse>;
+}
+
+// Shared helper — each client picks its preferred variant, with fallback to
+// aggressive when soft is not provided (deterministic-scope reviewers).
+function pickVariant(systems: SystemPrompts, preferSoft: boolean): string {
+  if (preferSoft && systems.soft) return systems.soft;
+  return systems.aggressive;
 }
 
 // ─── Anthropic (default, preserves prompt caching) ────────────────────────────
@@ -38,7 +55,8 @@ class AnthropicModelClient implements ModelClient {
     this.maxTokens = parseInt(process.env.ANTHROPIC_MAX_TOKENS ?? '4096', 10);
   }
 
-  async createReview(system: string, user: string): Promise<ReviewResponse> {
+  async createReview(systems: SystemPrompts, user: string): Promise<ReviewResponse> {
+    const system = pickVariant(systems, this.preferSoftPrompts);
     const response = await this.client.messages.create({
       model: this.modelId,
       max_tokens: this.maxTokens,
@@ -143,10 +161,11 @@ class NvidiaModelClient implements ModelClient {
 
   private async callModel(
     model: string,
-    system: string,
+    systems: SystemPrompts,
     user: string,
     parentSignal?: AbortSignal,
   ): Promise<ReviewResponse> {
+    const system = pickVariant(systems, this.preferSoftPrompts);
     // Abort on whichever fires first: per-call timeout, or parent (ensemble
     // grace expiry). AbortSignal.any needs Node 20+; this repo requires 22.
     const perCall = AbortSignal.timeout(this.perCallTimeoutMs);
@@ -191,10 +210,10 @@ class NvidiaModelClient implements ModelClient {
     };
   }
 
-  async createReview(system: string, user: string): Promise<ReviewResponse> {
+  async createReview(systems: SystemPrompts, user: string): Promise<ReviewResponse> {
     // Single-model path — keep simple, no ensemble overhead.
     if (this.modelPool.length === 1) {
-      return this.callModel(this.modelPool[0], system, user);
+      return this.callModel(this.modelPool[0], systems, user);
     }
 
     // Ensemble with early-exit: fire all in parallel. Once the first model
@@ -206,7 +225,7 @@ class NvidiaModelClient implements ModelClient {
       | { model: string; ok: false; error: string };
 
     const tracked: Promise<SlotResult>[] = this.modelPool.map((m) =>
-      this.callModel(m, system, user, graceController.signal)
+      this.callModel(m, systems, user, graceController.signal)
         .then((response): SlotResult => ({ model: m, ok: true, response }))
         .catch((e): SlotResult => ({
           model: m,
@@ -281,14 +300,16 @@ class NvidiaModelClient implements ModelClient {
 
 // Wraps a primary and a fallback client: tries primary, and on thrown error
 // (including the "all ensemble models failed" case from NvidiaModelClient)
-// transparently retries with fallback. Preserves primary's
-// `preferSoftPrompts` setting — meaning if primary is NVIDIA (soft) and
-// fallback is Anthropic (aggressive preferred), Anthropic will receive the
-// soft variant. Acceptable tradeoff for a safety net; run single-provider
-// mode when prompt-variant fidelity matters more than resilience.
+// transparently retries with fallback. Both prompt variants propagate
+// through, so primary picks per its preference and fallback picks per its
+// own — e.g., NVIDIA primary uses `systems.soft` but Anthropic fallback
+// uses `systems.aggressive`. No prompt-fidelity tradeoff.
 class FallbackModelClient implements ModelClient {
   readonly providerName: string;
   readonly modelId: string;
+  // `preferSoftPrompts` is no longer meaningful at the wrapper level since
+  // each underlying client picks at call time. Leave as primary's for
+  // callers that still inspect it (e.g., the `review.ts` logging).
   readonly preferSoftPrompts: boolean;
   constructor(private primary: ModelClient, private fallback: ModelClient) {
     this.providerName = `${primary.providerName}+${fallback.providerName}-fallback`;
@@ -296,15 +317,18 @@ class FallbackModelClient implements ModelClient {
     this.preferSoftPrompts = primary.preferSoftPrompts;
   }
 
-  async createReview(system: string, user: string): Promise<ReviewResponse> {
+  async createReview(systems: SystemPrompts, user: string): Promise<ReviewResponse> {
     try {
-      return await this.primary.createReview(system, user);
+      return await this.primary.createReview(systems, user);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.log(
         `    [${this.primary.providerName} failed → falling back to ${this.fallback.providerName}]: ${msg.slice(0, 100)}`,
       );
-      return await this.fallback.createReview(system, user);
+      // Fallback picks its own variant — aggressive for Anthropic, soft for
+      // NVIDIA. This is the fix for the prior "fallback inherits primary's
+      // soft prompt" known-compromise.
+      return await this.fallback.createReview(systems, user);
     }
   }
 }

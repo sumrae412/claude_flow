@@ -5,7 +5,6 @@
 
 import {
   selectReviewers,
-  pickSystem,
   COMBINED_SMALL_PR_SYSTEM,
   combinedSmallPRUserMessage,
 } from './reviewers.js';
@@ -59,7 +58,8 @@ export async function runReview(
     console.log(`${prefix}Small PR detected — using single combined reviewer`);
     try {
       const response = await client.createReview(
-        COMBINED_SMALL_PR_SYSTEM,
+        // Combined small-PR prompt is already neutral; no soft variant needed.
+        { aggressive: COMBINED_SMALL_PR_SYSTEM },
         combinedSmallPRUserMessage(diff),
       );
       const parsed = parseFindings('combined', response.text);
@@ -87,8 +87,11 @@ export async function runReview(
     reviewers.map(async (reviewer) => {
       try {
         console.log(`${prefix}  Running reviewer: ${reviewer.name}`);
+        // Pass both variants; each client picks its own at call time.
+        // Crucial for FallbackModelClient — lets Anthropic-as-fallback use
+        // aggressive even when primary was NVIDIA (soft).
         const response = await client.createReview(
-          pickSystem(reviewer, client.preferSoftPrompts),
+          { aggressive: reviewer.system, soft: reviewer.systemSoft },
           reviewer.userMessage(diff),
         );
         const parsed = parseFindings(reviewer.name, response.text);

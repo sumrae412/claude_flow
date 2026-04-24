@@ -203,11 +203,11 @@ function make(name: string, system: string, systemSoft?: string): Reviewer {
   return { name, system, systemSoft, userMessage };
 }
 
-// Pick the appropriate system prompt for a given client preference.
-export function pickSystem(reviewer: Reviewer, preferSoft: boolean): string {
-  if (preferSoft && reviewer.systemSoft) return reviewer.systemSoft;
-  return reviewer.system;
-}
+// Note: the previous `pickSystem(reviewer, preferSoft)` helper was removed
+// when `ModelClient.createReview` started accepting both variants via
+// `SystemPrompts`. Each client now picks its own at call time — see
+// `pickVariant()` in `model-client.ts`. Call sites pass both through:
+//     client.createReview({ aggressive: r.system, soft: r.systemSoft }, user)
 
 export function selectReviewers(diff: string): Array<Reviewer> {
   const reviewers: Array<Reviewer> = [

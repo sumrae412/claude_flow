@@ -1,13 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { execSync } from 'child_process';
 import {
   selectReviewers,
+  pickSystem,
   COMBINED_SMALL_PR_SYSTEM,
   combinedSmallPRUserMessage,
 } from './reviewers.js';
 import { parseFindings, deduplicateFindings, triageFindings } from './triage.js';
 import type { Finding } from './triage.js';
 import { formatPRComment, postToGitHub } from './github.js';
+import { getModelClient } from './model-client.js';
 
 // ─── Argument parsing ──────────────────────────────────────────────────────────
 
@@ -91,41 +92,25 @@ async function main(): Promise<void> {
   const diffLines = diff.split('\n').length;
   console.log(`PR #${prNumber}: ${diffLines} lines in diff`);
 
-  const client = new Anthropic();
+  const client = getModelClient();
+  console.log(`Provider: ${client.providerName} (${client.modelId})`);
   const allFindings: Finding[] = [];
 
   // Small PR shortcut: single combined prompt
   if (diffLines < 50) {
     console.log('Small PR detected — using single combined reviewer');
     try {
-      const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        // Static reviewer instructions are marked ephemeral so repeat runs
-        // within the 5-minute cache TTL get ~90% input-token discount.
-        system: [
-          {
-            type: 'text',
-            text: COMBINED_SMALL_PR_SYSTEM,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        messages: [
-          { role: 'user', content: combinedSmallPRUserMessage(diff) },
-        ],
-      });
+      const response = await client.createReview(
+        COMBINED_SMALL_PR_SYSTEM,
+        combinedSmallPRUserMessage(diff),
+      );
 
-      const text = response.content
-        .filter((block) => block.type === 'text')
-        .map((block) => (block as { type: 'text'; text: string }).text)
-        .join('\n');
-
-      const findings = parseFindings('combined', text);
+      const findings = parseFindings('combined', response.text);
       allFindings.push(...findings);
       console.log(`  combined: ${findings.length} findings`);
       logCacheUsage('combined', response.usage);
     } catch (err) {
-      console.error('Anthropic API error (combined reviewer):', err);
+      console.error(`${client.providerName} API error (combined reviewer):`, err);
     }
   } else {
     // Full pipeline: select reviewers
@@ -146,35 +131,17 @@ async function main(): Promise<void> {
     const reviewerPromises = reviewers.map(async (reviewer) => {
       try {
         console.log(`  Running reviewer: ${reviewer.name}`);
-        const response = await client.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          // Per-reviewer system prompt is static across PRs; mark ephemeral so
-          // the same reviewer reading a second PR within 5 min pays ~10% on
-          // the instructions portion.
-          system: [
-            {
-              type: 'text',
-              text: reviewer.system,
-              cache_control: { type: 'ephemeral' },
-            },
-          ],
-          messages: [
-            { role: 'user', content: reviewer.userMessage(diff) },
-          ],
-        });
+        const response = await client.createReview(
+          pickSystem(reviewer, client.preferSoftPrompts),
+          reviewer.userMessage(diff),
+        );
 
-        const text = response.content
-          .filter((block) => block.type === 'text')
-          .map((block) => (block as { type: 'text'; text: string }).text)
-          .join('\n');
-
-        const findings = parseFindings(reviewer.name, text);
+        const findings = parseFindings(reviewer.name, response.text);
         console.log(`  ${reviewer.name}: ${findings.length} findings`);
         logCacheUsage(reviewer.name, response.usage);
         return findings;
       } catch (err) {
-        console.error(`Anthropic API error (${reviewer.name}):`, err);
+        console.error(`${client.providerName} API error (${reviewer.name}):`, err);
         return [] as Finding[];
       }
     });

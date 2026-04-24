@@ -58,6 +58,18 @@ No database, no daemon. Reads `.claude/handoff.md`, `docs/plans/`, MEMORY.md, `h
 ### Overshoot technique exemptions
 "Find at least 30 issues" framing applies to OPEN-ENDED bug hunters (code reviewer, silent failure, security). It does NOT apply to deterministic/structured-checklist reviewers — those have fixed scope and overshoot prompts actively degrade them. See MEMORY `overshoot_prompt_scope`.
 
+### PR reviewer is provider-pluggable
+`agent-sdk/pr-reviewer/` selects a model provider via `PR_REVIEWER_PROVIDER`:
+- `anthropic` (default) — Claude Sonnet with ephemeral prompt caching (~90% input discount within the 5-min TTL). Uses `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL`, `ANTHROPIC_MAX_TOKENS`.
+- `nvidia` — free-tier hosted models at `integrate.api.nvidia.com/v1` (OpenAI-compatible). Requires `NVIDIA_API_KEY` + `NVIDIA_MODEL`. No prompt caching. Optional `NVIDIA_BASE_URL`, `NVIDIA_MAX_TOKENS`, `NVIDIA_TIMEOUT_MS` (default 900000).
+
+NVIDIA gotchas (verified 2026-04-24 against PR #45, 44-line diff):
+- **Aggressive overshoot framing is filtered.** "I'm positive there are at least 30 issues — find them all" either silently TCP-closes or hangs past the 5-min gateway timeout. Each overshoot reviewer (`code`, `silentFailure`, `security`) now carries a `systemSoft` variant in `reviewers.ts`; `ModelClient.preferSoftPrompts=true` makes `pickSystem()` swap it in. Confirmed A/B: aggressive → 504 at 5:02; soft → 200 in 9.9s end-to-end.
+- **Model IDs are versioned — don't guess.** `deepseek-ai/deepseek-v3` / `moonshotai/kimi-k2` return 404. Query `GET /v1/models` for the real list. Confirmed working: `moonshotai/kimi-k2-instruct-0905`. Confirmed overloaded/timing-out (may recover): `minimaxai/minimax-m2.7`, `deepseek-ai/deepseek-v3.2`, `moonshotai/kimi-k2.5`. Reasoning models (e.g. `nvidia/nemotron-3-nano-30b-a3b`) return output in a `reasoning` field the parser doesn't read — skip unless wiring that up.
+- **Extended headersTimeout.** Node's built-in fetch defaults to 300s headersTimeout (undici); `NvidiaModelClient` uses `undici.Agent` with 900s so a slow-but-eventually-successful call doesn't fail client-side before NVIDIA's own 5-min edge timeout decides.
+
+When adding providers, extend `src/model-client.ts` (ModelClient interface + factory) — do NOT inline SDK calls in `index.ts`. CI (`.github/workflows/claude-flow-review.yml`) is pinned to Anthropic; non-Anthropic providers are local/opt-in until validated.
+
 ## Multi-Clone Gotcha
 
 The "two-clones" gotcha is not unique to this repo. Any project cloned more than once on the same filesystem can trigger it. Confirmed instances:

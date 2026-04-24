@@ -36,26 +36,70 @@ MODEL_SONNET = "claude-sonnet-4-6"
 MODEL_OPUS = "claude-opus-4-7"
 ADVISOR_TOOL_NAME = "advisor_20260301"
 
-# Pricing snapshot as of 2026-04-17 — refresh before live run.
-# Values are USD per million tokens; source: Anthropic pricing page.
-PRICING: dict[str, dict[str, float]] = {
-    MODEL_SONNET: {"input": 0.0, "output": 0.0},  # TODO: populate
-    MODEL_OPUS: {"input": 0.0, "output": 0.0},    # TODO: populate
-}
+# Pricing + ledger live in scripts/ (sibling of evals/). Import lazily via
+# path insertion so dry-run tests still work without installing the package.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO_ROOT / "scripts"))
+from pricing import compute_cost as _compute_cost  # noqa: E402
+from ledger import log_invocation as _log_invocation  # noqa: E402
 
 
 def attribute_cost(usage: dict, model: str) -> float:
-    """Compute USD cost from token usage. TODO: populate PRICING."""
-    rates = PRICING.get(model, {"input": 0.0, "output": 0.0})
-    if rates["input"] == 0.0 and rates["output"] == 0.0:
-        return 0.0  # Pricing not yet populated — returns 0 to avoid misleading totals
-    in_tokens = usage.get("input_tokens", 0) or 0
-    out_tokens = usage.get("output_tokens", 0) or 0
-    return (in_tokens * rates["input"] + out_tokens * rates["output"]) / 1_000_000
+    """Compute USD cost from token usage. Delegates to shared pricing table."""
+    return _compute_cost(
+        model,
+        usage.get("input_tokens"),
+        usage.get("output_tokens"),
+    )
 
 
-# Module-level flag so the advisor-arm warning only prints once per run.
-_ADVISOR_WARNED = False
+def attribute_cost_with_iterations(
+    usage_obj: Any, executor_model: str,
+) -> tuple[float, dict[str, Any]]:
+    """Cost including advisor sub-inference.
+
+    Per Anthropic's advisor-tool docs: top-level input_tokens/output_tokens
+    reflect executor tokens only. Advisor tokens appear in
+    `usage.iterations[i]` with `type == "advisor_message"` and their own
+    `model` field, billed at that model's rates.
+
+    Returns (total_cost_usd, extras_dict). `extras_dict` carries per-role
+    token counts so the ledger row preserves the breakdown.
+    """
+    if usage_obj is None:
+        return 0.0, {}
+
+    top_in = getattr(usage_obj, "input_tokens", None)
+    top_out = getattr(usage_obj, "output_tokens", None)
+    executor_cost = _compute_cost(executor_model, top_in, top_out)
+
+    advisor_cost = 0.0
+    advisor_in = 0
+    advisor_out = 0
+    advisor_model = None
+    iterations = getattr(usage_obj, "iterations", None) or []
+    for it in iterations:
+        it_type = getattr(it, "type", None) if not isinstance(it, dict) else it.get("type")
+        if it_type != "advisor_message":
+            continue
+        it_model = getattr(it, "model", None) if not isinstance(it, dict) else it.get("model")
+        it_in = getattr(it, "input_tokens", None) if not isinstance(it, dict) else it.get("input_tokens")
+        it_out = getattr(it, "output_tokens", None) if not isinstance(it, dict) else it.get("output_tokens")
+        advisor_model = it_model or advisor_model
+        advisor_in += it_in or 0
+        advisor_out += it_out or 0
+        advisor_cost += _compute_cost(it_model, it_in, it_out)
+
+    extras = {
+        "executor_input_tokens": top_in,
+        "executor_output_tokens": top_out,
+        "executor_cost_usd": round(executor_cost, 6),
+        "advisor_input_tokens": advisor_in or None,
+        "advisor_output_tokens": advisor_out or None,
+        "advisor_cost_usd": round(advisor_cost, 6),
+        "advisor_model": advisor_model,
+    }
+    return round(executor_cost + advisor_cost, 6), extras
 
 
 def load_cases(cases_dir: Path) -> list[dict[str, Any]]:
@@ -101,30 +145,39 @@ def score_rubric(response_text: str, rubric: list[dict[str, Any]]) -> float:
     return hits / len(rubric)
 
 
-def run_dry(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def run_dry(cases: list[dict[str, Any]], trials: int = 1) -> list[dict[str, Any]]:
     """Dry-run path: emit structurally-valid synthetic results with zeroed metrics.
 
     Dry-run rows include `usage`, `response_text`, and `invoked_advisor` keys so
     downstream analysis written against dry-run output generalizes to live output.
+    When `trials > 1`, each (case, arm) pair produces `trials` rows tagged with
+    `trial_index` so stat_analysis.py can treat them as independent samples.
     """
     per_case: list[dict[str, Any]] = []
-    for case in cases:
-        for arm in ARMS:
-            per_case.append({
-                "case": case["name"],
-                "arm": arm,
-                "rubric_score": 0.0,
-                "cost_usd": 0.0,
-                "latency_s": 0.0,
-                "usage": None,
-                "response_text": "",
-                "invoked_advisor": False,
-                "dry_run": True,
-            })
+    for trial_index in range(trials):
+        for case in cases:
+            for arm in ARMS:
+                per_case.append({
+                    "case": case["name"],
+                    "arm": arm,
+                    "trial_index": trial_index,
+                    "rubric_score": 0.0,
+                    "cost_usd": 0.0,
+                    "latency_s": 0.0,
+                    "usage": None,
+                    "response_text": "",
+                    "invoked_advisor": False,
+                    "dry_run": True,
+                })
     return per_case
 
 
-def run_live_case(case: dict[str, Any], arm: str, prompts_dir: Path) -> dict[str, Any]:
+def run_live_case(
+    case: dict[str, Any],
+    arm: str,
+    prompts_dir: Path,
+    session_id: str = "advisor_ab",
+) -> dict[str, Any]:
     """Live-eval path — DEFERRED scaffolding, not exercised in CI.
 
     This function is intentionally not imported at module scope. The
@@ -134,32 +187,23 @@ def run_live_case(case: dict[str, Any], arm: str, prompts_dir: Path) -> dict[str
     # Live eval deferred — scaffolding only, see README.md
     from anthropic import Anthropic  # noqa: F401  (lazy import)
 
-    global _ADVISOR_WARNED
-
     client = Anthropic()
     prompt_template = load_prompt(prompts_dir, arm)
     prompt = prompt_template.format(context=case["context"], question=case["question"])
 
     model = MODEL_OPUS if arm == "opus_solo" else MODEL_SONNET
     tools: list[dict[str, Any]] = []
-    extra_headers: dict[str, str] = {}
+    betas: list[str] = []
     if arm == "sonnet_advisor_tool":
-        # Server-side advisor tool — shape is a best-effort placeholder;
-        # verify against current Anthropic docs before interpreting results.
+        # Server-side advisor tool — shape per
+        # https://docs.anthropic.com/en/docs/build-with-claude/tool-use/advisor-tool
         tools = [{
             "type": ADVISOR_TOOL_NAME,
             "name": "advisor",
             "model": MODEL_OPUS,
             "max_uses": 2,
         }]
-        extra_headers = {"anthropic-beta": "advisor-tool-2026-03-01"}
-        if not _ADVISOR_WARNED:
-            print(
-                "WARN: advisor_20260301 tool shape is a best-effort placeholder — "
-                "verify against current Anthropic docs before interpreting results",
-                file=sys.stderr,
-            )
-            _ADVISOR_WARNED = True
+        betas = ["advisor-tool-2026-03-01"]
 
     create_kwargs: dict[str, Any] = {
         "model": model,
@@ -168,55 +212,106 @@ def run_live_case(case: dict[str, Any], arm: str, prompts_dir: Path) -> dict[str
     }
     if tools:
         create_kwargs["tools"] = tools
-    if extra_headers:
-        create_kwargs["extra_headers"] = extra_headers
+    if betas:
+        create_kwargs["betas"] = betas
 
     t0 = time.monotonic()
-    resp = client.messages.create(**create_kwargs)
+    success = True
+    error: str | None = None
+    resp = None
+    try:
+        # Advisor tool requires the beta endpoint (docs: client.beta.messages.create
+        # with betas=[...]). Other arms also go through beta.messages.create for
+        # a single code path — it's a no-op superset of messages.create.
+        resp = client.beta.messages.create(**create_kwargs)
+    except Exception as e:
+        success = False
+        error = f"{type(e).__name__}: {e}"
     latency_s = time.monotonic() - t0
 
-    # Extract text content from the response. The Anthropic SDK returns a list
-    # of content blocks; we concatenate any text blocks. Also scan for advisor
-    # tool invocations so we can record whether the tool actually fired.
+    # Extract text content + detect advisor invocation.
+    # Per advisor-tool docs, a successful advisor call produces:
+    #   { type: "server_tool_use", name: "advisor", input: {} }
+    # followed by:
+    #   { type: "advisor_tool_result", tool_use_id: ..., content: ... }
+    # Both signals are checked — matching either confirms the tool fired.
     response_text = ""
     invoked_advisor = False
-    for block in getattr(resp, "content", []):
-        btype = getattr(block, "type", None)
-        if btype == "text":
-            response_text += getattr(block, "text", "")
-        elif btype == ADVISOR_TOOL_NAME:
-            invoked_advisor = True
-        elif btype == "tool_use" and getattr(block, "name", None) == "advisor":
-            invoked_advisor = True
+    usage_dict = {"input_tokens": None, "output_tokens": None}
+    advisor_cost_breakdown: dict[str, Any] = {}
+    if resp is not None:
+        for block in getattr(resp, "content", []):
+            btype = getattr(block, "type", None)
+            if btype == "text":
+                response_text += getattr(block, "text", "")
+            elif btype == "server_tool_use" and getattr(block, "name", None) == "advisor":
+                invoked_advisor = True
+            elif btype == "advisor_tool_result":
+                invoked_advisor = True
+        usage = getattr(resp, "usage", None)
+        usage_dict = {
+            "input_tokens": getattr(usage, "input_tokens", None) if usage else None,
+            "output_tokens": getattr(usage, "output_tokens", None) if usage else None,
+        }
+        # Cost attribution that correctly separates executor + advisor tokens.
+        cost_usd, advisor_cost_breakdown = attribute_cost_with_iterations(usage, model)
+    else:
+        cost_usd = 0.0
 
-    # Cost attribution: the live path records usage and computes a USD cost
-    # via the PRICING table (returns 0.0 until populated).
-    usage = getattr(resp, "usage", None)
-    usage_dict = {
-        "input_tokens": getattr(usage, "input_tokens", None) if usage else None,
-        "output_tokens": getattr(usage, "output_tokens", None) if usage else None,
-    }
-    cost_usd = attribute_cost(usage_dict, model)
+    rubric_score = score_rubric(response_text, case.get("rubric", [])) if success else 0.0
+
+    # Log to the shared invocation ledger — one row per API call, including
+    # failures. Downstream ROI math groups on (caller, arm, model).
+    _log_invocation(
+        caller="advisor_ab",
+        model=model,
+        wall_time_s=latency_s,
+        input_tokens=usage_dict["input_tokens"],
+        output_tokens=usage_dict["output_tokens"],
+        success=success,
+        error=error,
+        session_id=session_id,
+        arm=arm,
+        case=case["name"],
+        score=rubric_score if success else None,
+        extras={"invoked_advisor": invoked_advisor, **advisor_cost_breakdown},
+        cost_usd=cost_usd,
+    )
 
     return {
         "case": case["name"],
         "arm": arm,
-        "rubric_score": score_rubric(response_text, case.get("rubric", [])),
+        "rubric_score": rubric_score,
         "cost_usd": cost_usd,
         "latency_s": latency_s,
         "usage": usage_dict,
         "response_text": response_text,
         "invoked_advisor": invoked_advisor,
+        "success": success,
+        "error": error,
         "dry_run": False,
     }
 
 
-def run_live(cases: list[dict[str, Any]], prompts_dir: Path) -> list[dict[str, Any]]:
-    """Live-eval driver — DEFERRED."""
+def run_live(
+    cases: list[dict[str, Any]],
+    prompts_dir: Path,
+    session_id: str = "advisor_ab",
+    trials: int = 1,
+) -> list[dict[str, Any]]:
+    """Live-eval driver — DEFERRED.
+
+    `trials > 1` runs each (case, arm) pair `trials` times. Each row is
+    tagged with `trial_index` so stat_analysis.py can compute bootstrap CIs
+    and paired comparisons across trials.
+    """
     per_case: list[dict[str, Any]] = []
-    for case in cases:
-        for arm in ARMS:
-            per_case.append(run_live_case(case, arm, prompts_dir))
+    for trial_index in range(trials):
+        for case in cases:
+            for arm in ARMS:
+                row = run_live_case(case, arm, prompts_dir, session_id=session_id)
+                row["trial_index"] = trial_index
+                per_case.append(row)
     return per_case
 
 
@@ -239,7 +334,22 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--dry-run", action="store_true",
                         help="Emit synthetic zeroed results; no API calls.")
+    parser.add_argument("--session-id", default="advisor_ab",
+                        help="Correlation id written into ledger rows.")
+    parser.add_argument("--judge", action="store_true",
+                        help="Run the LLM-as-judge pass inline after A/B; "
+                             "writes results enriched with per-row judge "
+                             "verdicts + agreement aggregates.")
+    parser.add_argument("--trials", type=int, default=1,
+                        help="Run each (case, arm) this many times. Each row "
+                             "gets a trial_index for downstream stat_analysis.py.")
+    parser.add_argument("--relevancy-axis", action="store_true",
+                        help="When --judge is set, append a generic "
+                             "answer-relevancy criterion to every rubric.")
     args = parser.parse_args()
+
+    if args.trials < 1:
+        raise SystemExit("--trials must be >= 1")
 
     cases = load_cases(args.cases_dir)
     if not cases:
@@ -248,17 +358,33 @@ def main() -> int:
     prompts_dir = Path(__file__).parent / "prompts"
 
     if args.dry_run:
-        per_case = run_dry(cases)
+        per_case = run_dry(cases, trials=args.trials)
     else:
         # Live eval deferred — scaffolding only, see README.md
-        per_case = run_live(cases, prompts_dir)
+        per_case = run_live(cases, prompts_dir, session_id=args.session_id, trials=args.trials)
 
-    result = {
+    result: dict[str, Any] = {
         "arms": ARMS,
         "per_case": per_case,
         "aggregate": aggregate(per_case),
+        "trials": args.trials,
         "dry_run": args.dry_run,
     }
+
+    # Inline judge pass — replaces the separate `python judge.py` invocation
+    # when --judge is set. Keeps a single command for the common case while
+    # leaving judge.py importable for ad-hoc re-grading of a saved results.json.
+    if args.judge:
+        from judge import judge_results  # type: ignore[import-not-found]
+        cases_by_name = {c["name"]: c for c in cases}
+        result = judge_results(
+            result,
+            cases_by_name,
+            session_id=args.session_id,
+            dry_run=args.dry_run,
+            relevancy_axis=args.relevancy_axis,
+        )
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2))
     return 0

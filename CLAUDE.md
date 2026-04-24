@@ -6,6 +6,8 @@
 
 It is NOT a standalone LLM framework (like LangChain/CrewAI). It runs INSIDE Claude Code, using its native primitives: Agent tool, skills, hooks, slash commands. Don't propose wrapping it in an external orchestrator.
 
+**Exception — free external libraries are allowed when they clearly fit.** If a specific capability is handled materially better by an existing open-source library (e.g. scipy for statistical tests, Phoenix for eval tracing, RAGAS for pre-built eval metrics) AND the library is free — no paid SaaS, no lock-in — prefer it over a hand-rolled native implementation. The rule above targets *wrapping claude_flow in an orchestrator*, not using peer libraries for specific capabilities. Paid observability platforms (LangSmith, Braintrust, etc.) and frameworks whose main value is orchestration (LangGraph, CrewAI) remain out.
+
 ## Repository Structure
 
 ```

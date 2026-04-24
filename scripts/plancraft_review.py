@@ -29,7 +29,17 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
+
+# Ledger is best-effort — plancraft_review runs in many environments; missing
+# ledger must not crash the reviewer path. Import under the script's own dir.
+_LEDGER_LOG = None
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from ledger import log_invocation as _LEDGER_LOG  # type: ignore[import-not-found]
+except Exception:
+    _LEDGER_LOG = None
 
 try:
     import httpx
@@ -207,6 +217,7 @@ def call_reviewer(
     }
 
     for attempt in range(MAX_RETRIES + 1):
+        t0 = time.monotonic()
         try:
             with httpx.Client(timeout=TIMEOUT_SECONDS) as client:
                 resp = client.post(
@@ -217,27 +228,48 @@ def call_reviewer(
                 resp.raise_for_status()
                 data = resp.json()
 
+            wall_time_s = time.monotonic() - t0
             content = data["choices"][0]["message"]["content"]
             usage = data.get("usage", {})
+            resolved_model = data.get("model", config["model"])
+
+            if _LEDGER_LOG is not None:
+                try:
+                    _LEDGER_LOG(
+                        caller=f"plancraft_{reviewer_name}",
+                        model=resolved_model,
+                        wall_time_s=wall_time_s,
+                        input_tokens=usage.get("prompt_tokens") or None,
+                        output_tokens=usage.get("completion_tokens") or None,
+                        success=True,
+                    )
+                except Exception:
+                    pass
 
             return {
                 "recommendations": content,
-                "model": data.get("model", config["model"]),
+                "model": resolved_model,
                 "token_usage": {
-                    "prompt_tokens": usage.get(
-                        "prompt_tokens", 0
-                    ),
-                    "completion_tokens": usage.get(
-                        "completion_tokens", 0
-                    ),
-                    "total_tokens": usage.get(
-                        "total_tokens", 0
-                    ),
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0),
                 },
             }
         except (httpx.HTTPError, KeyError) as e:
             if attempt < MAX_RETRIES:
                 continue
+            wall_time_s = time.monotonic() - t0
+            if _LEDGER_LOG is not None:
+                try:
+                    _LEDGER_LOG(
+                        caller=f"plancraft_{reviewer_name}",
+                        model=config["model"],
+                        wall_time_s=wall_time_s,
+                        success=False,
+                        error=f"{type(e).__name__}: {e}",
+                    )
+                except Exception:
+                    pass
             return {
                 "error": (
                     f"{reviewer_name} API failed after "

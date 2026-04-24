@@ -216,3 +216,10 @@ memory/skill-backups/
 
 # Git worktrees (isolated dev workspaces)
 .worktrees/
+
+# Eval runtime artifacts (regenerated per run)
+memory/episodic/invocations.jsonl
+evals/advisor_tool_ab/results_pilot.json
+evals/advisor_tool_ab/results_20trial.json
+evals/advisor_tool_ab/results_judged.json
+evals/advisor_tool_ab/analysis_*.md

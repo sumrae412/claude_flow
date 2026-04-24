@@ -59,6 +59,7 @@ def judge_results(
     session_id: str,
     dry_run: bool,
     relevancy_axis: bool = False,
+    judge_model: str | None = None,
 ) -> dict[str, Any]:
     """Mutate a copy of `results` with per-row judge output + arm-level agg.
 
@@ -78,16 +79,19 @@ def judge_results(
         if relevancy_axis:
             rubric = rubric + [RELEVANCY_CRITERION]
 
-        judged = judge_response(
-            response_text=row.get("response_text", "") or "",
-            rubric=rubric,
-            context=case.get("context"),
-            question=case.get("question"),
-            session_id=session_id,
-            case_name=case_name,
-            arm=row.get("arm"),
-            dry_run=dry_run,
-        )
+        judge_kwargs: dict[str, Any] = {
+            "response_text": row.get("response_text", "") or "",
+            "rubric": rubric,
+            "context": case.get("context"),
+            "question": case.get("question"),
+            "session_id": session_id,
+            "case_name": case_name,
+            "arm": row.get("arm"),
+            "dry_run": dry_run,
+        }
+        if judge_model is not None:
+            judge_kwargs["judge_model"] = judge_model
+        judged = judge_response(**judge_kwargs)
         # Keep original row intact; attach judge output + agreement flag.
         substring_score = row.get("rubric_score", 0.0)
         judge_score = judged["score"]
@@ -146,6 +150,10 @@ def main() -> int:
     parser.add_argument("--relevancy-axis", action="store_true",
                         help="Append a generic answer-relevancy criterion "
                              "to every case's rubric before judging.")
+    parser.add_argument("--judge-model", default=None,
+                        help="Override the judge model (default: claude-opus-4-7 "
+                             "via llm_judge.DEFAULT_JUDGE_MODEL). Use to run "
+                             "calibration passes with a different judge.")
     args = parser.parse_args()
 
     results = json.loads(args.results.read_text())
@@ -156,6 +164,7 @@ def main() -> int:
         session_id=args.session_id,
         dry_run=args.dry_run,
         relevancy_axis=args.relevancy_axis,
+        judge_model=args.judge_model,
     )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

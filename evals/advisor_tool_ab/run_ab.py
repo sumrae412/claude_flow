@@ -155,7 +155,11 @@ def score_rubric(response_text: str, rubric: list[dict[str, Any]]) -> float:
     return hits / len(rubric)
 
 
-def run_dry(cases: list[dict[str, Any]], trials: int = 1) -> list[dict[str, Any]]:
+def run_dry(
+    cases: list[dict[str, Any]],
+    trials: int = 1,
+    arms: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Dry-run path: emit structurally-valid synthetic results with zeroed metrics.
 
     Dry-run rows include `usage`, `response_text`, and `invoked_advisor` keys so
@@ -163,10 +167,11 @@ def run_dry(cases: list[dict[str, Any]], trials: int = 1) -> list[dict[str, Any]
     When `trials > 1`, each (case, arm) pair produces `trials` rows tagged with
     `trial_index` so stat_analysis.py can treat them as independent samples.
     """
+    arms_used = arms if arms is not None else ARMS
     per_case: list[dict[str, Any]] = []
     for trial_index in range(trials):
         for case in cases:
-            for arm in ARMS:
+            for arm in arms_used:
                 per_case.append({
                     "case": case["name"],
                     "arm": arm,
@@ -319,6 +324,7 @@ def run_live(
     prompts_dir: Path,
     session_id: str = "advisor_ab",
     trials: int = 1,
+    arms: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Live-eval driver — DEFERRED.
 
@@ -326,19 +332,24 @@ def run_live(
     tagged with `trial_index` so stat_analysis.py can compute bootstrap CIs
     and paired comparisons across trials.
     """
+    arms_used = arms if arms is not None else ARMS
     per_case: list[dict[str, Any]] = []
     for trial_index in range(trials):
         for case in cases:
-            for arm in ARMS:
+            for arm in arms_used:
                 row = run_live_case(case, arm, prompts_dir, session_id=session_id)
                 row["trial_index"] = trial_index
                 per_case.append(row)
     return per_case
 
 
-def aggregate(per_case: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+def aggregate(
+    per_case: list[dict[str, Any]],
+    arms: list[str] | None = None,
+) -> dict[str, dict[str, float]]:
+    arms_used = arms if arms is not None else ARMS
     agg: dict[str, dict[str, float]] = {}
-    for arm in ARMS:
+    for arm in arms_used:
         arm_rows = [r for r in per_case if r["arm"] == arm]
         n = len(arm_rows) or 1
         agg[arm] = {
@@ -367,10 +378,21 @@ def main() -> int:
     parser.add_argument("--relevancy-axis", action="store_true",
                         help="When --judge is set, append a generic "
                              "answer-relevancy criterion to every rubric.")
+    parser.add_argument("--arms", default=None,
+                        help="Comma-separated subset of arms to run "
+                             "(default: all three). Must be a subset of ARMS.")
     args = parser.parse_args()
 
     if args.trials < 1:
         raise SystemExit("--trials must be >= 1")
+
+    if args.arms:
+        arms_used = [a.strip() for a in args.arms.split(",") if a.strip()]
+        unknown = [a for a in arms_used if a not in ARMS]
+        if unknown:
+            raise SystemExit(f"Unknown arm(s): {unknown}. Known: {ARMS}")
+    else:
+        arms_used = list(ARMS)
 
     cases = load_cases(args.cases_dir)
     if not cases:
@@ -379,15 +401,15 @@ def main() -> int:
     prompts_dir = Path(__file__).parent / "prompts"
 
     if args.dry_run:
-        per_case = run_dry(cases, trials=args.trials)
+        per_case = run_dry(cases, trials=args.trials, arms=arms_used)
     else:
         # Live eval deferred — scaffolding only, see README.md
-        per_case = run_live(cases, prompts_dir, session_id=args.session_id, trials=args.trials)
+        per_case = run_live(cases, prompts_dir, session_id=args.session_id, trials=args.trials, arms=arms_used)
 
     result: dict[str, Any] = {
-        "arms": ARMS,
+        "arms": arms_used,
         "per_case": per_case,
-        "aggregate": aggregate(per_case),
+        "aggregate": aggregate(per_case, arms=arms_used),
         "trials": args.trials,
         "dry_run": args.dry_run,
     }

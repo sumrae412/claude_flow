@@ -1,0 +1,15 @@
+{
+  "name": "phase3_constraint_interaction_trap",
+  "phase_analog": "Phase 3 — multi-constraint design trap (tests reasoning depth)",
+  "note": "Designed to discriminate Sonnet vs Opus on second-order reasoning. The 'obvious' first-order pick (Option B, continuous WAL to a warm replica) satisfies every bullet on the constraint list but has a subtle failure mode: a live replica inherits logical corruption (bad schema migration, accidental DELETE) instantly, so it protects against hardware failure, not operator error. Sonnet frequently misses this and picks B. Opus is expected to flag it and either pick C or recommend a point-in-time recovery layer on top of B.",
+  "context": "A HIPAA-compliant medical-records startup is choosing a database backup strategy for its primary Postgres. Three options are on the table:\n\nOption A — Hot standby replica + daily full backup to S3 with 30-day retention. Standard, operationally simple. Daily RPO.\n\nOption B — Continuous WAL streaming to a warm replica in a second availability zone, plus AES-256 encrypted snapshots every 6 hours retained for 30 days. Near-zero RPO, fast failover.\n\nOption C — Daily full backup + hourly incremental WAL archives to S3, encrypted with customer-managed keys via AWS KMS. Point-in-time restore available from any archived WAL segment. RPO ≤ 1 hour, restore takes 10-30 minutes depending on target timestamp.\n\nConstraints (from the team's spec):\n1. RPO < 1 hour.\n2. Backups encrypted at rest with a FIPS 140-2 validated module.\n3. Backups must be restorable in a different AWS region for regional disaster recovery.\n4. Regulatory retention: 6 years.\n5. Budget: <$300/month for backup infrastructure.\n\nThe CTO is leaning toward Option B because 'it has the lowest RPO and hits every compliance box.'",
+  "question": "Which option should we pick, and what risk is the CTO likely missing?",
+  "rubric": [
+    {"criterion": "names logical-corruption / operator-error risk of live replica", "keywords": ["logical corruption", "corrupt", "operator error", "accidental delete", "bad migration", "schema migration", "inherit"]},
+    {"criterion": "names point-in-time recovery / time-delayed replica distinction", "keywords": ["point-in-time", "pitr", "time-delayed", "delayed replica", "archived wal", "restore to timestamp"]},
+    {"criterion": "flags 6-year retention constraint vs 30-day retention in A and B", "keywords": ["6 year", "six year", "retention", "30 day", "thirty day", "long-term", "archive"]},
+    {"criterion": "recommends C or a hybrid (not B alone)", "keywords": ["option c", "hybrid", "c and b", "b plus", "layer", "combine"]},
+    {"criterion": "addresses cross-region restorability constraint", "keywords": ["region", "cross-region", "disaster recovery", "dr", "second region"]},
+    {"criterion": "acknowledges cost/complexity trade-off in the recommendation", "keywords": ["cost", "complex", "trade-off", "tradeoff", "operational burden", "ops"]}
+  ]
+}

@@ -277,8 +277,39 @@ class NvidiaModelClient implements ModelClient {
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
-export function getModelClient(providerOverride?: string): ModelClient {
-  const provider = (providerOverride ?? process.env.PR_REVIEWER_PROVIDER ?? 'anthropic').toLowerCase();
+// ─── Fallback wrapper ─────────────────────────────────────────────────────────
+
+// Wraps a primary and a fallback client: tries primary, and on thrown error
+// (including the "all ensemble models failed" case from NvidiaModelClient)
+// transparently retries with fallback. Preserves primary's
+// `preferSoftPrompts` setting — meaning if primary is NVIDIA (soft) and
+// fallback is Anthropic (aggressive preferred), Anthropic will receive the
+// soft variant. Acceptable tradeoff for a safety net; run single-provider
+// mode when prompt-variant fidelity matters more than resilience.
+class FallbackModelClient implements ModelClient {
+  readonly providerName: string;
+  readonly modelId: string;
+  readonly preferSoftPrompts: boolean;
+  constructor(private primary: ModelClient, private fallback: ModelClient) {
+    this.providerName = `${primary.providerName}+${fallback.providerName}-fallback`;
+    this.modelId = `${primary.modelId} | fallback:${fallback.modelId}`;
+    this.preferSoftPrompts = primary.preferSoftPrompts;
+  }
+
+  async createReview(system: string, user: string): Promise<ReviewResponse> {
+    try {
+      return await this.primary.createReview(system, user);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(
+        `    [${this.primary.providerName} failed → falling back to ${this.fallback.providerName}]: ${msg.slice(0, 100)}`,
+      );
+      return await this.fallback.createReview(system, user);
+    }
+  }
+}
+
+function buildClient(provider: string): ModelClient {
   switch (provider) {
     case 'anthropic':
       return new AnthropicModelClient();
@@ -289,4 +320,19 @@ export function getModelClient(providerOverride?: string): ModelClient {
         `Unknown provider='${provider}'. Supported: anthropic, nvidia.`,
       );
   }
+}
+
+export function getModelClient(providerOverride?: string): ModelClient {
+  const provider = (providerOverride ?? process.env.PR_REVIEWER_PROVIDER ?? 'anthropic').toLowerCase();
+  const primary = buildClient(provider);
+
+  // Optional fallback: when set, wrap primary in FallbackModelClient so that
+  // primary failure (e.g., NVIDIA pool all-fails) transparently retries on
+  // the fallback. Intended use: NVIDIA primary + Anthropic fallback for
+  // "free-first, paid safety net." Set empty/undefined to disable.
+  const fallbackName = process.env.PR_REVIEWER_FALLBACK_PROVIDER?.toLowerCase().trim();
+  if (fallbackName && fallbackName !== provider) {
+    return new FallbackModelClient(primary, buildClient(fallbackName));
+  }
+  return primary;
 }

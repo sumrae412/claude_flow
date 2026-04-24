@@ -69,6 +69,14 @@ The "two-clones" gotcha is not unique to this repo. Any project cloned more than
 
 Always run `git rev-parse --show-toplevel` on the first turn. If cwd is a shadow path, switch to canonical before writing. A shadow clone can appear populated in one turn and nearly empty the next. When your local commit can't cherry-pick onto `origin/main` cleanly — suspect parallel-agent pickup, verify with `git diff origin/main HEAD -- <paths>`, and if empty your work is already upstream. See MEMORY `two_clones_same_repo`, `shadow_path_drift_within_session`, `two_clones_gotcha_generalized`, `git_cherry_pick_empty_signal`, and `reset_hard_after_upstream_verification`.
 
+## Known Gotchas
+
+- **Anthropic `cache_control` silently no-ops below 1024 tokens:** Sonnet/Opus prompt-cache writes require ≥1024 cached tokens (2048 for Haiku). Under that, `usage.cache_creation_input_tokens=0` + `cache_read_input_tokens=0`, no error raised. Verify live (not via unit tests) before claiming prompt caching works. Tool-use schemas (advisor-tool beta) may additionally break prefix reuse — assert `cache_read > 0` across consecutive calls, not just on the first. See `docs/decisions/2026-04-24-advisor-tool-verdict.md`.
+- **Verify LLM pricing before every cost eval:** Anthropic/OpenAI/Google rates can move 50%+ between plan authoring and execution (Opus 4.7 dropped 66% in ~6 weeks, Apr 2026). Triangulate against the provider's pricing page + a second surface (docs or console), stamp `# verified YYYY-MM-DD` in `scripts/pricing.py`, and re-run the check when resuming a paused eval plan.
+- **Keyword-substring rubrics are structurally broken for signal-to-noise:** Discriminator keywords like "however", "but", "trade-off" appear in nearly every non-trivial answer — rubrics that check for their *presence* score ~1.0 across all arms and hide real differences. Use LLM-as-judge for nuanced quality dimensions; reserve keyword checks for hard-required literals (specific API names, required section headings).
+- **Plan-step kill criteria actually save money:** The Step 6 re-pilot gate in `docs/plans/2026-04-24-advisor-ab-eval-tuning.md` caught a 66% price shift that invalidated the 20-trial premise at $0.76 spend vs $12-25 budgeted. When a plan has a measurable premise (cost, quality, latency), codify a mid-plan gate that re-verifies the premise before the expensive step.
+- **Decision-evidence artifacts (`results_*.json`) may be gitignored:** `evals/*/results_*.json` is gitignored, but pilot results that justify a decision doc need to be committed. Use `git add -f <file>` and reference the blob from the decision markdown. Consider narrowing the ignore pattern (e.g. only ignore `results_*_local.json`) if this recurs.
+
 ## Bundled Skills (relevant to claude-flow authorship)
 
 | Skill | Purpose |

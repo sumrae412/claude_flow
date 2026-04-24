@@ -10,9 +10,9 @@ from pricing import PRICING, compute_cost, is_priced  # noqa: E402
 
 
 def test_compute_cost_known_model():
-    # Opus: 1M input @ $15 + 1M output @ $75 = $90
+    # Opus 4.7: 1M input @ $5 + 1M output @ $25 = $30
     cost = compute_cost("claude-opus-4-7", 1_000_000, 1_000_000)
-    assert cost == 90.0
+    assert cost == 30.0
 
 
 def test_compute_cost_proportional():

@@ -7,6 +7,8 @@
     {"criterion": "identifies LIKE-metachar escaping as still-unaddressed", "keywords": ["like", "escape", "metachar", "wildcard"]},
     {"criterion": "identifies auth-scope question as separately unaddressed", "keywords": ["auth", "scope", "decorator", "blueprint"]},
     {"criterion": "recommends escalation or different approach", "keywords": ["escalat", "cross-model", "different"]},
-    {"criterion": "names confirmation-bias risk of same-model retry", "keywords": ["bias", "same", "confirm"]}
+    {"criterion": "names confirmation-bias risk of same-model retry", "keywords": ["bias", "same", "confirm"]},
+    {"criterion": "names a quantitative threshold or scope bound", "keywords": ["iter", "iteration", "cvss", "severity", "percent", "%", "all routes", "entire blueprint"]},
+    {"criterion": "acknowledges a counter-argument or trade-off", "keywords": ["however", "but", "trade-off", "tradeoff", "downside", "unless", "on the other hand"]}
   ]
 }

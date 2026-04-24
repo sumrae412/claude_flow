@@ -26,13 +26,21 @@ def _isolate_ledger(tmp_path, monkeypatch):
 
 # ---------- adversarial_dispatch ----------
 
-def _fake_anthropic_response(raw_text: str, input_tokens=500, output_tokens=300):
+def _fake_anthropic_response(
+    raw_text: str,
+    input_tokens=500,
+    output_tokens=300,
+    cache_read_input_tokens=0,
+    cache_creation_input_tokens=0,
+):
     block = mock.Mock()
     block.type = "text"
     block.text = raw_text
     usage = mock.Mock()
     usage.input_tokens = input_tokens
     usage.output_tokens = output_tokens
+    usage.cache_read_input_tokens = cache_read_input_tokens
+    usage.cache_creation_input_tokens = cache_creation_input_tokens
     resp = mock.Mock()
     resp.content = [block]
     resp.usage = usage

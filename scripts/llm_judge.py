@@ -44,6 +44,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 # ledger + pricing live next to this file
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ledger import log_invocation  # type: ignore[import-not-found]
+from pricing import compute_cost as _compute_cost  # type: ignore[import-not-found]
 
 
 class CriterionResult(BaseModel):
@@ -223,7 +224,15 @@ def judge_response(
     response_content = ""
     usage_in: int | None = None
     usage_out: int | None = None
+    cache_read: int | None = None
+    cache_create: int | None = None
     try:
+        # Prompt caching NOT wired here. Attempted in 2026-04-24 Step 3 but the
+        # judge's cacheable prefix (JUDGE_SYSTEM_PROMPT + rubric + context +
+        # question ≈ 400-650 tokens) sat under Anthropic's 1024-token minimum,
+        # so cache_control silently no-ops. Cache-field extraction and
+        # compute_cost() cache-token support are kept intact so the wiring
+        # flips on cleanly when prompts grow past that threshold.
         resp = client.messages.create(
             model=judge_model,
             max_tokens=max_tokens,
@@ -236,6 +245,8 @@ def judge_response(
         usage = getattr(resp, "usage", None)
         usage_in = getattr(usage, "input_tokens", None) if usage else None
         usage_out = getattr(usage, "output_tokens", None) if usage else None
+        cache_read = getattr(usage, "cache_read_input_tokens", None) if usage else None
+        cache_create = getattr(usage, "cache_creation_input_tokens", None) if usage else None
     except Exception as e:
         success = False
         error = f"{type(e).__name__}: {e}"
@@ -261,6 +272,12 @@ def judge_response(
 
     score = sum(1 for c in per_crit if c["passed"]) / len(rubric)
 
+    cost_usd = _compute_cost(
+        judge_model, usage_in, usage_out,
+        cache_read_input_tokens=cache_read,
+        cache_creation_input_tokens=cache_create,
+    )
+
     logged = log_invocation(
         caller="llm_judge",
         model=judge_model,
@@ -273,7 +290,12 @@ def judge_response(
         arm=arm,
         case=case_name,
         score=score,
-        extras={"rubric_n": len(rubric)},
+        extras={
+            "rubric_n": len(rubric),
+            "cache_read_input_tokens": cache_read,
+            "cache_creation_input_tokens": cache_create,
+        },
+        cost_usd=cost_usd,
     )
 
     return {

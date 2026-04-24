@@ -25,7 +25,7 @@ def test_log_invocation_writes_row(tmp_path):
         ledger_path=ledger,
     )
     assert row["caller"] == "test"
-    assert row["cost_usd"] > 0  # 1k input * $15 + 500 output * $75 per MTok
+    assert row["cost_usd"] > 0  # 1k input * $5 + 500 output * $25 per MTok
     assert row["wall_time_s"] == 1.5
 
     rows = read_rows(ledger)
@@ -86,7 +86,7 @@ def test_summarize_groups_and_computes_roi(tmp_path):
             caller="advisor_ab",
             model="claude-opus-4-7",
             wall_time_s=2.0,
-            input_tokens=1_000_000,  # $15 input
+            input_tokens=1_000_000,  # $5 input
             output_tokens=0,
             arm="opus_solo",
             score=0.5,
@@ -100,11 +100,11 @@ def test_summarize_groups_and_computes_roi(tmp_path):
     assert g["arm"] == "opus_solo"
     assert g["count"] == 2
     assert g["mean_score"] == 0.5
-    assert g["total_cost_usd"] == 30.0  # 2 * $15
-    assert g["mean_cost_usd"] == 15.0
+    assert g["total_cost_usd"] == 10.0  # 2 * $5
+    assert g["mean_cost_usd"] == 5.0
     assert g["roi_score_per_usd"] is not None
-    # ROI = mean_score / mean_cost = 0.5 / 15 ≈ 0.0333
-    assert 0.03 < g["roi_score_per_usd"] < 0.04
+    # ROI = mean_score / mean_cost = 0.5 / 5 = 0.1
+    assert 0.09 < g["roi_score_per_usd"] < 0.11
 
 
 def test_summarize_handles_missing_scores(tmp_path):

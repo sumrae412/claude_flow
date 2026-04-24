@@ -7,6 +7,8 @@
     {"criterion": "names durability", "keywords": ["durab", "persist", "surviv"]},
     {"criterion": "names cross-session resume implication", "keywords": ["cross-session", "checkpoint", "resume"]},
     {"criterion": "names ops/dependency cost of Redis", "keywords": ["redis", "ops", "dependenc"]},
-    {"criterion": "recommends explicit decision or ADR", "keywords": ["adr", "decision", "recommend"]}
+    {"criterion": "recommends explicit decision or ADR", "keywords": ["adr", "decision", "recommend"]},
+    {"criterion": "names a quantitative threshold or metric", "keywords": ["ms", "latency", "throughput", "qps", "worker", "fan-out", "events/s"]},
+    {"criterion": "acknowledges a counter-argument or trade-off", "keywords": ["however", "but", "trade-off", "tradeoff", "downside", "unless", "on the other hand"]}
   ]
 }

@@ -71,7 +71,13 @@ def attribute_cost_with_iterations(
 
     top_in = getattr(usage_obj, "input_tokens", None)
     top_out = getattr(usage_obj, "output_tokens", None)
-    executor_cost = _compute_cost(executor_model, top_in, top_out)
+    cache_read = getattr(usage_obj, "cache_read_input_tokens", None)
+    cache_create = getattr(usage_obj, "cache_creation_input_tokens", None)
+    executor_cost = _compute_cost(
+        executor_model, top_in, top_out,
+        cache_read_input_tokens=cache_read,
+        cache_creation_input_tokens=cache_create,
+    )
 
     advisor_cost = 0.0
     advisor_in = 0
@@ -93,6 +99,8 @@ def attribute_cost_with_iterations(
     extras = {
         "executor_input_tokens": top_in,
         "executor_output_tokens": top_out,
+        "executor_cache_read_input_tokens": cache_read,
+        "executor_cache_creation_input_tokens": cache_create,
         "executor_cost_usd": round(executor_cost, 6),
         "advisor_input_tokens": advisor_in or None,
         "advisor_output_tokens": advisor_out or None,
@@ -118,6 +126,8 @@ def load_prompt(prompts_dir: Path, arm: str) -> str:
         "sonnet_advisor_tool": "sonnet_with_advisor_tool.txt",
     }
     return (prompts_dir / filename_map[arm]).read_text()
+
+
 
 
 def score_rubric(response_text: str, rubric: list[dict[str, Any]]) -> float:
@@ -205,6 +215,12 @@ def run_live_case(
         }]
         betas = ["advisor-tool-2026-03-01"]
 
+    # Prompt caching NOT wired here. Attempted in 2026-04-24 Step 2 but every
+    # arm's cacheable prefix (system preamble ± tool schema) sat under
+    # Anthropic's 1024-token minimum, so cache_control silently no-ops. Kept
+    # the cache field extraction + pricing math intact so the wiring flips on
+    # cleanly once prompts grow past that threshold — just add cache_control
+    # breakpoints back to `system` / `messages`.
     create_kwargs: dict[str, Any] = {
         "model": model,
         "max_tokens": 2048,
@@ -237,7 +253,10 @@ def run_live_case(
     # Both signals are checked — matching either confirms the tool fired.
     response_text = ""
     invoked_advisor = False
-    usage_dict = {"input_tokens": None, "output_tokens": None}
+    usage_dict = {
+        "input_tokens": None, "output_tokens": None,
+        "cache_read_input_tokens": None, "cache_creation_input_tokens": None,
+    }
     advisor_cost_breakdown: dict[str, Any] = {}
     if resp is not None:
         for block in getattr(resp, "content", []):
@@ -252,6 +271,8 @@ def run_live_case(
         usage_dict = {
             "input_tokens": getattr(usage, "input_tokens", None) if usage else None,
             "output_tokens": getattr(usage, "output_tokens", None) if usage else None,
+            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None) if usage else None,
+            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None) if usage else None,
         }
         # Cost attribution that correctly separates executor + advisor tokens.
         cost_usd, advisor_cost_breakdown = attribute_cost_with_iterations(usage, model)

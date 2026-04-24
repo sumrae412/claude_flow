@@ -8,6 +8,8 @@
     {"criterion": "identifies durability-across-sleep gap", "keywords": ["sleep", "durab", "surviv"]},
     {"criterion": "identifies operational-simplicity gap", "keywords": ["ops", "simpl", "maintenance"]},
     {"criterion": "identifies benchmark/perf gap", "keywords": ["benchmark", "perf", "throughput"]},
-    {"criterion": "frames gaps as scoped questions", "keywords": ["?", "question", "how"]}
+    {"criterion": "frames gaps as scoped questions", "keywords": ["?", "question", "how"]},
+    {"criterion": "names a quantitative threshold or metric", "keywords": ["ms", "latency", "qps", "tps", "per second", "events/s", "mb", "bytes"]},
+    {"criterion": "acknowledges a counter-argument or trade-off", "keywords": ["however", "but", "trade-off", "tradeoff", "downside", "unless", "on the other hand"]}
   ]
 }

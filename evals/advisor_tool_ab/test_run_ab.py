@@ -14,12 +14,14 @@ def test_run_ab_produces_three_arm_results(tmp_path):
     )
     data = json.loads(out.read_text())
     assert set(data["arms"]) == {"sonnet_solo", "sonnet_advisor_tool", "opus_solo"}
-    assert len(data["per_case"]) == 12, (
-        f"expected 12 rows (4 cases x 3 arms), got {len(data['per_case'])}"
+    # 5 cases (phase2, phase3, phase4, phase5, phase6) × 3 arms = 15 rows.
+    # phase3 was added 2026-04-24 for the sonnet-vs-opus downgrade eval.
+    assert len(data["per_case"]) == 15, (
+        f"expected 15 rows (5 cases x 3 arms), got {len(data['per_case'])}"
     )
     for arm in data["arms"]:
         arm_rows = [r for r in data["per_case"] if r["arm"] == arm]
-        assert len(arm_rows) == 4, f"expected 4 rows for {arm}, got {len(arm_rows)}"
+        assert len(arm_rows) == 5, f"expected 5 rows for {arm}, got {len(arm_rows)}"
         assert arm in data["aggregate"], f"{arm} missing from aggregate"
 
 
@@ -34,8 +36,8 @@ def test_run_ab_trials_multiplies_rows(tmp_path):
     )
     data = json.loads(out.read_text())
     assert data["trials"] == 5
-    assert len(data["per_case"]) == 60, (
-        f"expected 60 rows (4 cases x 3 arms x 5 trials), got {len(data['per_case'])}"
+    assert len(data["per_case"]) == 75, (
+        f"expected 75 rows (5 cases x 3 arms x 5 trials), got {len(data['per_case'])}"
     )
     trial_indices = {r["trial_index"] for r in data["per_case"]}
     assert trial_indices == {0, 1, 2, 3, 4}

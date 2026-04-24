@@ -19,11 +19,13 @@ from __future__ import annotations
 #
 # Values below are snapshots; TODO flags mark rates that must be verified.
 PRICING: dict[str, dict[str, float]] = {
-    # Anthropic — verify before live run
-    "claude-opus-4-7":     {"input": 15.00, "output": 75.00},  # TODO: verify
-    "claude-sonnet-4-6":   {"input": 3.00,  "output": 15.00},  # TODO: verify
-    "claude-haiku-4-5":    {"input": 1.00,  "output": 5.00},   # TODO: verify
-    "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},  # TODO: verify
+    # Anthropic — verified 2026-04-24 against claude.com/pricing +
+    # platform.claude.com/docs/en/about-claude/pricing (triangulated).
+    # Opus 4.7 dropped 66% from the prior $15/$75 snapshot.
+    "claude-opus-4-7":     {"input": 5.00,  "output": 25.00},
+    "claude-sonnet-4-6":   {"input": 3.00,  "output": 15.00},
+    "claude-haiku-4-5":    {"input": 1.00,  "output": 5.00},
+    "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
     # OpenAI — verify before live run
     "gpt-4o":              {"input": 2.50,  "output": 10.00},  # TODO: verify
     # DeepSeek — verify before live run

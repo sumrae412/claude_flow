@@ -277,8 +277,8 @@ class NvidiaModelClient implements ModelClient {
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
-export function getModelClient(): ModelClient {
-  const provider = (process.env.PR_REVIEWER_PROVIDER ?? 'anthropic').toLowerCase();
+export function getModelClient(providerOverride?: string): ModelClient {
+  const provider = (providerOverride ?? process.env.PR_REVIEWER_PROVIDER ?? 'anthropic').toLowerCase();
   switch (provider) {
     case 'anthropic':
       return new AnthropicModelClient();
@@ -286,7 +286,7 @@ export function getModelClient(): ModelClient {
       return new NvidiaModelClient();
     default:
       throw new Error(
-        `Unknown PR_REVIEWER_PROVIDER='${provider}'. Supported: anthropic, nvidia.`,
+        `Unknown provider='${provider}'. Supported: anthropic, nvidia.`,
       );
   }
 }

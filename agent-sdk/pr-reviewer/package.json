@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "review": "node dist/index.js"
+    "review": "node dist/index.js",
+    "compare": "node dist/compare.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0"

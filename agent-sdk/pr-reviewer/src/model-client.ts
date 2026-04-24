@@ -79,7 +79,13 @@ class NvidiaModelClient implements ModelClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly maxTokens: number;
-
+  // Pool of model IDs. Length 1 = single-model mode. Length >1 = ensemble
+  // fan-out (A+C pattern): each createReview call dispatches to every model
+  // in parallel with a per-call AbortSignal timeout, then merges successful
+  // responses. Partial success is fine — the existing triage.ts dedup
+  // collapses overlapping findings. Fails only if every model errors/times out.
+  private readonly modelPool: string[];
+  private readonly perCallTimeoutMs: number;
   private readonly dispatcher: Agent;
 
   constructor() {
@@ -90,16 +96,25 @@ class NvidiaModelClient implements ModelClient {
         'Get one at https://build.nvidia.com/',
       );
     }
-    const modelId = process.env.NVIDIA_MODEL;
-    if (!modelId) {
+    const poolRaw = process.env.NVIDIA_MODEL_POOL?.trim();
+    const singleRaw = process.env.NVIDIA_MODEL?.trim();
+    const pool = poolRaw
+      ? poolRaw.split(',').map((s) => s.trim()).filter(Boolean)
+      : singleRaw
+      ? [singleRaw]
+      : [];
+    if (pool.length === 0) {
       throw new Error(
-        'NVIDIA_MODEL is required when PR_REVIEWER_PROVIDER=nvidia. ' +
-        'Browse available models at https://build.nvidia.com/models. ' +
-        'Coding-capable picks: deepseek-ai/deepseek-v3 or moonshotai/kimi-k2.',
+        'NVIDIA_MODEL or NVIDIA_MODEL_POOL is required when PR_REVIEWER_PROVIDER=nvidia. ' +
+        'Browse available models with: curl -sH "Authorization: Bearer $NVIDIA_API_KEY" ' +
+        'https://integrate.api.nvidia.com/v1/models | jq \'.data[].id\'. ' +
+        'Verified working 2026-04-24: moonshotai/kimi-k2-instruct-0905. ' +
+        'Set NVIDIA_MODEL_POOL=m1,m2,m3 for ensemble fan-out.',
       );
     }
     this.apiKey = apiKey;
-    this.modelId = modelId;
+    this.modelPool = pool;
+    this.modelId = pool.length === 1 ? pool[0] : `pool:${pool.join(',')}`;
     this.baseUrl = process.env.NVIDIA_BASE_URL ?? 'https://integrate.api.nvidia.com/v1';
     this.maxTokens = parseInt(process.env.NVIDIA_MAX_TOKENS ?? '4096', 10);
     // NVIDIA free-tier latency routinely exceeds undici's 300s default
@@ -110,9 +125,21 @@ class NvidiaModelClient implements ModelClient {
       headersTimeout: timeoutMs,
       bodyTimeout: timeoutMs,
     });
+    // Per-call ceiling for ensemble mode. Slow models get abandoned so a
+    // 504-bound model doesn't block the whole ensemble. Sit just below
+    // NVIDIA's observed ~5-min edge timeout so we bail client-side first
+    // with a clean label instead of waiting for their 504.
+    this.perCallTimeoutMs = parseInt(
+      process.env.NVIDIA_PER_CALL_TIMEOUT_MS ?? '240000',
+      10,
+    );
   }
 
-  async createReview(system: string, user: string): Promise<ReviewResponse> {
+  private async callModel(
+    model: string,
+    system: string,
+    user: string,
+  ): Promise<ReviewResponse> {
     const res = await undiciFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -122,7 +149,7 @@ class NvidiaModelClient implements ModelClient {
         'User-Agent': 'claude-flow-pr-reviewer/0.1',
       },
       body: JSON.stringify({
-        model: this.modelId,
+        model,
         max_tokens: this.maxTokens,
         messages: [
           { role: 'system', content: system },
@@ -130,22 +157,77 @@ class NvidiaModelClient implements ModelClient {
         ],
       }),
       dispatcher: this.dispatcher,
+      signal: AbortSignal.timeout(this.perCallTimeoutMs),
     });
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error(`NVIDIA API error ${res.status}: ${body.slice(0, 500)}`);
+      throw new Error(`${res.status}: ${body.slice(0, 200)}`);
     }
 
     const data = (await res.json()) as OpenAIChatResponse;
     if (data.error?.message) {
-      throw new Error(`NVIDIA API error: ${data.error.message}`);
+      throw new Error(data.error.message);
     }
 
     const text = data.choices?.[0]?.message?.content ?? '';
     return {
       text,
       usage: { input_tokens: data.usage?.prompt_tokens ?? null },
+    };
+  }
+
+  async createReview(system: string, user: string): Promise<ReviewResponse> {
+    // Single-model path — keep simple, no ensemble overhead.
+    if (this.modelPool.length === 1) {
+      return this.callModel(this.modelPool[0], system, user);
+    }
+
+    // Ensemble: fan out, tolerate partial failure, merge successful text.
+    const results = await Promise.allSettled(
+      this.modelPool.map((m) => this.callModel(m, system, user)),
+    );
+
+    const successes: { model: string; response: ReviewResponse }[] = [];
+    const failures: { model: string; error: string }[] = [];
+    results.forEach((r, i) => {
+      const model = this.modelPool[i];
+      if (r.status === 'fulfilled') {
+        successes.push({ model, response: r.value });
+      } else {
+        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+        failures.push({ model, error: msg });
+      }
+    });
+
+    // Log ensemble breakdown once per createReview so index.ts output stays
+    // readable. Format: "ensemble N/M ok (failed: model=reason, ...)".
+    const summary = `ensemble ${successes.length}/${this.modelPool.length} ok` +
+      (failures.length > 0
+        ? ` (failed: ${failures.map((f) => `${f.model}=${f.error.slice(0, 60)}`).join('; ')})`
+        : '');
+    console.log(`    ${summary}`);
+
+    if (successes.length === 0) {
+      throw new Error(
+        `All ${this.modelPool.length} models in ensemble failed. ` +
+        failures.map((f) => `${f.model}: ${f.error}`).join(' | '),
+      );
+    }
+
+    // Merge: concatenate text with a separator that preserves provenance in
+    // logs but doesn't affect parseFindings (which scans line-by-line for
+    // [SEVERITY] markers). Sum input_tokens across successes.
+    const mergedText = successes
+      .map((s) => `\n--- from ${s.model} ---\n${s.response.text}`)
+      .join('\n');
+    const totalInputTokens = successes.reduce(
+      (sum, s) => sum + (s.response.usage?.input_tokens ?? 0),
+      0,
+    );
+    return {
+      text: mergedText,
+      usage: { input_tokens: totalInputTokens || null },
     };
   }
 }

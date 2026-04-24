@@ -1,0 +1,18 @@
+# Runtime dependencies for claude_flow scripts (scripts/ + evals/).
+#
+# The core hooks, the MCP server, and most scripts are stdlib-only by design
+# (see scripts/select_reviewers.py note: "Stdlib only"). These two pin the
+# exceptions:
+#
+# - pydantic: schema validation for llm_judge + dispatch output contracts.
+# - httpx:    HTTP client for plancraft_review (DeepSeek + OpenAI calls).
+#
+# Optional LLM SDK — imported lazily by scripts that make Anthropic calls.
+# Install only if you plan to run live evals / calibration:
+#
+#     pip install anthropic
+#
+# The MCP server has its own requirements at mcp/claude-flow-server/requirements.txt.
+
+pydantic>=2.0
+httpx>=0.25

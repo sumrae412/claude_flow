@@ -22,9 +22,22 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
+import time
+from pathlib import Path
 from typing import Any
 
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+
+# Ledger import is best-effort — adversarial_dispatch must keep working even
+# when invoked from a context where scripts/ isn't on sys.path (e.g. a
+# subprocess unit test). Missing ledger = silent no-op, not a crash.
+_LEDGER_LOG: Any = None
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from ledger import log_invocation as _LEDGER_LOG  # type: ignore[import-not-found]
+except Exception:
+    _LEDGER_LOG = None
 
 
 def get_model() -> str:
@@ -55,12 +68,19 @@ def dispatch_via_anthropic_api(
     *,
     model: str | None = None,
     max_tokens: int = 2000,
+    session_id: str | None = None,
+    case: str | None = None,
 ) -> dict[str, Any]:
     """Dispatch the adversarial-breaker persona against a single diff.
 
     Returns the parsed JSON envelope. Caller is responsible for asserting
     contract bounds (criterion names, score range, etc.) — this helper does
     not validate, only dispatches and parses.
+
+    Every call is logged to the invocation ledger (cost / wall time / tokens)
+    so calibration runs show up in ROI summaries alongside other LLM calls.
+    `session_id` and `case` are optional correlation fields — calibration
+    passes them so per-case rows group together.
 
     Raises:
         ImportError: ``anthropic`` SDK not installed.
@@ -78,11 +98,44 @@ def dispatch_via_anthropic_api(
         "instructions. Emit only the JSON envelope, nothing else.\n\n"
         f"```diff\n{diff}\n```"
     )
-    resp = client.messages.create(
-        model=model or get_model(),
-        max_tokens=max_tokens,
-        system=persona,
-        messages=[{"role": "user", "content": user_msg}],
-    )
+    resolved_model = model or get_model()
+
+    t0 = time.monotonic()
+    success = True
+    error: str | None = None
+    resp = None
+    try:
+        resp = client.messages.create(
+            model=resolved_model,
+            max_tokens=max_tokens,
+            system=persona,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+    except Exception as e:
+        success = False
+        error = f"{type(e).__name__}: {e}"
+    wall_time_s = time.monotonic() - t0
+
+    # Ledger log — best-effort, never masks the underlying dispatch behavior.
+    if _LEDGER_LOG is not None:
+        usage = getattr(resp, "usage", None) if resp is not None else None
+        try:
+            _LEDGER_LOG(
+                caller="adversarial_breaker",
+                model=resolved_model,
+                wall_time_s=wall_time_s,
+                input_tokens=getattr(usage, "input_tokens", None) if usage else None,
+                output_tokens=getattr(usage, "output_tokens", None) if usage else None,
+                success=success,
+                error=error,
+                session_id=session_id,
+                case=case,
+            )
+        except Exception:
+            pass  # ledger failures must not break the dispatch path
+
+    if not success:
+        raise RuntimeError(error or "adversarial dispatch failed")
+
     raw = resp.content[0].text
     return json.loads(extract_json(raw))

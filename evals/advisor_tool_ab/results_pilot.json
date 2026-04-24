@@ -1,0 +1,802 @@
+{
+  "arms": [
+    "sonnet_solo",
+    "sonnet_advisor_tool",
+    "opus_solo"
+  ],
+  "per_case": [
+    {
+      "case": "phase2_gap_identification",
+      "arm": "sonnet_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.014094,
+      "latency_s": 22.73284525005147,
+      "usage": {
+        "input_tokens": 213,
+        "output_tokens": 897,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "## Wave 2 Gap Analysis: Targeted Follow-Up Questions\n\n### Critical Gaps (Block Decision-Making)\n\n**1. Sleep/Wake Durability per Option**\n- Redis Streams: Does a locally-run Redis instance (no Docker) survive macOS/Windows sleep without data loss, and what is the exact configuration (`save`, `appendonly`) needed to guarantee it on a laptop SSD?\n- SQLite WAL: Under what conditions does WAL mode leave the queue in a corrupt or unrecoverable state after a hard sleep interrupt mid-write, and is `PRAGMA synchronous=NORMAL` safe enough or does it require `FULL`?\n- asyncio.Queue: This is almost certainly a non-starter for durability\u2014Wave 2 should confirm whether *any* persistence wrapper (e.g., pickle-on-signal) is viable or whether this option should be eliminated outright.\n\n**2. Redis Without a Daemon Manager**\nWave 1 presumably assumed Redis is running, but on a single developer laptop with no container orchestration: what is the exact mechanism to ensure Redis auto-starts on boot and auto-restarts on crash without systemd, Docker, or launchctl complexity? Is `redis-server` as a launchd plist or a Python-managed subprocess actually reliable, and what are the failure modes when it isn't?\n\n---\n\n### Functional Gaps (Affect Correctness)\n\n**3. Consumer Group Semantics for Solo Use**\nRedis Streams consumer groups were designed for competing consumers. For a single developer with a single-process multi-agent system, what is the overhead and operational complexity cost of consumer groups versus simpler `XREAD` with offset tracking? Is the consumer group model overkill, and does it introduce dead-letter/pending-entry cleanup burden the solo developer must manually manage?\n\n**4. SQLite Concurrency Ceiling**\nNote C covers WAL mode but presumably doesn't quantify: at what message throughput (events/sec) does SQLite-as-queue exhibit lock contention between multiple asyncio tasks or threads in a single process? Is there a practical ceiling relevant to laptop-scale multi-agent workloads, and does it matter?\n\n**5. Event Schema Versioning and Replay**\nNone of the three notes appear to address what happens when agent logic changes mid-run and old queued events have a stale schema. For a single developer iterating fast, this is a real operational hazard. What is the minimum viable schema migration or versioning strategy for each option?\n\n---\n\n### Operational Gaps (Affect Day-to-Day Use)\n\n**6. Observability Without Tooling Overhead**\nA solo developer has no Grafana, no Kafka UI. For each option, what is the simplest \"what is in my queue right now\" introspection command or one-liner that requires zero additional infrastructure? Wave 1 likely omits this entirely.\n\n**7. Cold Start and Startup Ordering**\nWhen the developer opens their laptop and runs the system: what is the required startup sequence for each option, what fails silently if that order is wrong, and is there a self-healing initialization pattern (e.g., the agent waits for the bus rather than crashing)?\n\n---\n\n### Eliminatory Question (Should Surface Quickly)\n\n**8. Is asyncio.Queue Disqualified?**\nGiven the sleep/wake durability constraint is hard, Wave 2 should answer this directly and early: *under the stated constraints, is asyncio.Queue categorically eliminated, or is there a hybrid (e.g., asyncio.Queue as in-memory fast path with SQLite as the durable backing log) worth specifying?* If hybrid, what is the complexity cost for one developer to maintain it?\n\n---\n\n### What Wave 2 Should NOT Re-Cover\nAvoid re-researching general event bus theory, Redis architecture overviews, or asyncio fundamentals. Every question above should produce a concrete, laptop-deployment-specific answer with a recommendation, not a survey.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "identifies durability-across-sleep gap",
+            "passed": true,
+            "rationale": "Gap 1 and Gap 8 directly address sleep/wake durability for each option."
+          },
+          {
+            "criterion": "identifies operational-simplicity gap",
+            "passed": true,
+            "rationale": "Gaps 2, 6, and 7 address daemon management, observability, and startup ordering for solo operation."
+          },
+          {
+            "criterion": "identifies benchmark/perf gap",
+            "passed": true,
+            "rationale": "Gap 4 asks for throughput quantification of SQLite lock contention."
+          },
+          {
+            "criterion": "frames gaps as scoped questions",
+            "passed": true,
+            "rationale": "Each gap is articulated as a specific, answerable follow-up question rather than a vague topic."
+          },
+          {
+            "criterion": "names a quantitative threshold or metric",
+            "passed": true,
+            "rationale": "Gap 4 explicitly asks for events/sec throughput ceiling."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Gap 3 questions whether consumer groups are overkill, and Gap 8 considers a hybrid trade-off with complexity cost."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "The response provides a detailed, organized list of scoped follow-up questions matching the synthesis task."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.022465,
+        "wall_time_s": 5.5484
+      },
+      "judge_agrees_with_substring": true
+    },
+    {
+      "case": "phase2_gap_identification",
+      "arm": "sonnet_advisor_tool",
+      "rubric_score": 0.8333333333333334,
+      "cost_usd": 0.097617,
+      "latency_s": 53.39718608325347,
+      "usage": {
+        "input_tokens": 1412,
+        "output_tokens": 944,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2083
+      },
+      "response_text": "## Wave 2 Gap Analysis: Scoped Follow-Up Questions\n\nWave 1 covers three mechanisms at a descriptive level, but it was not written against the binding constraints\u2014laptop deployment, no container orchestration, and sleep/wake durability. The most important gaps are **constraint-driven behavioral questions** that none of the three notes answer. Because the advisor tool returned empty responses on both calls, I'm proceeding from constraint analysis alone and flagging that limitation.\n\n---\n\n### Cluster 1 \u2014 Sleep/Wake Durability (Blocking; answer before Wave 2 dispatches)\n\nThese are the highest-priority gaps because the stated must-survive-sleep constraint directly disqualifies at least one option.\n\n1. **Redis (Note A):** When macOS or Linux suspends, does a locally-running `redis-server` resume with its AOF/RDB intact and consumer-group pending-entry lists (PEL) preserved? Can a SLEEP interrupt an AOF `fsync` in a way that corrupts the PEL?\n2. **SQLite WAL (Note C):** Does WAL mode tolerate a suspend mid-transaction? What happens when WAL checkpoint is interrupted by sleep\u2014does the reader see a torn state on wake?\n3. **asyncio.Queue (Note B):** What is the accepted pattern for persisting an in-process queue across process restarts (snapshot-on-shutdown + ordered replay)? If none exists natively, should this option be disqualified for the durability constraint?\n\n---\n\n### Cluster 2 \u2014 Topology (Blocking; determines option eligibility)\n\n4. **Process model:** Is the multi-agent system one Python process with concurrent tasks, N subprocesses, or N fully independent scripts launched at different times? This determines whether in-process `asyncio.Queue` is eligible at all.\n5. **Delivery semantics per option:** What are the at-least-once vs. exactly-once guarantees, per-key ordering behavior, and visibility/re-delivery timeout mechanics for each of the three approaches?\n6. **Poison-event handling:** How does each option handle a malformed or unprocessable event? Is there native dead-letter support, retry-cap logic, or is that always roll-your-own?\n\n---\n\n### Cluster 3 \u2014 Laptop Ergonomics and Operations\n\n7. **Redis install/auto-start burden:** What is the correct `brew services` / `systemd --user` / `launchd` setup to keep Redis alive across reboots and OS upgrades on macOS and Linux laptops, without Docker?\n8. **Observability without tooling:** Can the developer inspect, peek, or requeue a stuck event in each system without writing custom code\u2014e.g., `redis-cli XPENDING`, `.db` file opened in DB Browser, or only via print-debugging the queue?\n9. **Disk growth ceiling:** What are realistic queue-depth and WAL/AOF disk-growth bounds on a laptop for long-running agent workloads? Is compaction automatic or manual?\n\n---\n\n### Cluster 4 \u2014 Option-Set Completeness\n\n10. **Excluded alternatives:** Were file-backed embedded queues (`diskcache.Deque`, `litequeue`, `persist-queue`) explicitly considered and ruled out, or simply not covered? If ruled out, on what grounds?\n11. **Hybrid pattern legitimacy:** Is an asyncio.Queue (hot path) + SQLite (durable checkpoint) hybrid a viable fourth option, or does it inherit the worst failure modes of both and should be preemptively excluded?\n\n---\n\n**Dispatch recommendation:** Questions 1\u20134 are blocking and should gate which options remain on the table before Wave 2 researchers go deep. Questions 5\u201311 can run in parallel across researchers but should not drive a final recommendation until 1\u20134 are answered. The single biggest risk is that Wave 2 produces rich detail on Redis configuration while the sleep/wake question (#1) quietly disqualifies it, wasting the research cycle.",
+      "invoked_advisor": true,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 0.7143,
+        "per_criterion": [
+          {
+            "criterion": "identifies durability-across-sleep gap",
+            "passed": true,
+            "rationale": "Cluster 1 explicitly addresses sleep/wake durability for all three options."
+          },
+          {
+            "criterion": "identifies operational-simplicity gap",
+            "passed": true,
+            "rationale": "Cluster 3 covers install/auto-start burden, observability, and laptop ergonomics."
+          },
+          {
+            "criterion": "identifies benchmark/perf gap",
+            "passed": false,
+            "rationale": "No question targets throughput, latency, or performance benchmarking; disk-growth bounds are capacity, not perf."
+          },
+          {
+            "criterion": "frames gaps as scoped questions",
+            "passed": true,
+            "rationale": "Gaps are enumerated as specific numbered follow-up questions with clear scope."
+          },
+          {
+            "criterion": "names a quantitative threshold or metric",
+            "passed": false,
+            "rationale": "Mentions 'realistic bounds' and 'queue-depth' generically but provides no concrete numeric threshold or metric value."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Hybrid pattern question weighs viability against inheriting worst failure modes, and dispatch recommendation notes research-cycle trade-off."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Provides a detailed, organized set of scoped follow-up questions directly responsive to the synthesis task."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.023125,
+        "wall_time_s": 6.3915
+      },
+      "judge_agrees_with_substring": false
+    },
+    {
+      "case": "phase2_gap_identification",
+      "arm": "opus_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.03421,
+      "latency_s": 25.383203541859984,
+      "usage": {
+        "input_tokens": 322,
+        "output_tokens": 1304,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "# Wave 2 Research Gaps\n\nThe Wave 1 notes cover three transport options but leave several questions unanswered given your constraints (single laptop, no orchestration, sleep/wake durability). Here are the gaps I'd send researchers after:\n\n## Durability & sleep/wake behavior (highest priority)\n\n1. **What happens to each transport when the laptop sleeps mid-delivery?** Specifically: does Redis Streams' consumer-group PEL correctly redeliver messages whose consumer process was frozen for 8 hours and woke up with a stale connection? What's the reconnection/claim-idle behavior?\n2. **Does SQLite WAL survive an ungraceful sleep-induced fsync interruption on macOS and Linux laptops?** Cite actual corruption reports, not just docs claims. Is `PRAGMA synchronous=FULL` required, and what's the write-throughput cost?\n3. **What is the asyncio.Queue recovery story?** (Presumably none \u2014 confirm and make this explicit so it can be eliminated on durability grounds, or paired with a write-ahead log.)\n\n## Operational burden for a solo developer\n\n4. **What's the install/run/backup footprint of Redis on a dev laptop in 2024?** Homebrew service? Launchd/systemd user unit? Memory floor when idle? This matters because the cost of Redis isn't the software, it's the \"is it running right now?\" tax.\n5. **What's the SQLite-as-queue concurrency ceiling** (writers/sec) before WAL contention becomes visible, and does that ceiling matter for an agent system with, say, 5\u201320 agents producing events?\n\n## Semantics the notes probably glossed over\n\n6. **Delivery semantics comparison under failure:** at-least-once vs exactly-once vs at-most-once for each option, including what happens to in-flight acks during sleep. The notes likely describe happy-path semantics only.\n7. **Ordering guarantees per-key (per-agent or per-conversation):** Redis Streams gives global order per stream; SQLite gives insertion order; asyncio.Queue is FIFO in-process only. Which matches the multi-agent coordination pattern (fan-out? request/response? saga)?\n8. **Dead-letter and poison-message handling:** how does each pattern express \"this event failed 3x, park it\"? This is often an afterthought that becomes critical by week 2.\n\n## Missing candidates (scope check)\n\n9. **Is NATS JetStream (single-binary, file-backed, no orchestration) a better fit than all three?** It directly targets the \"laptop-local durable bus\" niche and Wave 1 may have missed it.\n10. **Is a hybrid \u2014 asyncio.Queue for hot path + SQLite WAL as durable log \u2014 the actual right answer?** This is the pattern many solo-dev agent frameworks converge on, and none of the three notes evaluate it as a combined option.\n\n## Decision-framing gap\n\n11. **What's the observability story per option?** Can you `tail` the bus, replay from offset N, inspect pending work? On a solo-dev system, grep-ability often outranks throughput.\n\n---\n\n**My opinion on prioritization:** Questions 1\u20133 and 9\u201310 are the load-bearing ones. If sleep/wake durability can't be proven for Redis Streams and SQLite, the decision collapses to NATS JetStream or a hybrid regardless of the other trade-offs. I'd dispatch those first and let 4\u20138 and 11 ride in a second batch only if the durability answers don't eliminate options outright.\n\n**Risk you may be missing:** \"Survive sleep/wake\" is underspecified. Does it mean (a) no data loss of acknowledged writes, (b) in-flight unacked work resumes, or (c) the whole system auto-recovers without manual intervention? These have very different implementation costs. Pin this down before Wave 2 dispatches, or the researchers will answer the wrong question.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "identifies durability-across-sleep gap",
+            "passed": true,
+            "rationale": "Questions 1-3 explicitly address sleep/wake durability for each transport."
+          },
+          {
+            "criterion": "identifies operational-simplicity gap",
+            "passed": true,
+            "rationale": "Question 4 addresses Redis install/run/backup footprint and operational tax for solo developer."
+          },
+          {
+            "criterion": "identifies benchmark/perf gap",
+            "passed": true,
+            "rationale": "Question 5 asks about SQLite concurrency ceiling in writers/sec and throughput cost is mentioned in Q2."
+          },
+          {
+            "criterion": "frames gaps as scoped questions",
+            "passed": true,
+            "rationale": "Each gap is expressed as a specific, bolded follow-up question with concrete sub-criteria."
+          },
+          {
+            "criterion": "names a quantitative threshold or metric",
+            "passed": true,
+            "rationale": "Mentions 5-20 agents, writers/sec, 8-hour sleep, 3x retry, PRAGMA synchronous=FULL."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Notes throughput cost of synchronous=FULL, grep-ability vs throughput, and that 'survive sleep/wake' is underspecified with different cost implications."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly lists scoped Wave 2 follow-up questions organized by theme with prioritization guidance."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.023415,
+        "wall_time_s": 7.1699
+      },
+      "judge_agrees_with_substring": true
+    },
+    {
+      "case": "phase4_architecture_tradeoff",
+      "arm": "sonnet_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.012729,
+      "latency_s": 18.766156416852027,
+      "usage": {
+        "input_tokens": 278,
+        "output_tokens": 793,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "## Recommendation: Option A now, with an explicit abstraction boundary that makes Option B a drop-in later.\n\nDo **not** adopt Redis Streams yet. But do **not** implement Option A naively either. The plan author is making the right call for the wrong reasons.\n\n---\n\n## What the Plan Author Is Missing\n\n### 1. The Phase 5 Checkpointing Request Changes the Math Significantly\nCross-session resume is not a cosmetic feature \u2014 it is **structurally incompatible with an in-process queue**. An asyncio.Queue is ephemeral by definition. If that roadmap item gets scheduled six months from now and the event bus is deeply woven into the codebase with no abstraction layer, you will be doing a painful rip-and-replace under time pressure. That is the actual risk.\n\n### 2. \"Simpler\" Is Only True at the Start\nAn asyncio.Queue *is* simpler to stand up. It becomes *more complex* than Redis Streams the moment you need to debug lost events, replay a failed phase, or answer \"what happened in session X three days ago?\" Redis gives you that for free. An in-process queue gives you nothing.\n\n### 3. Fan-Out Is Closer Than It Looks\nIf any future phase needs to run in a subprocess, a separate worker, or a container, Option A breaks with zero warning. This is a silent failure mode \u2014 not an error you catch in tests.\n\n### 4. The Ops Burden of Redis Is Often Overstated at This Stage\nRedis Streams on a managed service (ElastiCache, Upstash, Redis Cloud) is effectively zero ops burden for a non-production-scale system. The \"ops burden\" concern is valid for self-hosted Redis at scale. It is largely a non-issue for most workflow systems.\n\n---\n\n## The Actual Trade-Offs\n\n| Dimension | Option A (asyncio.Queue) | Option B (Redis Streams) |\n|---|---|---|\n| Setup time | Minutes | Hours to one day |\n| Debuggability | Poor (ephemeral, no replay) | Strong (persistent, replayable) |\n| Cross-session resume | **Impossible without rewrite** | Native |\n| Multi-process fan-out | **Impossible** | Native |\n| Ops dependency | None | Redis instance required |\n| Failure behavior | Silent event loss | Consumer group lag, visible |\n| Testing | Easy to mock | Requires Redis in test env or mocking |\n\n---\n\n## What to Actually Do\n\n**Implement Option A behind an abstract `EventBus` interface.**\n\nDefine a protocol/abstract class now:\n\n```python\nclass EventBus(Protocol):\n    async def publish(self, stream: str, event: dict) -> None: ...\n    async def subscribe(self, stream: str, group: str) -> AsyncIterator[dict]: ...\n```\n\nShip `InProcessEventBus` backed by asyncio.Queue for current workflows. When Phase 5 checkpointing is scheduled \u2014 or the first time someone asks for cross-session resume \u2014 you swap in `RedisEventBus` implementing the same interface. No consumer code changes.\n\n---\n\n## The One Condition That Would Change My Answer\n\nIf Phase 5 checkpointing gets **scheduled in the next sprint or quarter**, skip Option A entirely and go straight to Redis Streams. The abstraction layer is insurance against an uncertain timeline. If the timeline is certain and near, pay the setup cost once and stop carrying the migration debt.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 0.8571,
+        "per_criterion": [
+          {
+            "criterion": "names durability",
+            "passed": true,
+            "rationale": "Explicitly contrasts ephemeral asyncio.Queue with persistent/replayable Redis Streams."
+          },
+          {
+            "criterion": "names cross-session resume implication",
+            "passed": true,
+            "rationale": "Directly addresses Phase 5 checkpointing and cross-session resume incompatibility with in-process queue."
+          },
+          {
+            "criterion": "names ops/dependency cost of Redis",
+            "passed": true,
+            "rationale": "Discusses ops burden of Redis and Redis instance dependency, even while arguing it's overstated."
+          },
+          {
+            "criterion": "recommends explicit decision or ADR",
+            "passed": true,
+            "rationale": "Makes a clear recommendation (Option A behind abstraction) with a stated condition for changing it."
+          },
+          {
+            "criterion": "names a quantitative threshold or metric",
+            "passed": false,
+            "rationale": "Only vague timeframes like 'next sprint or quarter'; no concrete metric or numeric threshold."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Provides a trade-off table and acknowledges Option A's simplicity advantage at start."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly recommends an option and enumerates trade-offs the author is missing."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.02182,
+        "wall_time_s": 8.7423
+      },
+      "judge_agrees_with_substring": false
+    },
+    {
+      "case": "phase4_architecture_tradeoff",
+      "arm": "sonnet_advisor_tool",
+      "rubric_score": 1.0,
+      "cost_usd": 0.082709,
+      "latency_s": 45.84108074987307,
+      "usage": {
+        "input_tokens": 1477,
+        "output_tokens": 581,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2138
+      },
+      "response_text": "**Recommendation: Start with Option A, but strictly behind an abstraction layer \u2014 not raw `asyncio.Queue` calls in business logic.**\n\nThe current workload is genuinely single-process and single-session, so adding a Redis dependency today is premature ops cost. However, the plan author's framing of \"simpler\" conflates *initial implementation complexity* with *migration complexity*. The `asyncio.Queue` is simple to write against, but its semantics are hostile to the Phase 5 cross-session resume requirement: no durable cursor, no consumer groups, no replay, no acks. If phase code calls `await queue.get()` directly, Phase 5 becomes a rewrite, not a backend swap.\n\n**Trade-offs the author is likely missing:**\n1. **Serialization discipline.** An in-process queue will happily carry live Python objects \u2014 open file handles, ORM sessions, futures. Redis forces byte-serializable payloads. If events aren't required to be JSON-safe with an idempotency key from day one, you'll discover non-serializable references at migration time, not now.\n2. **Failure and backpressure semantics differ fundamentally.** A bounded `asyncio.Queue` blocks the publisher on overflow; Redis Streams use `MAXLEN` trimming and consumer-lag monitoring. Handlers written against Option A often implicitly assume exactly-once delivery; Option B requires \"at-least-once + idempotent consumers\" as a discipline. Retrofitting this is painful.\n3. **Observability gap.** An in-process queue is a black box unless you instrument it yourself. Redis gives you `XINFO`, `XPENDING`, and consumer lag out of the box \u2014 worth accounting for in the comparison.\n\n**Concrete path forward:** Ship Option A, but enforce it behind an `EventBus` interface (`publish(topic, event_dict)`, `subscribe(topic, group) \u2192 async iterator`) with JSON-serializable payloads and idempotency keys as hard contracts on every event. Write phase code against the interface, never against `asyncio.Queue` directly. When Phase 5 is scheduled, swapping the backend to Redis Streams becomes a one-file change, not a cross-cutting refactor. Choose Option B immediately only if Phase 5 lands on the next sprint or if Redis is already in your stack for another reason \u2014 otherwise the ops burden is real and not yet justified.",
+      "invoked_advisor": true,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 0.8571,
+        "per_criterion": [
+          {
+            "criterion": "names durability",
+            "passed": true,
+            "rationale": "Explicitly mentions 'no durable cursor, no replay, no acks' and contrasts durable replay semantics."
+          },
+          {
+            "criterion": "names cross-session resume implication",
+            "passed": true,
+            "rationale": "Directly discusses Phase 5 cross-session resume and how Option A semantics are hostile to it."
+          },
+          {
+            "criterion": "names ops/dependency cost of Redis",
+            "passed": true,
+            "rationale": "Calls out 'Redis dependency' and 'ops burden' as real costs."
+          },
+          {
+            "criterion": "recommends explicit decision or ADR",
+            "passed": true,
+            "rationale": "Gives a clear recommendation (Option A behind an abstraction) with concrete path forward, though doesn't explicitly mention ADR."
+          },
+          {
+            "criterion": "names a quantitative threshold or metric",
+            "passed": false,
+            "rationale": "No specific numeric thresholds or metrics (e.g., event rate, latency, queue size) are given; only qualitative triggers like 'next sprint.'"
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Acknowledges when Option B would be the right immediate choice and lists trade-offs in both directions."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly picks an option, justifies it, and enumerates missing trade-offs."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.02064,
+        "wall_time_s": 6.167
+      },
+      "judge_agrees_with_substring": false
+    },
+    {
+      "case": "phase4_architecture_tradeoff",
+      "arm": "opus_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.03527,
+      "latency_s": 25.123475790955126,
+      "usage": {
+        "input_tokens": 419,
+        "output_tokens": 1327,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "# Recommendation: Start with Option A, but build behind an abstraction\n\nThe author is right that A is simpler *today*. They're likely wrong about what \"simpler\" costs you in 3-6 months given the roadmap. The answer isn't \"pick B now\" \u2014 it's \"pick A deliberately, with an exit ramp.\"\n\n## The trade-off, named honestly\n\n**Option A wins on:** zero ops, zero network, zero serialization overhead, trivial debugging (it's just Python objects), no new failure modes, fastest path to shipping.\n\n**Option B wins on:** durability, multi-process fan-out, cross-session resume, replay for debugging, backpressure that survives restart, and \u2014 critically \u2014 it forces you to design a serializable event contract from day one.\n\n## What the author is likely missing\n\n1. **Phase 5 checkpointing is not a minor add-on.** Cross-session resume means events must be serializable, idempotent to replay, and have stable identifiers. An in-process `asyncio.Queue` lets you pass *anything* \u2014 live objects, closures, un-pickleable handles. Teams routinely discover at migration time that half their events can't be serialized without a rewrite. If Phase 5 is genuinely on the roadmap, the event *schema* decision is being made now whether they realize it or not.\n\n2. **\"Single-process\" tends to be a temporary condition.** The moment someone wants to run a long phase on a GPU worker, offload to a subprocess for isolation, or parallelize fan-out, the asyncio queue becomes the bottleneck. This request usually arrives unannounced.\n\n3. **Debuggability flips.** A is easier to debug *while it works*; B is easier to debug *when something went wrong yesterday*. Redis Streams gives you `XRANGE` over history. Asyncio queues give you nothing after the process dies \u2014 exactly when you most want a trace.\n\n4. **Backpressure semantics differ.** `asyncio.Queue(maxsize=N)` blocks the producer coroutine. Redis Streams with consumer groups gives you explicit lag metrics and per-consumer pending lists. If workflows have uneven phase durations, the operational visibility gap is larger than it looks.\n\n5. **\"No new infrastructure\" is overstated if Redis already exists.** Check: is Redis already in the stack for caching, rate limiting, or Celery/RQ? If yes, Option B's ops burden is near zero and the \"simpler\" argument largely collapses.\n\n6. **Migration cost is non-linear.** Retrofitting a pub/sub abstraction onto code that assumed synchronous, in-memory, same-object-identity delivery is painful. Doing it upfront is cheap.\n\n## Concrete recommendation\n\nPick **A with a seam**:\n\n- Define an `EventBus` protocol with `publish(event)` / `subscribe(topic) -> AsyncIterator[Event]`.\n- Implement `InProcessBus` (asyncio.Queue) behind it. Ship this.\n- Require all events to be **dataclasses/Pydantic models that are JSON-serializable** from day one. Enforce in tests. This is the single most important discipline \u2014 it preserves the option to switch.\n- Give every event a stable `event_id` and `correlation_id` now.\n- When Phase 5 is scheduled, implement `RedisStreamsBus` against the same protocol. Migration becomes a config flag, not a rewrite.\n\nPick **B directly only if** any of these are true:\n- Redis is already in the deployment.\n- Phase 5 has a firm date within ~1 quarter.\n- You already need multi-process workers for unrelated reasons.\n- The events carry data you'd want to audit or replay for compliance/debugging.\n\n## The risk to flag explicitly to the author\n\n> \"Simpler\" framed as \"less infrastructure\" is accurate. \"Simpler\" framed as \"less work overall\" is probably wrong once Phase 5 lands. The cheap move is A-behind-an-interface with serializable events. The expensive move is naive A that we rip out in six months.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "names durability",
+            "passed": true,
+            "rationale": "Explicitly lists durability as an Option B advantage and discusses replay/persistence."
+          },
+          {
+            "criterion": "names cross-session resume implication",
+            "passed": true,
+            "rationale": "Dedicated section on Phase 5 checkpointing and cross-session resume implications for serialization."
+          },
+          {
+            "criterion": "names ops/dependency cost of Redis",
+            "passed": true,
+            "rationale": "Mentions ops burden, new infrastructure, and checks whether Redis already exists in the stack."
+          },
+          {
+            "criterion": "recommends explicit decision or ADR",
+            "passed": true,
+            "rationale": "Provides a concrete recommendation (A with a seam) with explicit criteria for choosing B."
+          },
+          {
+            "criterion": "names a quantitative threshold or metric",
+            "passed": true,
+            "rationale": "Mentions '~1 quarter' firm date and 'six months' migration timeframe as thresholds."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Acknowledges A's genuine wins (zero ops, debugging ease) and concedes the author is right that A is simpler today."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly answers which option to pick and enumerates trade-offs the author is missing."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.022735,
+        "wall_time_s": 6.5397
+      },
+      "judge_agrees_with_substring": true
+    },
+    {
+      "case": "phase5_mid_impl_architectural_concern",
+      "arm": "sonnet_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.015423,
+      "latency_s": 23.752687708009034,
+      "usage": {
+        "input_tokens": 321,
+        "output_tokens": 964,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "## Recommendation: Full Replan (Option 2)\n\nThis is a schema design flaw, not a feature gap. Defer and shim paths are traps here. Here's why, and what you're actually risking.\n\n---\n\n## Option-by-Option Risk Assessment\n\n### Option 1 \u2014 Defer (Document the Limitation)\n**The appeal:** Ship Tasks 3-5 faster, revisit later.\n\n**The reality:**\n- `is_primary_contact` on `HouseholdMember` is now a *semantically wrong* column, not just an incomplete feature. You're not deferring a feature \u2014 you're encoding a false assumption into your schema.\n- Every query, API endpoint, and business rule written in Tasks 4-5 will be built on top of the broken model. When you fix it later, you're not adding a column \u2014 you're migrating logic scattered across the entire codebase.\n- \"Document the limitation\" almost never survives contact with production data. Someone will onboard a member who occupies two properties within weeks of launch.\n\n**Risk rating: High.** The longer you wait, the more expensive the correct fix becomes. This is exactly how accidental complexity accumulates.\n\n---\n\n### Option 3 \u2014 Shim Exception Table\n**The appeal:** Avoid the replan, keep momentum, \"we'll consolidate later.\"\n\n**The reality:**\n- You now have two sources of truth for primary contact status. Every lookup needs to check both tables. That logic *will* diverge.\n- The shim migration ticket will not get prioritized after launch. It will sit in the backlog while your application grows a permanent dependency on the shim.\n- This is the highest-risk path of the three. It feels like a compromise but it combines the costs of both other options without the benefits of either: you still have to do the replan eventually, but now the shim is load-bearing.\n\n**Risk rating: Very High.** Shims on join-table-vs-column problems are notoriously sticky. They become permanent.\n\n---\n\n### Option 2 \u2014 Full Replan (Recommended)\n**The appeal:** Correct the model now, while only half of Task 3 has landed.\n\n**The real costs:**\n- Two additional rollback migrations to clean up the half-landed rename. That's real but bounded.\n- Replanning Tasks 3-5 takes time \u2014 probably a day of design work.\n- Psychological cost: it feels like going backward.\n\n**Why it's right:**\n- Moving `is_primary_contact` to the join table (`PropertyHouseholdMember` or equivalent) is the *correct* relational model for a many-to-many relationship with per-edge attributes. This is textbook.\n- You are at the cheapest possible moment to make this fix. Half of Task 3 is landed. Tasks 4 and 5 are untouched.\n- The rollback chain is annoying but manageable. Two extra migrations now vs. a data migration across production records later is not a close call.\n\n**Risk rating: Low-Medium.** The risk is schedule delay, not architectural debt.\n\n---\n\n## What You're Likely Missing\n\n**The implicit requirement is load-bearing.** A member being primary contact on one property but not another isn't an edge case \u2014 it's the normal state for any member who moves, co-habits, or manages multiple properties. If your requirements *implicitly* require it, your users will *explicitly* hit it.\n\n**The migration chain concern is a red herring.** Migration chains feel scary but are manageable with discipline. Schema incorrectness in production is not.\n\n**Replanning isn't failure.** The discovering-mid-task-that-assumptions-were-wrong moment is exactly when you're *supposed* to stop and replan. The plan existed to serve the requirements, not the other way around.\n\n---\n\n## Concrete Next Step\n\nRoll back Task 3's migration. Amend the schema: create a `property_household_members` join table with columns `(property_id, household_member_id, is_primary_contact)`. Replan Tasks 3-5 against that model. The replan is probably 3-4 hours of design work plus recovered implementation time, not a week.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "names data-integrity / correctness risk",
+            "passed": true,
+            "rationale": "Explicitly calls out semantically wrong column, two sources of truth, and schema incorrectness in production."
+          },
+          {
+            "criterion": "names migration cost/complexity",
+            "passed": true,
+            "rationale": "Discusses rollback migrations, the migration chain, and data migration across production records."
+          },
+          {
+            "criterion": "names future-debt risk of shim",
+            "passed": true,
+            "rationale": "Explicitly notes the shim becomes load-bearing, permanent, and won't get prioritized."
+          },
+          {
+            "criterion": "gives a prioritized recommendation",
+            "passed": true,
+            "rationale": "Clearly recommends Option 2 (Full Replan) up front."
+          },
+          {
+            "criterion": "names a quantitative threshold or scope bound",
+            "passed": true,
+            "rationale": "Mentions two extra migrations, 3-4 hours of design work, and bounded rollback scope."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Discusses 'the appeal' of each option and acknowledges schedule delay and psychological cost of replan."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly addresses escalate/shim/defer with risk analysis for each."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.02228,
+        "wall_time_s": 10.384
+      },
+      "judge_agrees_with_substring": true
+    },
+    {
+      "case": "phase5_mid_impl_architectural_concern",
+      "arm": "sonnet_advisor_tool",
+      "rubric_score": 1.0,
+      "cost_usd": 0.083822,
+      "latency_s": 44.110963666811585,
+      "usage": {
+        "input_tokens": 1520,
+        "output_tokens": 585,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2134
+      },
+      "response_text": "## Recommendation: Replan (Option 2)\n\nThe core issue here is that `is_primary_contact` being a domain relationship property (between a member *and a specific property*) rather than a member attribute is not a deferred feature \u2014 it is a correctness defect in the model. The advisor's guidance reinforces this: once a requirement is \"implicitly required\" (a real domain fact, not a speculation), Option 1 isn't a safe deferral, it's deliberately shipping an incapable schema. Every task built on top \u2014 Tasks 4 and 5, and all downstream consumers \u2014 will either encode a wrong invariant or accumulate workarounds, and the rewrite cost compounds with each new consumer. You are halfway through Task 3; **this is the cheapest moment this fix will ever be.**\n\nOption 3 (shim/exception table) is the highest-risk path, despite feeling like a middle ground. The correct fix is well-understood (move `is_primary_contact` to the join table), and shims only make sense when the right model isn't yet clear or the migration cost is prohibitive (e.g., massive data volumes, production downtime). Neither applies here. A shim introduces two competing sources of truth for primary-contact status, requires dual-write logic, and \"consolidate later\" migration tickets have a poor historical survival rate \u2014 you almost certainly pay the full migration cost twice while also maintaining the shim.\n\n**Risks in plain terms:**\n- **Option 2 (replan):** ~1-2 days of slip, two added rollback migrations, Tasks 3\u20135 replanned. Cost is bounded and happens once.\n- **Option 1 (defer):** Tasks 4\u20135 bake in the single-property assumption. Eventual fix becomes a multi-week refactor with data backfill and likely a breaking API change.\n- **Option 3 (shim):** Full replan cost *plus* dual-write complexity *plus* a reconciliation migration later.\n\n**One verification step before proceeding:** Confirm with the requirements owner whether multi-property occupancy with differing primary status is in-scope for *this release*. If it is definitively out of scope for 6+ months and the schema can enforce single-property membership via a `CHECK` constraint, Option 1 becomes defensible with that constraint as a guardrail against silent violations. If it's in-scope or ambiguous \u2014 stop and replan now.",
+      "invoked_advisor": true,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "names data-integrity / correctness risk",
+            "passed": true,
+            "rationale": "Explicitly calls it a 'correctness defect' and discusses encoding wrong invariants and dual sources of truth."
+          },
+          {
+            "criterion": "names migration cost/complexity",
+            "passed": true,
+            "rationale": "Discusses rollback migrations, backfill, dual-write logic, and reconciliation migrations."
+          },
+          {
+            "criterion": "names future-debt risk of shim",
+            "passed": true,
+            "rationale": "Explicitly notes 'consolidate later' tickets rarely get done and you pay migration cost twice."
+          },
+          {
+            "criterion": "gives a prioritized recommendation",
+            "passed": true,
+            "rationale": "Clearly recommends Option 2 (replan) up front."
+          },
+          {
+            "criterion": "names a quantitative threshold or scope bound",
+            "passed": true,
+            "rationale": "Mentions '6+ months' out-of-scope threshold and '~1-2 days of slip' bounds."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Acknowledges Option 1 becomes defensible with a CHECK constraint if feature is definitively out of scope."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly addresses escalate/shim/defer with risks for each path."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.019975,
+        "wall_time_s": 5.9973
+      },
+      "judge_agrees_with_substring": true
+    },
+    {
+      "case": "phase5_mid_impl_architectural_concern",
+      "arm": "opus_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.03731,
+      "latency_s": 27.410923874936998,
+      "usage": {
+        "input_tokens": 432,
+        "output_tokens": 1406,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "# Recommendation: Option 2 \u2014 Stop and replan.\n\nThis is a data-model error, not a feature gap. The other two options both mortgage the schema, and schema debt is the most expensive kind in this domain.\n\n## Why this isn't a \"defer\" situation\n\nThe giveaway is in your own framing: \"cannot represent a case the requirements implicitly require.\" That's not a scope question, it's a correctness question. `is_primary_contact` as a column on `HouseholdMember` encodes a factual claim \u2014 \"this person has exactly one primary-contact relationship in the universe\" \u2014 that is false. Every query, export, and downstream consumer built on Tasks 4\u20135 will bake that falsehood in.\n\nRolling back one half-landed migration and adding two more is cheap now. It gets dramatically more expensive once:\n- Tasks 4\u20135 ship code that reads/writes `HouseholdMember.is_primary_contact`\n- Any data lands in production under the wrong shape\n- Any external consumer (reports, integrations, UI) couples to the column\n\n## Risk of each path\n\n**Option 1 (defer):** Lowest short-term cost, highest long-term cost. You're shipping a system that silently misrepresents reality for the dual-property case. Risks: (a) users enter data that gets coerced or lost, (b) \"document the limitation\" rarely reaches the people who need it, (c) the fix later requires a data migration *with ambiguous backfill* \u2014 once someone has flipped the global primary flag, you can't reconstruct which property it was primary for. This is the path that creates a data-quality incident in 6\u201312 months.\n\n**Option 3 (shim):** Worst of both worlds in my experience. A \"scoped exception table\" means two sources of truth for the same fact. Every query becomes `COALESCE(exception_table, household_member.is_primary_contact)`. The \"consolidate later\" ticket competes with feature work and loses. You also now have to teach Tasks 4\u20135 about the shim, so the replan cost you're trying to avoid shows up anyway, just distributed and uglier. Shims are appropriate when the right model is unknown or contested \u2014 here the right model is obvious (join-table attribute).\n\n**Option 2 (replan):** Highest immediate cost, lowest total cost. Two extra migrations in the chain is noise compared to the downstream cost of either alternative. Tasks 4\u20135 get planned against the correct model on the first try.\n\n## Risks in Option 2 you should name explicitly before committing\n\n1. **Backfill semantics.** When you move `is_primary_contact` onto the join table, what does existing data mean? If a HouseholdMember currently has `is_primary_contact = true` and occupies two properties, which property gets the flag? You need an explicit rule (e.g., \"earliest-created occupancy wins\") and it should be reviewed by whoever owns the requirements, not decided by the implementer.\n2. **Invariant enforcement.** The new model should probably enforce \"at most one primary contact per property\" (not per member). That's a partial unique index or constraint \u2014 make sure it's in the amended plan, not a TODO.\n3. **The \"implicit requirement\" is unconfirmed.** Before replanning, get a 10-minute confirmation from the requirements owner that dual-property membership with split primary status is actually a case. If it turns out to be vanishingly rare or explicitly out of scope, Option 1 becomes defensible. Don't replan on the subagent's inference alone.\n4. **Scope creep during replan.** Replanning Tasks 3\u20135 is an invitation for other \"while we're in there\" changes. Time-box the replan and keep the diff tight.\n\n## What I'd actually do, in order\n\n1. Pause Task 3. Roll back the half-landed migration now, while it's cheap.\n2. 10-minute check with the requirements owner: confirm the dual-property-split-primary case is real and in scope.\n3. If yes: amend the plan, including backfill rule and the per-property uniqueness constraint. Proceed.\n4. If no: proceed with Option 1, but add a CHECK constraint or application-level guard that *fails loudly* when a second property is added for a member, rather than silently corrupting the primary-contact flag.\n\nThe thing to avoid is Option 3. \"Temporary\" schema shims have a half-life measured in years.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "names data-integrity / correctness risk",
+            "passed": true,
+            "rationale": "Explicitly frames it as a correctness issue and discusses data corruption, ambiguous backfill, and silent misrepresentation."
+          },
+          {
+            "criterion": "names migration cost/complexity",
+            "passed": true,
+            "rationale": "Discusses rollback cost, two extra migrations, backfill semantics, and invariant enforcement."
+          },
+          {
+            "criterion": "names future-debt risk of shim",
+            "passed": true,
+            "rationale": "Explicitly argues the shim creates dual sources of truth and that 'consolidate later' tickets lose to feature work."
+          },
+          {
+            "criterion": "gives a prioritized recommendation",
+            "passed": true,
+            "rationale": "Clearly recommends Option 2 and provides an ordered action plan."
+          },
+          {
+            "criterion": "names a quantitative threshold or scope bound",
+            "passed": true,
+            "rationale": "Mentions '10-minute confirmation', '6-12 months', and time-boxing the replan."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Notes that if the case is vanishingly rare or out of scope, Option 1 becomes defensible."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly addresses escalate/shim/defer with risks for each path."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.02328,
+        "wall_time_s": 7.2992
+      },
+      "judge_agrees_with_substring": true
+    },
+    {
+      "case": "phase6_critical_finding_fix",
+      "arm": "sonnet_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.01722,
+      "latency_s": 23.08799274964258,
+      "usage": {
+        "input_tokens": 340,
+        "output_tokens": 1080,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "## Assessment of Iter-1's Fix\n\n**Iter-1 partially addresses the finding but leaves two real vulnerabilities open. The CRITICAL flag is justified.**\n\n---\n\n### Issue 1: SQL Injection \u2014 Mostly Fixed, But Incompletely\n\n**What iter-1 got right:** Parameterized binding via `text()` does prevent SQL injection. The original f-string was a severe injection vulnerability; this is a meaningful improvement.\n\n**What iter-1 missed:** The reviewer is correct that LIKE metacharacter escaping is a separate concern. A query parameter like `q = \"%\"` or `q = \"%%%%%%%%%%%%\"` against a large table will force a full table scan on every row, and `q = \"a%b%c%d%e%...\"` creates exponential backtracking on some databases/collations. This is a legitimate **DoS vector**, not a theoretical one. It is not the same class of risk as SQL injection, but on a search endpoint it's real.\n\n**The fix is straightforward:**\n```python\n# Escape LIKE metacharacters before binding\ndef escape_like(value: str, escape_char: str = \"\\\\\") -> str:\n    return (\n        value\n        .replace(escape_char, escape_char * 2)\n        .replace(\"%\", f\"{escape_char}%\")\n        .replace(\"_\", f\"{escape_char}_\")\n    )\n\n# Then in the query:\nsafe_q = f\"%{escape_like(q)}%\"\nstmt = text(\"SELECT ... WHERE name LIKE :q ESCAPE '\\\\'\").bindparams(q=safe_q)\n```\n\nAlso add **input length validation** (e.g., `len(q) <= 100`) \u2014 this is the more important DoS mitigation and is being missed entirely.\n\n---\n\n### Issue 2: Auth Scope \u2014 This Is the Bigger Risk and Was Completely Ignored\n\nThis is the more dangerous open question. **In FastAPI, blueprint-level (router-level) dependencies do apply to all routes registered on that router \u2014 but only if the dependency is declared on the `APIRouter` itself, not on a parent app include.**\n\nThe ambiguity the reviewer flagged is real and common. The failure modes are:\n\n- The router is included with `app.include_router(router)` but the `dependencies=[Depends(require_admin)]` is on a *different* router object than the one this route is actually registered on\n- The route was added directly to `app` or a different router after the fact\n- A refactor moved the route but not the auth decorator\n\n**Iter-2 must explicitly verify this.** The test is simple:\n\n```python\n# Add this to the test suite \u2014 it must pass\ndef test_search_requires_auth(client):\n    response = client.get(\"/api/household/members/search?q=test\")\n    assert response.status_code in (401, 403)\n```\n\nIf that test doesn't exist or fails, **the endpoint is publicly accessible regardless of intent.** Add the dependency directly on the route as a belt-and-suspenders measure:\n\n```python\n@router.get(\"/members/search\", dependencies=[Depends(require_admin)])\nasync def search_members(q: str = Query(..., max_length=100)):\n    ...\n```\n\nExplicit route-level auth is cheap. Relying solely on inherited router auth is an assumption that gets broken by refactors.\n\n---\n\n### Should This Escalate to Cross-Model Diagnosis?\n\n**No, not yet \u2014 but iter-2 has a clear scope that must not be narrowed.**\n\nThe finding doesn't require cross-model diagnosis because the fixes are well-understood. What it *does* require is that iter-2 address **both issues together**, not just the easier SQL one again. The risk of escalating now is that it adds process overhead when the path forward is concrete.\n\n**Escalate if:** iter-2 comes back having addressed only one issue again, or if there's uncertainty about the FastAPI dependency resolution behavior in this specific codebase setup.\n\n---\n\n### Iter-2 Checklist\n\n1. **Add `max_length` validation** on `q` (Query parameter constraint, not just application logic)\n2. **Escape LIKE metacharacters** before binding\n3. **Write a failing test** that hits the endpoint unauthenticated \u2014 fix it so the test passes\n4. **Add explicit `dependencies=[Depends(require_admin)]` on the route itself**, don't rely on inheritance\n5. **Code review the router registration** to confirm the existing blueprint-level auth actually chains \u2014 document the conclusion in the PR\n\nThe reviewer should not accept this PR until a test demonstrating auth rejection exists and passes in CI.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 0.8571,
+        "per_criterion": [
+          {
+            "criterion": "identifies LIKE-metachar escaping as still-unaddressed",
+            "passed": true,
+            "rationale": "Explicitly calls out LIKE metacharacter escaping as a separate concern the iter-1 fix missed."
+          },
+          {
+            "criterion": "identifies auth-scope question as separately unaddressed",
+            "passed": true,
+            "rationale": "Dedicated section notes auth-scope was completely ignored by iter-1."
+          },
+          {
+            "criterion": "recommends escalation or different approach",
+            "passed": true,
+            "rationale": "Recommends a different, broader approach for iter-2 and conditional escalation criteria."
+          },
+          {
+            "criterion": "names confirmation-bias risk of same-model retry",
+            "passed": false,
+            "rationale": "Does not discuss the risk of the same model repeating its narrow fix or confirmation bias in retries."
+          },
+          {
+            "criterion": "names a quantitative threshold or scope bound",
+            "passed": true,
+            "rationale": "Specifies len(q) <= 100 / max_length=100 as a concrete bound."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Acknowledges LIKE-DoS is a different risk class than SQLi and weighs escalation overhead against concrete path forward."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly answers all three sub-questions with concrete remediation steps."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.02476,
+        "wall_time_s": 7.523
+      },
+      "judge_agrees_with_substring": false
+    },
+    {
+      "case": "phase6_critical_finding_fix",
+      "arm": "sonnet_advisor_tool",
+      "rubric_score": 1.0,
+      "cost_usd": 0.077488,
+      "latency_s": 41.41179045801982,
+      "usage": {
+        "input_tokens": 1539,
+        "output_tokens": 568,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2219
+      },
+      "response_text": "## Assessment\n\n**Iter-1 is a partial fix, not a complete one.** Replacing the f-string with a parameterized `text()` binding eliminates classic SQL injection \u2014 that's real progress and the most severe sub-issue. But the reviewer is correct to re-flag CRITICAL: two of the three problems remain entirely unaddressed, and in FastAPI, the auth-scope ambiguity alone is sufficient justification for keeping the severity level.\n\n**Iter-2 must solve three distinct problems, not just iterate on parameterization.** As the advisor confirmed, the executor has likely parsed the finding as a single SQL injection problem rather than three co-equal issues:\n\n1. **Auth scope (highest urgency):** FastAPI `APIRouter`-level `dependencies=[...]` does propagate to child routes *when registered correctly*, but blueprint-style decorator patterns imported from Flask habits often do not. The fix is not to assume it works \u2014 it's to verify the router wiring, add the dependency explicitly at the route level if there's any doubt, and write an automated test that hits the endpoint unauthenticated and asserts a 401/403. Until this is proven, treat the endpoint as publicly accessible admin functionality.\n2. **LIKE metacharacter escaping:** Bind parameters prevent injection but don't strip wildcard semantics. User-supplied `%` and `_` remain live in the LIKE clause. Before binding, escape these characters (e.g., replace `\\` \u2192 `\\\\`, `%` \u2192 `\\%`, `_` \u2192 `\\_`) and add an explicit `ESCAPE '\\'` clause to the SQL. Pair this with a hard cap on `q` length (64\u2013128 chars) and rejection of blank input.\n3. **Regression tests for all three vectors:** SQLi (already probably covered), pathological wildcard patterns, and unauthenticated access. If iter-2 doesn't include these, the same re-flag will happen in iter-3.\n\n**Yes, escalate to cross-model diagnosis before iter-2 lands.** The concrete signal the advisor flagged is that the executor is about to retry the same approach on a multi-part finding \u2014 that's a comprehension gap, not a coding gap. Cross-model review is cheap relative to a third failed iteration, and it's exactly the right tool when the problem is that the problem has been mis-scoped.",
+      "invoked_advisor": true,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "identifies LIKE-metachar escaping as still-unaddressed",
+            "passed": true,
+            "rationale": "Explicitly calls out % and _ wildcard semantics remain live and prescribes escaping plus ESCAPE clause."
+          },
+          {
+            "criterion": "identifies auth-scope question as separately unaddressed",
+            "passed": true,
+            "rationale": "Lists auth scope as highest-urgency unaddressed issue and recommends verification and explicit dependency."
+          },
+          {
+            "criterion": "recommends escalation or different approach",
+            "passed": true,
+            "rationale": "Explicitly recommends escalating to cross-model diagnosis before iter-2."
+          },
+          {
+            "criterion": "names confirmation-bias risk of same-model retry",
+            "passed": true,
+            "rationale": "Identifies the executor's comprehension gap and risk of same approach on multi-part finding."
+          },
+          {
+            "criterion": "names a quantitative threshold or scope bound",
+            "passed": true,
+            "rationale": "Specifies a 64\u2013128 character cap on q length."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Acknowledges iter-1 was real progress on the most severe sub-issue, and notes APIRouter dependencies can propagate when wired correctly."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly answers all three parts: partial fix, concrete iter-2 actions, and escalation recommendation."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.021455,
+        "wall_time_s": 6.7034
+      },
+      "judge_agrees_with_substring": true
+    },
+    {
+      "case": "phase6_critical_finding_fix",
+      "arm": "opus_solo",
+      "rubric_score": 1.0,
+      "cost_usd": 0.03978,
+      "latency_s": 27.176257416140288,
+      "usage": {
+        "input_tokens": 506,
+        "output_tokens": 1490,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      "response_text": "# Does iter-1 address the finding?\n\n**Partially, and inadequately.** The executor fixed the most obvious symptom (SQL injection via f-string) but the reviewer's finding had two prongs, and iter-1 addressed neither cleanly:\n\n1. **SQLi proper**: Parameterized `text()` does prevent classic injection. The reviewer is technically correct that LIKE metacharacters aren't escaped, but reframing this as \"still CRITICAL SQLi\" is a category error \u2014 it's a DoS/ReDoS-adjacent issue, not injection. Severity is real but different.\n2. **Auth scope**: Completely untouched. This is arguably the more dangerous finding. If blueprint-level auth doesn't propagate to the handler, you have an **unauthenticated admin endpoint that queries household member PII**. That dwarfs the LIKE-escape issue.\n\nSo iter-1 is a partial fix on the less severe prong and silence on the more severe one. Reviewer is right to re-flag, though the framing (\"still CRITICAL SQLi\") is muddled.\n\n# What iter-2 should do differently\n\nThree concrete changes:\n\n**1. Verify auth empirically, don't reason about it.**\nFastAPI doesn't have \"blueprints\" \u2014 if the codebase uses `APIRouter` with `dependencies=[Depends(require_admin)]`, those *do* propagate to included routes. If it's a Flask-style blueprint shim or a custom decorator applied to a router object, behavior varies. Stop speculating:\n- Write a test: hit the route with no auth, with user auth, with admin auth. Assert 401/403/200.\n- Also add the dependency explicitly at the route level as defense-in-depth. Redundant auth declarations are cheap; missing ones are breaches.\n\n**2. Handle LIKE metacharacters explicitly.**\n```python\n# Escape %, _, and \\ in user input, then bind\nsafe_q = q.replace(\"\\\\\", \"\\\\\\\\\").replace(\"%\", \"\\\\%\").replace(\"_\", \"\\\\_\")\nstmt = text(\"SELECT ... WHERE name LIKE :q ESCAPE '\\\\'\")\nconn.execute(stmt, {\"q\": f\"%{safe_q}%\"})\n```\nAlso cap input length (e.g., 64 chars) and rate-limit the endpoint. A 2-char `%` query on a large table is a table scan regardless of escaping.\n\n**3. Add a regression test for both findings.**\n- Test with `q=\"%\"` and `q=\"_\"` \u2014 should return bounded, fast results.\n- Test unauthenticated access \u2014 should 401.\n\n# Should this escalate to cross-model diagnosis?\n\n**Yes, but not because the problem is hard \u2014 because the executor has demonstrated a diagnostic failure mode that won't self-correct.**\n\nThe signal isn't \"iter-1 didn't work.\" It's that the executor:\n- Treated a two-part finding as one-part (missed the auth prong entirely).\n- Applied the textbook fix for SQLi without reading the reviewer's specific objection about LIKE metacharacters.\n- Is about to retry \"with the same approach,\" which suggests it hasn't updated its model of the problem.\n\nA second iteration with the same executor is likely to produce another partial fix. Cross-model diagnosis is cheap insurance here, specifically to:\n- Independently enumerate what the finding actually contains (auth + LIKE, not just \"SQLi\").\n- Sanity-check whether the auth dependency actually propagates in this codebase's router setup.\n\n# Risks you may be missing\n\n- **The auth question is the real CRITICAL.** If you ship iter-2 with perfect LIKE escaping but broken auth, you've optimized the wrong variable. Prioritize the auth verification first, ship it as a separate commit if needed.\n- **`text()` with string concatenation for the wildcard pattern** is a common footgun \u2014 people bind `:q` but then write `f\"%{q}%\"` and reintroduce the issue. Make sure iter-2 builds the pattern in Python and binds the whole pattern.\n- **Search endpoints are enumeration vectors.** Even with admin auth and escaping, logging and rate-limiting matter. Flag this for the threat model even if out of scope for this PR.\n- **Reviewer calibration**: if the reviewer keeps labeling DoS-via-LIKE as \"CRITICAL SQLi,\" future findings may be harder to triage. Worth a separate conversation about severity taxonomy, but don't let that delay this fix.",
+      "invoked_advisor": false,
+      "success": true,
+      "error": null,
+      "dry_run": false,
+      "trial_index": 0,
+      "judge": {
+        "score": 1.0,
+        "per_criterion": [
+          {
+            "criterion": "identifies LIKE-metachar escaping as still-unaddressed",
+            "passed": true,
+            "rationale": "Explicitly addresses LIKE metacharacter escaping with code example and notes iter-1 didn't handle it."
+          },
+          {
+            "criterion": "identifies auth-scope question as separately unaddressed",
+            "passed": true,
+            "rationale": "Clearly flags the auth scope prong as 'completely untouched' and prioritizes it."
+          },
+          {
+            "criterion": "recommends escalation or different approach",
+            "passed": true,
+            "rationale": "Recommends cross-model diagnosis and provides specific alternative approach for iter-2."
+          },
+          {
+            "criterion": "names confirmation-bias risk of same-model retry",
+            "passed": true,
+            "rationale": "Notes the executor's diagnostic failure mode won't self-correct and retrying with same approach likely produces another partial fix."
+          },
+          {
+            "criterion": "names a quantitative threshold or scope bound",
+            "passed": true,
+            "rationale": "Specifies a 64-char input length cap and 2-char query example."
+          },
+          {
+            "criterion": "acknowledges a counter-argument or trade-off",
+            "passed": true,
+            "rationale": "Acknowledges reviewer's framing as 'CRITICAL SQLi' is muddled/category error, engaging with the counter-position."
+          },
+          {
+            "criterion": "answer substantively addresses the question",
+            "passed": true,
+            "rationale": "Directly addresses all three sub-questions with concrete detail."
+          }
+        ],
+        "judge_model": "claude-opus-4-7",
+        "cost_usd": 0.024735,
+        "wall_time_s": 7.0189
+      },
+      "judge_agrees_with_substring": true
+    }
+  ],
+  "aggregate": {
+    "sonnet_solo": {
+      "mean_rubric": 1.0,
+      "mean_cost_usd": 0.0148665,
+      "mean_latency_s": 22.084920531138778
+    },
+    "sonnet_advisor_tool": {
+      "mean_rubric": 0.9583333333333334,
+      "mean_cost_usd": 0.085409,
+      "mean_latency_s": 46.19025523948949
+    },
+    "opus_solo": {
+      "mean_rubric": 1.0,
+      "mean_cost_usd": 0.0366425,
+      "mean_latency_s": 26.2734651559731
+    }
+  },
+  "trials": 1,
+  "dry_run": false,
+  "judge_aggregate": {
+    "sonnet_solo": {
+      "mean_judge_score": 0.9285,
+      "mean_judge_cost_usd": 0.022831,
+      "total_judge_cost_usd": 0.091325
+    },
+    "sonnet_advisor_tool": {
+      "mean_judge_score": 0.8929,
+      "mean_judge_cost_usd": 0.021299,
+      "total_judge_cost_usd": 0.085195
+    },
+    "opus_solo": {
+      "mean_judge_score": 1.0,
+      "mean_judge_cost_usd": 0.023541,
+      "total_judge_cost_usd": 0.094165
+    }
+  },
+  "judge_disagreements": []
+}

@@ -230,9 +230,11 @@ def test_judge_rejects_missing_per_criterion_key(tmp_path, monkeypatch):
     assert all("did not address" in c["rationale"] for c in out["per_criterion"])
 
 
-def test_judge_sends_cache_control_and_records_cache_fields(tmp_path, monkeypatch):
-    """Verify two cache breakpoints (system + rubric-prefix) and that
-    cache_read_input_tokens from the 2nd identical-case call lands in the ledger."""
+def test_judge_records_cache_fields_when_api_returns_them(tmp_path, monkeypatch):
+    """Cache-field plumbing: when the API returns non-zero cache tokens, the
+    judge must propagate them to ledger extras. Caching itself is not wired
+    (JUDGE_SYSTEM_PROMPT + rubric < 1024-token minimum); this test exercises
+    the passthrough so the wiring flips on cleanly when prompts grow."""
     _set_ledger(tmp_path, monkeypatch)
     body = json.dumps({
         "per_criterion": [
@@ -260,18 +262,6 @@ def test_judge_sends_cache_control_and_records_cache_fields(tmp_path, monkeypatc
             response_text="second trial", rubric=RUBRIC,
             context="ctx", question="q", case_name="case_a",
         )
-
-    # Both calls carried cache_control on system + rubric-prefix user block.
-    for call in fake_client.messages.create.call_args_list:
-        kw = call.kwargs
-        assert isinstance(kw["system"], list)
-        assert kw["system"][0]["cache_control"] == {"type": "ephemeral"}
-        user_blocks = kw["messages"][0]["content"]
-        assert isinstance(user_blocks, list) and len(user_blocks) == 2
-        assert user_blocks[0]["cache_control"] == {"type": "ephemeral"}
-        # Rubric prefix must not embed the response-under-review (would bust cache).
-        assert "RESPONSE UNDER REVIEW" not in user_blocks[0]["text"]
-        assert "RESPONSE UNDER REVIEW" in user_blocks[1]["text"]
 
     from ledger import read_rows  # noqa: E402
     rows = read_rows()

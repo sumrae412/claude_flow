@@ -62,17 +62,12 @@ def _fake_resp(text="done", usage=None):
     return r
 
 
-def test_live_path_sends_cache_control_and_captures_cache_fields(tmp_path, monkeypatch):
-    """Verify cache_control is on the system block and cache fields land in extras.
-
-    Mocks Anthropic client. First call writes cache; second call reads cache.
-    Asserts:
-      - `system` kwarg is a list with a `cache_control` breakpoint
-      - `cache_read_input_tokens` from the 2nd response flows into ledger extras
-    """
-    # Re-home ledger under tmp_path so we can read what run_ab wrote.
+def test_live_path_captures_cache_fields_from_response(tmp_path, monkeypatch):
+    """Cache-field plumbing: when the API returns non-zero cache tokens,
+    the values must propagate to ledger extras. Caching itself is not wired
+    (prompts below Anthropic's 1024-token minimum); this test exercises the
+    passthrough so the wiring flips on cleanly when prompts grow."""
     monkeypatch.setenv("CLAUDE_FLOW_DIR", str(tmp_path))
-    # Flush cached modules so ledger picks up the env var.
     for mod in ("ledger", "run_ab"):
         sys.modules.pop(mod, None)
 
@@ -80,7 +75,6 @@ def test_live_path_sends_cache_control_and_captures_cache_fields(tmp_path, monke
     sys.path.insert(0, str(eval_dir))
     sys.path.insert(0, str(eval_dir.parents[1] / "scripts"))
 
-    # First response = cache write; second = cache read.
     resp_write = _fake_resp("first", _fake_usage(
         input_tokens=50, cache_creation_input_tokens=400))
     resp_read = _fake_resp("second", _fake_usage(
@@ -104,35 +98,14 @@ def test_live_path_sends_cache_control_and_captures_cache_fields(tmp_path, monke
         row1 = run_ab.run_live_case(case, "sonnet_solo", prompts_dir, session_id="t")
         row2 = run_ab.run_live_case(case, "sonnet_solo", prompts_dir, session_id="t")
 
-    # Every create() call carried the system cache breakpoint.
-    for call_kwargs in [c.kwargs for c in fake_client.beta.messages.create.call_args_list]:
-        assert isinstance(call_kwargs["system"], list)
-        assert call_kwargs["system"][0]["cache_control"] == {"type": "ephemeral"}
-        assert "CONTEXT:" not in call_kwargs["system"][0]["text"], \
-            "system preamble must not include per-call CONTEXT — caching would miss"
-
-    # Second row captured the cache-read signal.
-    assert row2["usage"]["cache_read_input_tokens"] == 400
     assert row1["usage"]["cache_creation_input_tokens"] == 400
+    assert row2["usage"]["cache_read_input_tokens"] == 400
 
-    # Ledger extras preserve the cache fields.
     from ledger import read_rows  # noqa: E402
     rows = read_rows()
     assert len(rows) == 2
     assert rows[0]["extras"].get("executor_cache_creation_input_tokens") == 400
     assert rows[1]["extras"].get("executor_cache_read_input_tokens") == 400
-
-
-def test_split_prompt_for_caching_separates_at_context_marker():
-    """Preamble has no CONTEXT; suffix starts with CONTEXT:."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from run_ab import split_prompt_for_caching  # noqa: E402
-
-    template = "Instructions here.\n\nCONTEXT:\n{context}\n\nQUESTION:\n{question}\n"
-    preamble, suffix = split_prompt_for_caching(template)
-    assert "CONTEXT:" not in preamble
-    assert suffix.startswith("CONTEXT:")
-    assert "{context}" in suffix and "{question}" in suffix
 
 
 def test_run_ab_rejects_zero_trials(tmp_path):

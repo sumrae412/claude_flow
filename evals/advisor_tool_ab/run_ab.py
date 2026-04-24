@@ -128,16 +128,6 @@ def load_prompt(prompts_dir: Path, arm: str) -> str:
     return (prompts_dir / filename_map[arm]).read_text()
 
 
-def split_prompt_for_caching(template: str) -> tuple[str, str]:
-    """Split a prompt template at the `CONTEXT:` marker.
-
-    Returns (system_preamble, user_suffix_template). The system preamble is
-    identical across all (case, trial) combinations within an arm — perfect
-    cache prefix. The user suffix carries {context}/{question} placeholders
-    and is filled per-call.
-    """
-    idx = template.index("CONTEXT:")
-    return template[:idx].rstrip(), template[idx:]
 
 
 def score_rubric(response_text: str, rubric: list[dict[str, Any]]) -> float:
@@ -209,8 +199,7 @@ def run_live_case(
 
     client = Anthropic()
     prompt_template = load_prompt(prompts_dir, arm)
-    system_text, user_template = split_prompt_for_caching(prompt_template)
-    user_text = user_template.format(context=case["context"], question=case["question"])
+    prompt = prompt_template.format(context=case["context"], question=case["question"])
 
     model = MODEL_OPUS if arm == "opus_solo" else MODEL_SONNET
     tools: list[dict[str, Any]] = []
@@ -226,20 +215,16 @@ def run_live_case(
         }]
         betas = ["advisor-tool-2026-03-01"]
 
-    # Cache breakpoint on the system preamble — identical across all (case,
-    # trial) combinations within an arm, so every call after the first hits
-    # the cache at 10% of base input rate. Reassessed on each arm's first
-    # call (cache is ephemeral / 5 minutes).
+    # Prompt caching NOT wired here. Attempted in 2026-04-24 Step 2 but every
+    # arm's cacheable prefix (system preamble ± tool schema) sat under
+    # Anthropic's 1024-token minimum, so cache_control silently no-ops. Kept
+    # the cache field extraction + pricing math intact so the wiring flips on
+    # cleanly once prompts grow past that threshold — just add cache_control
+    # breakpoints back to `system` / `messages`.
     create_kwargs: dict[str, Any] = {
         "model": model,
         "max_tokens": 2048,
-        "system": [
-            {"type": "text", "text": system_text,
-             "cache_control": {"type": "ephemeral"}},
-        ],
-        "messages": [{"role": "user", "content": [
-            {"type": "text", "text": user_text},
-        ]}],
+        "messages": [{"role": "user", "content": prompt}],
     }
     if tools:
         create_kwargs["tools"] = tools

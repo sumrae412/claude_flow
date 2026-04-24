@@ -109,37 +109,17 @@ def _build_user_prompt(
     context: str | None,
     question: str | None,
 ) -> str:
-    """Flat string form — retained for callers that don't exploit caching."""
-    prefix, suffix = _build_user_prompt_parts(response_text, rubric, context, question)
-    return prefix + "\n\n" + suffix
-
-
-def _build_user_prompt_parts(
-    response_text: str,
-    rubric: list[dict[str, Any]],
-    context: str | None,
-    question: str | None,
-) -> tuple[str, str]:
-    """Split the user prompt into (cacheable_prefix, per_trial_suffix).
-
-    Prefix is identical across all trials of the same case (rubric + context +
-    question) — cache breakpoint applied here pays off at trial 2+. Suffix
-    carries the response-under-review and must stay per-trial.
-    """
     criteria_block = "\n".join(
         f"{i+1}. {item['criterion']}" for i, item in enumerate(rubric)
     )
-    prefix_parts = [f"RUBRIC CRITERIA:\n{criteria_block}"]
+    parts = [f"RUBRIC CRITERIA:\n{criteria_block}"]
     if context:
-        prefix_parts.append(f"CONTEXT:\n{context}")
+        parts.append(f"CONTEXT:\n{context}")
     if question:
-        prefix_parts.append(f"QUESTION:\n{question}")
-    prefix = "\n\n".join(prefix_parts)
-    suffix = (
-        f"RESPONSE UNDER REVIEW:\n{response_text}\n\n"
-        "Return the JSON object now."
-    )
-    return prefix, suffix
+        parts.append(f"QUESTION:\n{question}")
+    parts.append(f"RESPONSE UNDER REVIEW:\n{response_text}")
+    parts.append("Return the JSON object now.")
+    return "\n\n".join(parts)
 
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
@@ -236,7 +216,7 @@ def judge_response(
     from anthropic import Anthropic  # noqa: F401
 
     client = Anthropic()
-    prefix, suffix = _build_user_prompt_parts(response_text, rubric, context, question)
+    user_prompt = _build_user_prompt(response_text, rubric, context, question)
 
     t0 = time.monotonic()
     success = True
@@ -247,23 +227,17 @@ def judge_response(
     cache_read: int | None = None
     cache_create: int | None = None
     try:
-        # Two cache breakpoints:
-        #   1. JUDGE_SYSTEM_PROMPT — fixed across all judge calls.
-        #   2. prefix (rubric + context + question) — fixed across all trials
-        #      of one case.
-        # The response-under-review stays per-trial (not cached).
+        # Prompt caching NOT wired here. Attempted in 2026-04-24 Step 3 but the
+        # judge's cacheable prefix (JUDGE_SYSTEM_PROMPT + rubric + context +
+        # question ≈ 400-650 tokens) sat under Anthropic's 1024-token minimum,
+        # so cache_control silently no-ops. Cache-field extraction and
+        # compute_cost() cache-token support are kept intact so the wiring
+        # flips on cleanly when prompts grow past that threshold.
         resp = client.messages.create(
             model=judge_model,
             max_tokens=max_tokens,
-            system=[
-                {"type": "text", "text": JUDGE_SYSTEM_PROMPT,
-                 "cache_control": {"type": "ephemeral"}},
-            ],
-            messages=[{"role": "user", "content": [
-                {"type": "text", "text": prefix,
-                 "cache_control": {"type": "ephemeral"}},
-                {"type": "text", "text": suffix},
-            ]}],
+            system=JUDGE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
         )
         for block in getattr(resp, "content", []):
             if getattr(block, "type", None) == "text":

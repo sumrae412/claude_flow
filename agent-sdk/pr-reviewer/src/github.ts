@@ -3,7 +3,13 @@ import type { TriagedFindings, Finding } from './triage.js';
 
 function findingToMarkdown(f: Finding): string {
   const location = f.line !== null ? `${f.file}:${f.line}` : f.file;
-  return `- **[${f.severity}]** \`${location}\` — ${f.description}`;
+  // Only annotate provenance when it carries signal — i.e., consensus from
+  // ≥2 sources. Single-source findings would just add noise.
+  const consensus =
+    f.mergedFrom && f.mergedFrom.length > 1
+      ? ` _(found by ${f.mergedFrom.length} sources: ${f.mergedFrom.join(', ')})_`
+      : '';
+  return `- **[${f.severity}]** \`${location}\` — ${f.description}${consensus}`;
 }
 
 export function formatPRComment(

@@ -6,6 +6,13 @@ export interface Finding {
   line: number | null;
   description: string;
   reviewer: string;
+  // Populated by deduplicateFindings when two or more raw findings collapse
+  // into one: the list of source reviewer labels (each entry is the
+  // `reviewer` value of a raw finding that contributed). Size 1 = no merge
+  // happened; size N>1 = this represents consensus across N sources. Useful
+  // as a confidence signal — findings flagged by multiple reviewers or
+  // models are higher-signal than single-source findings.
+  mergedFrom?: string[];
 }
 
 const SEVERITY_RANK: Record<Severity, number> = {
@@ -142,16 +149,27 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
       const score = diceCoefficient(getTokens(existing), candTokens);
       if (score < threshold) continue;
 
-      // It's a duplicate — keep higher severity.
+      // It's a duplicate — keep the higher-severity finding but merge the
+      // provenance lists so downstream can show "found by N sources".
       isDuplicate = true;
+      const existingProv = existing.mergedFrom ?? [existing.reviewer];
+      const candidateProv = candidate.mergedFrom ?? [candidate.reviewer];
+      const combinedProv = Array.from(new Set([...existingProv, ...candidateProv]));
       if (SEVERITY_RANK[candidate.severity] > SEVERITY_RANK[existing.severity]) {
-        deduplicated[i] = { ...candidate };
+        deduplicated[i] = { ...candidate, mergedFrom: combinedProv };
+      } else {
+        deduplicated[i] = { ...existing, mergedFrom: combinedProv };
       }
       break;
     }
 
     if (!isDuplicate) {
-      deduplicated.push({ ...candidate });
+      // First time we see this finding — start its provenance list with its
+      // own reviewer label.
+      deduplicated.push({
+        ...candidate,
+        mergedFrom: candidate.mergedFrom ?? [candidate.reviewer],
+      });
     }
   }
 

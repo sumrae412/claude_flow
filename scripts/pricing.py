@@ -33,19 +33,39 @@ PRICING: dict[str, dict[str, float]] = {
 }
 
 
-def compute_cost(model: str, input_tokens: int | None, output_tokens: int | None) -> float:
+def compute_cost(
+    model: str,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    cache_read_input_tokens: int | None = None,
+    cache_creation_input_tokens: int | None = None,
+) -> float:
     """USD cost for one invocation.
 
     Returns 0.0 for an unknown model or when token counts are missing, so the
     caller can still log the row without blowing up. Unknown models are the
     caller's signal to add a row to PRICING.
+
+    Cache accounting follows Anthropic's published multipliers:
+        cache_read:  0.1x base input rate (cache hit)
+        cache_write: 1.25x base input rate (ephemeral 5-minute write)
+    Anthropic's `input_tokens` excludes cache tokens; they're separate fields.
     """
     rates = PRICING.get(model)
     if rates is None:
         return 0.0
     in_tok = input_tokens or 0
     out_tok = output_tokens or 0
-    return (in_tok * rates["input"] + out_tok * rates["output"]) / 1_000_000
+    cache_read = cache_read_input_tokens or 0
+    cache_write = cache_creation_input_tokens or 0
+    base_in = rates["input"]
+    cost = (
+        in_tok * base_in
+        + cache_read * base_in * 0.1
+        + cache_write * base_in * 1.25
+        + out_tok * rates["output"]
+    )
+    return cost / 1_000_000
 
 
 def is_priced(model: str) -> bool:

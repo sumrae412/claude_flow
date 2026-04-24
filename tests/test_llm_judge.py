@@ -53,7 +53,13 @@ def test_judge_empty_rubric_returns_zero(tmp_path, monkeypatch):
     assert out["per_criterion"] == []
 
 
-def _fake_anthropic_response(json_body: str, input_tokens=1000, output_tokens=200):
+def _fake_anthropic_response(
+    json_body: str,
+    input_tokens=1000,
+    output_tokens=200,
+    cache_read_input_tokens=0,
+    cache_creation_input_tokens=0,
+):
     """Mimic the Anthropic Messages API response shape."""
     block = mock.Mock()
     block.type = "text"
@@ -61,6 +67,8 @@ def _fake_anthropic_response(json_body: str, input_tokens=1000, output_tokens=20
     usage = mock.Mock()
     usage.input_tokens = input_tokens
     usage.output_tokens = output_tokens
+    usage.cache_read_input_tokens = cache_read_input_tokens
+    usage.cache_creation_input_tokens = cache_creation_input_tokens
     resp = mock.Mock()
     resp.content = [block]
     resp.usage = usage
@@ -220,6 +228,56 @@ def test_judge_rejects_missing_per_criterion_key(tmp_path, monkeypatch):
     assert out["score"] == 0.0
     assert out["success"] is True
     assert all("did not address" in c["rationale"] for c in out["per_criterion"])
+
+
+def test_judge_sends_cache_control_and_records_cache_fields(tmp_path, monkeypatch):
+    """Verify two cache breakpoints (system + rubric-prefix) and that
+    cache_read_input_tokens from the 2nd identical-case call lands in the ledger."""
+    _set_ledger(tmp_path, monkeypatch)
+    body = json.dumps({
+        "per_criterion": [
+            {"criterion": "names durability", "passed": True, "rationale": "ok"},
+            {"criterion": "names ops cost of redis", "passed": True, "rationale": "ok"},
+        ]
+    })
+    resp_write = _fake_anthropic_response(
+        body, input_tokens=50, cache_creation_input_tokens=600)
+    resp_read = _fake_anthropic_response(
+        body, input_tokens=50, cache_read_input_tokens=600)
+
+    fake_anthropic = mock.Mock()
+    fake_client = mock.Mock()
+    fake_client.messages.create.side_effect = [resp_write, resp_read]
+    fake_anthropic.Anthropic.return_value = fake_client
+
+    with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+        from llm_judge import judge_response  # noqa: E402
+        judge_response(
+            response_text="first trial", rubric=RUBRIC,
+            context="ctx", question="q", case_name="case_a",
+        )
+        judge_response(
+            response_text="second trial", rubric=RUBRIC,
+            context="ctx", question="q", case_name="case_a",
+        )
+
+    # Both calls carried cache_control on system + rubric-prefix user block.
+    for call in fake_client.messages.create.call_args_list:
+        kw = call.kwargs
+        assert isinstance(kw["system"], list)
+        assert kw["system"][0]["cache_control"] == {"type": "ephemeral"}
+        user_blocks = kw["messages"][0]["content"]
+        assert isinstance(user_blocks, list) and len(user_blocks) == 2
+        assert user_blocks[0]["cache_control"] == {"type": "ephemeral"}
+        # Rubric prefix must not embed the response-under-review (would bust cache).
+        assert "RESPONSE UNDER REVIEW" not in user_blocks[0]["text"]
+        assert "RESPONSE UNDER REVIEW" in user_blocks[1]["text"]
+
+    from ledger import read_rows  # noqa: E402
+    rows = read_rows()
+    assert len(rows) == 2
+    assert rows[0]["extras"].get("cache_creation_input_tokens") == 600
+    assert rows[1]["extras"].get("cache_read_input_tokens") == 600
 
 
 def test_judge_api_error_recorded_as_failure(tmp_path, monkeypatch):

@@ -7,6 +7,8 @@
     {"criterion": "names data-integrity / correctness risk", "keywords": ["integrity", "correct", "wrong"]},
     {"criterion": "names migration cost/complexity", "keywords": ["migration", "rollback", "chain"]},
     {"criterion": "names future-debt risk of shim", "keywords": ["debt", "shim", "later"]},
-    {"criterion": "gives a prioritized recommendation", "keywords": ["recommend", "should", "prefer"]}
+    {"criterion": "gives a prioritized recommendation", "keywords": ["recommend", "should", "prefer"]},
+    {"criterion": "names a quantitative threshold or scope bound", "keywords": ["task", "tasks", "migrations", "days", "hours", "3-5", "5-task", "two migrations"]},
+    {"criterion": "acknowledges a counter-argument or trade-off", "keywords": ["however", "but", "trade-off", "tradeoff", "downside", "unless", "on the other hand"]}
   ]
 }

@@ -44,6 +44,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 # ledger + pricing live next to this file
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ledger import log_invocation  # type: ignore[import-not-found]
+from pricing import compute_cost as _compute_cost  # type: ignore[import-not-found]
 
 
 class CriterionResult(BaseModel):
@@ -108,17 +109,37 @@ def _build_user_prompt(
     context: str | None,
     question: str | None,
 ) -> str:
+    """Flat string form — retained for callers that don't exploit caching."""
+    prefix, suffix = _build_user_prompt_parts(response_text, rubric, context, question)
+    return prefix + "\n\n" + suffix
+
+
+def _build_user_prompt_parts(
+    response_text: str,
+    rubric: list[dict[str, Any]],
+    context: str | None,
+    question: str | None,
+) -> tuple[str, str]:
+    """Split the user prompt into (cacheable_prefix, per_trial_suffix).
+
+    Prefix is identical across all trials of the same case (rubric + context +
+    question) — cache breakpoint applied here pays off at trial 2+. Suffix
+    carries the response-under-review and must stay per-trial.
+    """
     criteria_block = "\n".join(
         f"{i+1}. {item['criterion']}" for i, item in enumerate(rubric)
     )
-    parts = [f"RUBRIC CRITERIA:\n{criteria_block}"]
+    prefix_parts = [f"RUBRIC CRITERIA:\n{criteria_block}"]
     if context:
-        parts.append(f"CONTEXT:\n{context}")
+        prefix_parts.append(f"CONTEXT:\n{context}")
     if question:
-        parts.append(f"QUESTION:\n{question}")
-    parts.append(f"RESPONSE UNDER REVIEW:\n{response_text}")
-    parts.append("Return the JSON object now.")
-    return "\n\n".join(parts)
+        prefix_parts.append(f"QUESTION:\n{question}")
+    prefix = "\n\n".join(prefix_parts)
+    suffix = (
+        f"RESPONSE UNDER REVIEW:\n{response_text}\n\n"
+        "Return the JSON object now."
+    )
+    return prefix, suffix
 
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
@@ -215,7 +236,7 @@ def judge_response(
     from anthropic import Anthropic  # noqa: F401
 
     client = Anthropic()
-    user_prompt = _build_user_prompt(response_text, rubric, context, question)
+    prefix, suffix = _build_user_prompt_parts(response_text, rubric, context, question)
 
     t0 = time.monotonic()
     success = True
@@ -223,12 +244,26 @@ def judge_response(
     response_content = ""
     usage_in: int | None = None
     usage_out: int | None = None
+    cache_read: int | None = None
+    cache_create: int | None = None
     try:
+        # Two cache breakpoints:
+        #   1. JUDGE_SYSTEM_PROMPT — fixed across all judge calls.
+        #   2. prefix (rubric + context + question) — fixed across all trials
+        #      of one case.
+        # The response-under-review stays per-trial (not cached).
         resp = client.messages.create(
             model=judge_model,
             max_tokens=max_tokens,
-            system=JUDGE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}],
+            system=[
+                {"type": "text", "text": JUDGE_SYSTEM_PROMPT,
+                 "cache_control": {"type": "ephemeral"}},
+            ],
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": prefix,
+                 "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": suffix},
+            ]}],
         )
         for block in getattr(resp, "content", []):
             if getattr(block, "type", None) == "text":
@@ -236,6 +271,8 @@ def judge_response(
         usage = getattr(resp, "usage", None)
         usage_in = getattr(usage, "input_tokens", None) if usage else None
         usage_out = getattr(usage, "output_tokens", None) if usage else None
+        cache_read = getattr(usage, "cache_read_input_tokens", None) if usage else None
+        cache_create = getattr(usage, "cache_creation_input_tokens", None) if usage else None
     except Exception as e:
         success = False
         error = f"{type(e).__name__}: {e}"
@@ -261,6 +298,12 @@ def judge_response(
 
     score = sum(1 for c in per_crit if c["passed"]) / len(rubric)
 
+    cost_usd = _compute_cost(
+        judge_model, usage_in, usage_out,
+        cache_read_input_tokens=cache_read,
+        cache_creation_input_tokens=cache_create,
+    )
+
     logged = log_invocation(
         caller="llm_judge",
         model=judge_model,
@@ -273,7 +316,12 @@ def judge_response(
         arm=arm,
         case=case_name,
         score=score,
-        extras={"rubric_n": len(rubric)},
+        extras={
+            "rubric_n": len(rubric),
+            "cache_read_input_tokens": cache_read,
+            "cache_creation_input_tokens": cache_create,
+        },
+        cost_usd=cost_usd,
     )
 
     return {

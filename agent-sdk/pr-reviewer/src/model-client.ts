@@ -86,6 +86,11 @@ class NvidiaModelClient implements ModelClient {
   // collapses overlapping findings. Fails only if every model errors/times out.
   private readonly modelPool: string[];
   private readonly perCallTimeoutMs: number;
+  // After the first successful model in an ensemble returns, slower models get
+  // this many ms of grace to also finish — then remaining in-flight requests
+  // are aborted and we return whatever succeeded. Keeps wall time ≈
+  // `time_to_first_success + graceMs` instead of the slowest survivor.
+  private readonly graceMs: number;
   private readonly dispatcher: Agent;
 
   constructor() {
@@ -133,13 +138,22 @@ class NvidiaModelClient implements ModelClient {
       process.env.NVIDIA_PER_CALL_TIMEOUT_MS ?? '240000',
       10,
     );
+    this.graceMs = parseInt(process.env.NVIDIA_ENSEMBLE_GRACE_MS ?? '30000', 10);
   }
 
   private async callModel(
     model: string,
     system: string,
     user: string,
+    parentSignal?: AbortSignal,
   ): Promise<ReviewResponse> {
+    // Abort on whichever fires first: per-call timeout, or parent (ensemble
+    // grace expiry). AbortSignal.any needs Node 20+; this repo requires 22.
+    const perCall = AbortSignal.timeout(this.perCallTimeoutMs);
+    const signal = parentSignal
+      ? AbortSignal.any([perCall, parentSignal])
+      : perCall;
+
     const res = await undiciFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -157,7 +171,7 @@ class NvidiaModelClient implements ModelClient {
         ],
       }),
       dispatcher: this.dispatcher,
-      signal: AbortSignal.timeout(this.perCallTimeoutMs),
+      signal,
     });
 
     if (!res.ok) {
@@ -183,22 +197,51 @@ class NvidiaModelClient implements ModelClient {
       return this.callModel(this.modelPool[0], system, user);
     }
 
-    // Ensemble: fan out, tolerate partial failure, merge successful text.
-    const results = await Promise.allSettled(
-      this.modelPool.map((m) => this.callModel(m, system, user)),
+    // Ensemble with early-exit: fire all in parallel. Once the first model
+    // succeeds, the remaining in-flight calls get `graceMs` to also finish,
+    // then we abort them. Net wall time ≈ time_to_first_success + graceMs.
+    const graceController = new AbortController();
+    type SlotResult =
+      | { model: string; ok: true; response: ReviewResponse }
+      | { model: string; ok: false; error: string };
+
+    const tracked: Promise<SlotResult>[] = this.modelPool.map((m) =>
+      this.callModel(m, system, user, graceController.signal)
+        .then((response): SlotResult => ({ model: m, ok: true, response }))
+        .catch((e): SlotResult => ({
+          model: m,
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        })),
     );
 
-    const successes: { model: string; response: ReviewResponse }[] = [];
-    const failures: { model: string; error: string }[] = [];
-    results.forEach((r, i) => {
-      const model = this.modelPool[i];
-      if (r.status === 'fulfilled') {
-        successes.push({ model, response: r.value });
-      } else {
-        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
-        failures.push({ model, error: msg });
-      }
+    // Wait for first success, OR for all to settle (all-fail case).
+    const firstSuccessOrAllDone = new Promise<void>((resolve) => {
+      let remaining = tracked.length;
+      let resolved = false;
+      const maybeResolve = () => {
+        if (!resolved) { resolved = true; resolve(); }
+      };
+      tracked.forEach((p) =>
+        p.then((r) => {
+          if (r.ok) maybeResolve();
+          if (--remaining === 0) maybeResolve();
+        }),
+      );
     });
+    await firstSuccessOrAllDone;
+
+    // After first success, let stragglers finish within graceMs, then abort.
+    await Promise.race([
+      Promise.allSettled(tracked),
+      new Promise<void>((resolve) => setTimeout(resolve, this.graceMs).unref?.()),
+    ]);
+    graceController.abort();
+    // Make sure every promise settles before reading their results.
+    const settled = await Promise.all(tracked);
+
+    const successes = settled.filter((r): r is Extract<SlotResult, { ok: true }> => r.ok);
+    const failures = settled.filter((r): r is Extract<SlotResult, { ok: false }> => !r.ok);
 
     // Log ensemble breakdown once per createReview so index.ts output stays
     // readable. Format: "ensemble N/M ok (failed: model=reason, ...)".

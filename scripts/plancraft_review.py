@@ -86,7 +86,13 @@ REVIEWERS = {
     },
     "codex": {
         "api_url": "https://api.openai.com/v1/chat/completions",
-        "model": "gpt-4o",
+        # Upgraded 2026-04-27 from gpt-4o → gpt-5.5 (latest GA, released
+        # 2026-04-23). gpt-5.5 carried a substantive engagement on a
+        # CourierFlow CopilotKit decision memo where gpt-4o gave generic
+        # platitudes; signal quality is materially higher per case.
+        "model": "gpt-5.5",
+        # Kept for legacy gpt-4 fallback. gpt-5+ rejects custom temperature;
+        # branch in payload construction skips this field for that family.
         "temperature": 0.2,
         "env_key": "OPENAI_API_KEY",
         "system_prompt": (
@@ -209,8 +215,17 @@ def call_reviewer(
             {"role": "system", "content": config["system_prompt"]},
             {"role": "user", "content": user_message},
         ],
-        "temperature": config["temperature"],
     }
+    # GPT-5+ models reject custom temperature (only default 1 is supported)
+    # and reject the legacy `max_tokens` field (must use
+    # `max_completion_tokens`). DeepSeek + GPT-4 family accept both, so
+    # only set `temperature` when NOT on a gpt-5 family model. Detected
+    # empirically against the OpenAI API on 2026-04-27 — gpt-5.5 returned
+    # 400 `unsupported_value` for `temperature: 0.2`.
+    model_id = config["model"]
+    is_gpt5_family = model_id.startswith("gpt-5")
+    if not is_gpt5_family:
+        payload["temperature"] = config["temperature"]
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",

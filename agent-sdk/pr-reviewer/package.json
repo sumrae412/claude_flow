@@ -6,13 +6,16 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "review": "node dist/index.js"
+    "review": "node dist/index.js",
+    "compare": "node dist/compare.js",
+    "test": "tsc && node --test dist/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "^5.7.0",
-    "@types/node": "^22.0.0"
+    "undici": "^8.1.0"
   }
 }

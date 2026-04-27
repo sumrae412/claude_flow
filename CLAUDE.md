@@ -60,6 +60,23 @@ No database, no daemon. Reads `.claude/handoff.md`, `docs/plans/`, MEMORY.md, `h
 ### Overshoot technique exemptions
 "Find at least 30 issues" framing applies to OPEN-ENDED bug hunters (code reviewer, silent failure, security). It does NOT apply to deterministic/structured-checklist reviewers — those have fixed scope and overshoot prompts actively degrade them. See MEMORY `overshoot_prompt_scope`.
 
+### PR reviewer is provider-pluggable
+`agent-sdk/pr-reviewer/` selects a model provider via `PR_REVIEWER_PROVIDER`:
+- `anthropic` (default) — Claude Sonnet with ephemeral prompt caching (~90% input discount within the 5-min TTL). Uses `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL`, `ANTHROPIC_MAX_TOKENS`.
+- `nvidia` — free-tier hosted models at `integrate.api.nvidia.com/v1` (OpenAI-compatible). Requires `NVIDIA_API_KEY` + either `NVIDIA_MODEL` (single-model mode) or `NVIDIA_MODEL_POOL` (comma-separated list, ensemble fan-out mode). No prompt caching. Optional: `NVIDIA_BASE_URL`, `NVIDIA_MAX_TOKENS`, `NVIDIA_TIMEOUT_MS` (client-side undici headers timeout, default 900000), `NVIDIA_PER_CALL_TIMEOUT_MS` (ensemble per-model abort ceiling, default 240000), `NVIDIA_ENSEMBLE_GRACE_MS` (after first ensemble success, grace window for stragglers before aborting remaining calls, default 30000).
+
+Cross-cutting optional env vars:
+- `PR_REVIEWER_FALLBACK_PROVIDER=anthropic` — wraps primary in `FallbackModelClient`; on primary throw, retries transparently via fallback. Pair with `NVIDIA_MODEL_POOL` as "free-first, paid safety net." Known compromise: fallback inherits primary's `preferSoftPrompts`, so Anthropic-as-fallback gets the soft prompt variant rather than the aggressive overshoot one. Acceptable for resilience; use single-provider mode when prompt-variant fidelity matters.
+- `DEDUP_SIMILARITY_THRESHOLD` — Dice coefficient threshold for semantic dedup in `triage.ts` (default 0.25). Raise to ~0.4 if over-merging distinct concerns; lower to ~0.15 if paraphrases slip through. Don't go below 0.1.
+
+NVIDIA gotchas (verified 2026-04-24 against PR #45, 44-line diff):
+- **Aggressive overshoot framing is filtered.** "I'm positive there are at least 30 issues — find them all" either silently TCP-closes or hangs past the 5-min gateway timeout. Each overshoot reviewer (`code`, `silentFailure`, `security`) now carries a `systemSoft` variant in `reviewers.ts`; `ModelClient.preferSoftPrompts=true` makes `pickSystem()` swap it in. Confirmed A/B: aggressive → 504 at 5:02; soft → 200 in 9.9s end-to-end.
+- **Model IDs are versioned — don't guess.** `deepseek-ai/deepseek-v3` / `moonshotai/kimi-k2` return 404. Query `GET /v1/models` for the real list. Confirmed working: `moonshotai/kimi-k2-instruct-0905`. Confirmed overloaded/timing-out (may recover): `minimaxai/minimax-m2.7`, `deepseek-ai/deepseek-v3.2`, `moonshotai/kimi-k2.5`. Reasoning models (e.g. `nvidia/nemotron-3-nano-30b-a3b`) return output in a `reasoning` field the parser doesn't read — skip unless wiring that up.
+- **Extended headersTimeout.** Node's built-in fetch defaults to 300s headersTimeout (undici); `NvidiaModelClient` uses `undici.Agent` with 900s so a slow-but-eventually-successful call doesn't fail client-side before NVIDIA's own 5-min edge timeout decides.
+- **Ensemble fan-out (`NVIDIA_MODEL_POOL`).** With a comma-separated pool, each `createReview` dispatches to every model in parallel with a `AbortSignal.timeout()` per model (default 240s — below NVIDIA's 5-min edge). Partial success is tolerated; `triage.ts` dedupes overlap. A/B on PR #45 (2026-04-24): single Kimi → 3 findings in 6.5s; Kimi+MiniMax+DeepSeek pool → 8 findings in 4:00 (MiniMax timed out, other two merged). Recall roughly 2-3× at the cost of wall time bounded by the slowest surviving model. Calibration differs across models (DeepSeek is more aggressive about CRITICAL than Kimi) — treat ensemble output as "candidate findings for review," not ground truth.
+
+When adding providers, extend `src/model-client.ts` (ModelClient interface + factory) — do NOT inline SDK calls in `index.ts`. CI (`.github/workflows/claude-flow-review.yml`) is pinned to Anthropic; non-Anthropic providers are local/opt-in until validated.
+
 ## Multi-Clone Gotcha
 
 The "two-clones" gotcha is not unique to this repo. Any project cloned more than once on the same filesystem can trigger it. Confirmed instances:

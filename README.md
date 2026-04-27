@@ -181,6 +181,34 @@ Inspired by cognitive science's memory types, adapted for agentic workflows:
 
 Data flows from episodic events through a pattern detector into semantic patterns and procedural proposals.
 
+### Memory operations
+
+Treat memory as operational state, not a junk drawer with markdown branding.
+
+- **Review:** Run `/lint-memory` when memory starts feeling stale or noisy. It checks broken links, orphan files, stale references, and contradictions.
+- **Import:** Put exported context from another LLM into a review file first. Promote only durable project facts, decisions, preferences, and recurring gotchas into memory.
+- **Archive:** Keep dated memory snapshots before large rewrites or cleanup passes. Prefer archives outside the active project when you need protection from accidental edits.
+- **Restore:** Diff an archive against current memory before restoring. Restore selected files only; do not overwrite uncommitted memory changes.
+
+```bash
+# Import a memory/context dump into a review file
+python scripts/import_memory_dump.py imported-context.md --out memory/IMPORT_REVIEW.md
+
+# Create a dated memory archive
+python scripts/memory_archive.py create --memory-dir memory
+
+# List archives
+python scripts/memory_archive.py list
+
+# Diff an archive against current memory
+python scripts/memory_archive.py diff <archive-id> --memory-dir memory
+```
+
+`IMPORT_REVIEW.md` is a staging file. Promote entries manually; do not treat
+it as canonical memory.
+
+Project-specific rules belong in `AGENTS.md` / `CLAUDE.md`. Durable gotchas belong in project memory. Keep global Claude memory small and avoid duplicating the same rule everywhere unless it is genuinely global.
+
 ### Session intelligence
 
 - **Decision journal** — Tier 1 hook that periodically reminds Claude to log design decisions to `.claude/session-log.md`. Fires every 10 file edits.

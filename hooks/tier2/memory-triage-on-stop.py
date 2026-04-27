@@ -18,7 +18,7 @@ if not index.exists():
 indexed = index.read_text()
 unindexed = []
 for md in sorted(memory_dir.glob("*.md")):
-    if md.name in ("MEMORY.md", "REVIEW_QUEUE.md"):
+    if md.name in ("MEMORY.md", "IMPORT_REVIEW.md", "REVIEW_QUEUE.md"):
         continue
     if md.name not in indexed:
         unindexed.append(md.name)

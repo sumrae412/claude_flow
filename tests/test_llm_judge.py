@@ -53,6 +53,21 @@ def test_judge_empty_rubric_returns_zero(tmp_path, monkeypatch):
     assert out["per_criterion"] == []
 
 
+def test_judge_prompt_prioritizes_correctness_over_gold_like_style(
+    tmp_path, monkeypatch
+):
+    """The LLM judge prompt must guard against rewarding gold-like aesthetics
+    over functional correctness."""
+    _set_ledger(tmp_path, monkeypatch)
+    from llm_judge import JUDGE_SYSTEM_PROMPT  # noqa: E402
+
+    prompt = JUDGE_SYSTEM_PROMPT.lower()
+    assert "correctness and completeness" in prompt
+    assert "style, brevity, minimality" in prompt
+    assert "gold answer" in prompt
+    assert "clean-looking partial answer fails" in prompt
+
+
 def _fake_anthropic_response(
     json_body: str,
     input_tokens=1000,

@@ -90,6 +90,25 @@ substance, not surface form — a criterion that says "names durability" is
 satisfied whether the response uses the word "durable", "persistent", or
 describes the concept in other words.
 
+EVALUATION PRIORITIES (in order):
+1. Correctness and completeness against the rubric, context, and question.
+   The response must solve the actual problem, not merely resemble an ideal
+   answer. Mentally trace whether the recommendation or fix would work.
+2. Regression and risk coverage. Prefer answers that handle realistic edge
+   cases and failure modes, even when they are longer or less polished.
+3. Style, brevity, minimality, clarity, formatting, and "gold answer" likeness
+   are tiebreakers only after substantive correctness is established.
+
+BIAS GUARDRAILS:
+- Do not reward an answer because it is concise, clean, elegant, or familiar.
+- Do not penalize an answer merely for extra detail, redundant explanation,
+  helper structure, tests, docs, or a messier presentation if it satisfies the
+  criterion.
+- A clean-looking partial answer fails a criterion that a verbose but complete
+  answer satisfies.
+- Ignore wording, variable names, section headings, and prose polish unless the
+  rubric explicitly asks for them.
+
 Return valid JSON with this exact shape:
 {
   "per_criterion": [

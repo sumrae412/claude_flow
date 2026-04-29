@@ -11,7 +11,9 @@
 //   aggressive variant (verified 2026-04-24: aggressive = >120s timeout, soft
 //   = 81s HTTP 200). See CLAUDE.md "PR reviewer is provider-pluggable".
 
-const FORMAT_INSTRUCTION = `Format each finding as: [SEVERITY] file:line — description. Severities: CRITICAL, HIGH, MEDIUM, LOW, NITPICK.`;
+const FORMAT_INSTRUCTION = `Prioritize concrete correctness, security, reliability, and regression risks over surface traits. Do not flag or rank a finding higher merely because code is verbose, redundant, less elegant, or unlike a canonical "gold" answer; style/minimality concerns are tiebreakers only when they create an executable risk.
+
+Format each finding as: [SEVERITY] file:line — description. Severities: CRITICAL, HIGH, MEDIUM, LOW, NITPICK.`;
 
 function userMessage(diff: string): string {
   return `Here is the diff to review:\n\n\`\`\`diff\n${diff}\n\`\`\``;

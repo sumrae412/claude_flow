@@ -133,6 +133,24 @@ should populate:
 * **No retry/backoff** — if rate-limited, re-run from scratch. Adding
   exponential backoff is an explicit out-of-scope follow-up.
 
+## Judge Bias Guardrails
+
+The LLM judge prompt explicitly prioritizes substantive correctness and
+completeness over gold-like surface traits. This is intentional: clean,
+minimal, familiar-looking answers can outscore longer answers when the judge is
+under-specified, even when the longer answer is the one that actually satisfies
+the benchmark criterion.
+
+When adding or editing eval cases:
+
+* Write rubric criteria around observable task success, risk coverage, and
+  required reasoning, not answer style.
+* Treat concision, polish, minimality, and formatting as tiebreakers only.
+* Include at least one case where a plausible but incomplete "clean" answer
+  should lose to a more complete answer, so judge drift is visible.
+* Prefer dual-judge or human spot checks when a result is used to change model
+  routing or phase ownership.
+
 ## Decision criteria
 
 The live eval is run once prompts and rubrics are stable. The decision doc

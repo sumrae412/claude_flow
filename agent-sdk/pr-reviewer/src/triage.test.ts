@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFindings, deduplicateFindings, triageFindings } from './triage.js';
+import { selectReviewers } from './reviewers.js';
 import type { Finding } from './triage.js';
 
 const f = (over: Partial<Finding>): Finding => ({
@@ -190,4 +191,14 @@ test('triage: groups findings by severity', () => {
   assert.equal(out.medium.length, 0);
   assert.equal(out.low.length, 1);
   assert.equal(out.nitpick.length, 1);
+});
+
+test('reviewer prompts: guard against gold-like style bias', () => {
+  const reviewers = selectReviewers('+++ b/src/app.ts\n+const value = 1;\n');
+  for (const reviewer of reviewers) {
+    const system = reviewer.system.toLowerCase();
+    assert.match(system, /correctness/);
+    assert.match(system, /gold/);
+    assert.match(system, /style\/minimality/);
+  }
 });

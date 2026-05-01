@@ -108,6 +108,15 @@ Always run `git rev-parse --show-toplevel` on the first turn. If cwd is a shadow
 | `debate-team` | Multi-model review (absorbs plancraft) |
 | `cleanup` | Branch cleanup, worktree teardown, post-merge housekeeping |
 
+## External SDD Framework Coverage
+
+claude-flow Phase 0–6 covers ~90% of github/spec-kit's spec-driven-development surface (constitution → specify → plan → tasks → implement). The two genuine gaps were closed in claude-skills PR #67 (squash-merged 2026-05-01, commit `bfad6d2`):
+
+- **Phantom-completion audit** — `executing-plans/SKILL.md` Step 4.5 + `claude-flow/phases/phase-5-implementation.md` HARD GATE before Phase 5.5. Re-parses `[X]` tasks against on-disk artifacts; downgrades hollow checkmarks to `[~]` and surfaces them.
+- **Spec-references-as-context gate** — required `## References` section in `writing-plans` plan header; `smart-exploration` and `executing-plans` Step 1a treat the section as a whitelist for prior-art context. Surfaces `REFERENCES_GAP` / `REFERENCES_MISSING` instead of silently expanding context.
+
+Before pulling more from spec-kit (or any SDD framework), invoke `/useful-for` against claude-flow first — most surface area is already covered.
+
 ## Commands
 
 ```bash

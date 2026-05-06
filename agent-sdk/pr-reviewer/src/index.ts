@@ -3,6 +3,7 @@ import { deduplicateFindings, triageFindings } from './triage.js';
 import { formatPRComment, postToGitHub } from './github.js';
 import { getModelClient } from './model-client.js';
 import { runReview } from './review.js';
+import { revalidateFindings } from './revalidate.js';
 
 // ─── Argument parsing ──────────────────────────────────────────────────────────
 
@@ -71,7 +72,23 @@ async function main(): Promise<void> {
   const { findings, reviewerCount } = await runReview(diff, client, { maxAgents });
 
   const deduped = deduplicateFindings(findings);
-  const triaged = triageFindings(deduped);
+
+  // Optional FP-filter pass (deepsec-inspired). Off by default — doubles
+  // cost across the post-dedup findings list. Set PR_REVIEWER_REVALIDATE=1
+  // to enable; useful when the primary provider is high-recall/low-precision
+  // (e.g. NVIDIA ensemble).
+  let final = deduped;
+  if (process.env.PR_REVIEWER_REVALIDATE === '1' && deduped.length > 0) {
+    console.log(`Revalidating ${deduped.length} findings for false positives...`);
+    const { kept, dropped, errors } = await revalidateFindings(deduped, diff, client);
+    console.log(
+      `Revalidation: kept ${kept.length}, dropped ${dropped.length} FP` +
+      (errors > 0 ? `, ${errors} errored (kept as uncertain)` : ''),
+    );
+    final = kept;
+  }
+
+  const triaged = triageFindings(final);
 
   console.log(
     `Findings — CRITICAL: ${triaged.critical.length}, HIGH: ${triaged.high.length}, ` +

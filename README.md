@@ -131,8 +131,8 @@ Three-tier hook architecture for automated enforcement and context management:
 
 | Tier | Count | Description |
 |------|-------|-------------|
-| 1 — Universal | 15 | Always-on: secret detection, git safety, session lifecycle, pre-compaction backup, decision journal, phase gates, metronome, build-before-commit, todo cleanup, worktree cleanup |
-| 2 — Stack-specific | 10 | Auto-detected by `install.sh`: lint, test, migration check, type-check, docker rebuild reminder, gotcha detector, context rot detection |
+| 1 — Universal | 16 | Always-on: secret detection, git safety, session lifecycle, pre-compaction backup, decision journal, phase gates, metronome, build-before-commit, todo cleanup, worktree cleanup, short-approval challenge |
+| 2 — Stack-specific | 14 | Auto-detected by `install.sh`: lint-on-save (js/py), test-on-save (js/py), pre-edit lint gates, type-check, migration check, docker rebuild reminder, gotcha detector, context-rot detection, stale-tool-output, quality-gate-on-stop, memory-triage-on-stop |
 | 3 — Project-specific | — | User-configured per repo, not bundled |
 
 **Generate hooks for your stack:**
@@ -253,10 +253,22 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes
 
 An Agent SDK app (`agent-sdk/pr-reviewer/`) that runs the Phase 6 quality review headlessly against any PR diff — no interactive Claude session required.
 
-- Tier 1 checks always run: silent failure hunting, security audit, test coverage analysis
+- Tier 1 checks always run: silent failure hunting, security audit, code review
 - Tier 2 checks fire conditionally: migration safety, async patterns, API contract audit
+- PRs under 50 lines use a single combined reviewer instead of fanning out
 
-**GitHub Actions integration:**
+**Provider-pluggable.** Select via `PR_REVIEWER_PROVIDER`:
+
+| Provider | Models | Caching | Notes |
+|----------|--------|---------|-------|
+| `anthropic` (default) | Claude Sonnet/Opus via `ANTHROPIC_MODEL` | Ephemeral prompt cache (~90% input discount within 5-min TTL) | Requires `ANTHROPIC_API_KEY` |
+| `nvidia` | Free-tier hosted models (OpenAI-compatible) via `NVIDIA_MODEL` or `NVIDIA_MODEL_POOL` | None | Comma-separated pool fans out in parallel; `triage.ts` dedupes overlap |
+
+**Optional fallback chain.** Set `PR_REVIEWER_FALLBACK_PROVIDER=anthropic` alongside an NVIDIA primary to get free-first with a paid safety net — on primary throw, the wrapper retries via fallback.
+
+**A/B comparison.** `npm run compare -- <PR>` runs the same diff through Anthropic and NVIDIA in parallel, then uses the existing Dice-similarity dedup as an overlap oracle to report shared vs. side-unique findings.
+
+**GitHub Actions integration** (Anthropic-pinned in CI; non-Anthropic providers are local/opt-in):
 
 ```yaml
 - uses: sumrae412/claude-flow-pr-review@v1
@@ -264,7 +276,7 @@ An Agent SDK app (`agent-sdk/pr-reviewer/`) that runs the Phase 6 quality review
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-PRs under 200 lines skip the full agent pool and use a single-pass review.
+See [CLAUDE.md](CLAUDE.md) for known NVIDIA gotchas (aggressive overshoot framing is filtered — soft prompt variants are dispatched automatically; model IDs are versioned).
 
 ### Scripts
 
@@ -282,8 +294,8 @@ PRs under 200 lines skip the full agent pool and use a single-pass review.
 claude_flow/
 ├── hooks/                      # Tier 1 & 2 hook implementations
 │   ├── hook-registry.json       # Single source of truth for hook selection
-│   ├── tier1/                   # 15 universal hooks (always-on)
-│   └── tier2/                   # 10 stack-specific hooks (conditional)
+│   ├── tier1/                   # 16 universal hooks (always-on)
+│   └── tier2/                   # 14 stack-specific hooks (conditional)
 ├── scripts/                    # Utility and analysis scripts
 ├── memory/                     # 3-tier memory system
 │   ├── episodic/                # Raw event traces

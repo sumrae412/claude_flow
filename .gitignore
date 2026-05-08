@@ -217,6 +217,11 @@ memory/skill-backups/
 # Git worktrees (isolated dev workspaces)
 .worktrees/
 
+# Local skill scratch — canonical skills live at
+# /Users/summerrae/claude_code/claude-skills/ and are symlinked into ~/.claude/skills/.
+# Anything dropped into ./skills/ here is local-only and must not be committed.
+skills/
+
 # Eval runtime artifacts (regenerated per run)
 memory/episodic/invocations.jsonl
 evals/advisor_tool_ab/results_pilot.json

@@ -78,6 +78,33 @@ NVIDIA gotchas (verified 2026-04-24 against PR #45, 44-line diff):
 
 When adding providers, extend `src/model-client.ts` (ModelClient interface + factory) — do NOT inline SDK calls in `index.ts`. CI (`.github/workflows/claude-flow-review.yml`) is pinned to Anthropic; non-Anthropic providers are local/opt-in until validated.
 
+## Pipeline Discipline Rules
+
+These rules apply to Phase 0–6 work and to authoring claude_flow components (skills, hooks, agent-sdk). Bias: caution over speed on non-trivial work. Each rule maps to a documented recurring failure mode.
+
+### Rule 4 — Goal-driven execution: define success, loop until verified
+Every plan (`writing-plans`) and every Phase 5 implementation must state explicit, machine-checkable success criteria before work begins. Iterate against the criteria; don't follow steps blindly. Vague acceptance ("the feature works") fails this rule — name the command, expected output, or artifact that proves success.
+
+### Rule 5 — Use the model only for judgment calls
+LLM calls in this repo are for: review judgments, finding-severity reasoning, plan critique, code generation. Do NOT route through LLMs: deduplication (use Dice/Jaccard in `triage.ts`), file-path resolution, severity-bucket sorting, "did task X complete" (parse the artifact). `pr-reviewer/triage.ts` is the reference example — extend the deterministic surface rather than adding model calls for transforms code can answer. Cost, latency, and variance all benefit.
+
+### Rule 6 — Token budgets are not advisory
+Each phase and each agent dispatch carries a budget (see `token-economy` skill). If a phase approaches its budget, summarize and checkpoint — do not silently overrun. Surface the breach as an explicit field in phase output. The free-tier NVIDIA pool exists in part to make budgets enforceable on the review pipeline; treat budget breaches the same way as test failures.
+
+### Rule 7 — Surface conflicts, don't average them
+When two reviewers/models disagree on the same finding (severity, classification, fix recommendation), `triage.ts` must surface both with attribution and pick one with stated reason — never silently merge to median. Calibration differs across models (documented: DeepSeek is more aggressive about CRITICAL than Kimi). Averaging hides the signal that disagreement provides. Same rule for conflicting patterns in code: pick the more recent / more tested one, explain why, flag the other for cleanup.
+
+### Rule 10 — Checkpoint after every significant step
+Phase boundaries already checkpoint. For long Phase 5 runs (>30 min or >5 file edits), insert intra-phase checkpoints: what's done, what's verified, what's left. Required after every shadow-path verification (`git rev-parse --show-toplevel`) and before every push. If you lose track of state, stop and restate before continuing.
+
+### Rule 12 — Fail loud
+"Phase complete" is wrong if any sub-step was skipped, timed out, or degraded. Every phase must emit `skipped: [...]`, `degraded: [...]`, and `unverified: [...]` fields explicitly — empty arrays are fine, missing fields are not. Specific surfaces this rule covers:
+- Ensemble partial-success (NVIDIA pool with timeouts) → list which models failed, don't claim full coverage
+- `cache_control` writes under 1024 tokens → surface as `cache_skipped`, don't claim caching is on
+- Revalidate pass dropping findings → list dropped findings with reason
+- `[X]` audit downgrades (PR #67) → emit `[~]` with reason, not silent removal
+- Test suites with skipped cases → never report "tests pass" without surfacing skip count
+
 ## Multi-Clone Gotcha
 
 The "two-clones" gotcha is not unique to this repo. Any project cloned more than once on the same filesystem can trigger it. Confirmed instances:

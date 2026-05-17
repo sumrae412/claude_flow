@@ -1,5 +1,7 @@
 # Requirements Phase, Validation Gate, Bug Fix Workflow — Implementation Plan
 
+**Companion:** [Design: Requirements Phase, Validation Gate, Bug Fix Workflow](2026-04-11-requirements-validation-bugfix-design.md)
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add structured requirements output to Phase 3, extend Phase 4c with requirements coverage checks, create a standalone `/bug-fix` orchestrator skill, and wire bug-path routing into Phase 1 Discovery.

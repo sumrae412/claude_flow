@@ -1,5 +1,7 @@
 # Progressive Disclosure Audit — 2026-04-21
 
+**Prior run:** [Progressive Disclosure Audit — 2026-04-18](2026-04-18-progressive-disclosure.md) (baseline before refactors)
+
 Scanned `/Users/summerrae/.claude/skills` (69 SKILL.md files, worktree snapshots excluded).
 
 **Thresholds:**

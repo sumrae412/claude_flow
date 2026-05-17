@@ -1,6 +1,7 @@
 # Platform Layer: Hooks + Skills + MCP + Agent SDK
 
 **Created:** 2026-04-05 | **Status:** approved
+**Companion:** [Platform Layer Implementation Plan](2026-04-05-platform-layer-implementation.md)
 
 ## Summary
 

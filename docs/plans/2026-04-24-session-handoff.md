@@ -2,7 +2,7 @@
 
 ## Goal
 
-Execute the 7-step plan at `docs/plans/2026-04-24-advisor-ab-eval-tuning.md` to
+Execute the 7-step plan at `docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md` to
 tune the advisor-tool A/B eval before spending on a statistically significant
 20-trial live run. Primary deliverable: `evals/advisor_tool_ab/results_20trial.json`
 and `analysis_20trial.md` that support a go/no-go decision on whether to replace
@@ -32,7 +32,7 @@ manual Opus advisor calls (in claude-flow Phase 4b/5.5/6) with the
 
 **Cross-cutting:**
 - `CLAUDE.md` — added exception clause allowing free/open-source external libraries (scipy, Phoenix, RAGAS) while still forbidding paid SaaS (LangSmith, Braintrust) and orchestration frameworks (LangGraph, CrewAI)
-- `docs/evaluation-metrics.md`, `docs/proposals/dispatcher-skill.md`, `docs/plans/2026-04-24-advisor-ab-eval-tuning.md` — the plan you're about to execute
+- `docs/evaluation-metrics.md`, `docs/proposals/dispatcher-skill.md`, `docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md` — the plan you're about to execute
 
 **Personal memory files created (outside repo, under `/Users/summerrae/.claude/projects/-Users-summerrae-claude-code-claude-flow/memory/`):**
 - `feedback_token_economy_every_session.md` — apply token-economy patterns from session start
@@ -41,11 +41,11 @@ manual Opus advisor calls (in claude-flow Phase 4b/5.5/6) with the
 
 **Live pilots run (2):**
 - Pilot 1 (pre-fix): caught advisor_tool shape bugs + API endpoint issue. 12/12 failures, $0.
-- Pilot 2 (post-fix): ✅ advisor fires 4/4, cost breakdown works. $1.45 spent. Surprising empirical finding: on n=1-per-case, `sonnet_advisor_tool` cost MORE than `opus_solo` while matching judge quality. Drove the plan at `docs/plans/2026-04-24-advisor-ab-eval-tuning.md`.
+- Pilot 2 (post-fix): ✅ advisor fires 4/4, cost breakdown works. $1.45 spent. Surprising empirical finding: on n=1-per-case, `sonnet_advisor_tool` cost MORE than `opus_solo` while matching judge quality. Drove the plan at `docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md`.
 
 ### In-flight
 
-The plan `docs/plans/2026-04-24-advisor-ab-eval-tuning.md` has 7 steps, all
+The plan `docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md` has 7 steps, all
 **pending**. Steps 1-5 prep work (prompt caching, pricing verify, harder rubrics,
 test updates). Step 6 is a re-pilot gating the decision to spend on Step 7's
 20-trial.
@@ -101,7 +101,7 @@ cd /Users/summerrae/claude_code/claude_flow/.claude/worktrees/pedantic-herschel-
 git fetch origin --prune
 git log --oneline origin/main..HEAD    # see what's committed this branch
 gh pr list --state open --head $(git branch --show-current)
-less docs/plans/2026-04-24-advisor-ab-eval-tuning.md
+less docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md
 less docs/plans/2026-04-24-session-handoff.md    # this file
 /opt/anaconda3/bin/pytest tests/ evals/ --ignore=tests/test_adversarial_breaker_live.py -q
 ```
@@ -122,7 +122,7 @@ diagnose first.
 ## Gates
 
 - **Unit tests:** `/opt/anaconda3/bin/pytest tests/ evals/ --ignore=tests/test_adversarial_breaker_live.py -q` → 165+ passing after each step
-- **Per-step kill criteria:** in `docs/plans/2026-04-24-advisor-ab-eval-tuning.md` — read before starting, not after
+- **Per-step kill criteria:** in `docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md` — read before starting, not after
 - **Re-pilot gate to Step 7:** cache_read > 0, cost drop ≥25% on `sonnet_advisor_tool`, rubric spread (not uniform 1.0)
 - **20-trial gate:** `analysis_20trial.md` generated, per-arm CIs present, pairwise `significant_at_alpha` flags populated
 

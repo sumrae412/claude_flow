@@ -1,5 +1,7 @@
 # Evaluation Metrics — Ledger + LLM-as-Judge
 
+**Applied in:** [Advisor-Tool A/B Eval Verdict](decisions/2026-04-24-advisor-tool-verdict.md) (worked example using these metrics)
+
 How claude-flow measures latency, cost, and ROI across eval runs, and how we
 grade model outputs against ground truth without a human-in-the-loop rubric
 inspection step.

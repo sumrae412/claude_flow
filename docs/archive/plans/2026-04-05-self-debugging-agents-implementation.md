@@ -1,5 +1,7 @@
 # Self-Debugging Agents Implementation Plan
 
+**Companion:** [Self-Debugging Agents Design](2026-04-05-self-debugging-agents-design.md)
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add autonomous failure detection, diagnosis, and retry to claude-flow Phases 5-6, backed by a persistent failure catalog and structured event log.

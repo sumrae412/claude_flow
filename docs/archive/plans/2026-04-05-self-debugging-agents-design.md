@@ -1,6 +1,7 @@
 # Self-Debugging Agents Design
 
 **Created:** 2026-04-05 | **Status:** approved
+**Companion:** [Self-Debugging Agents Implementation Plan](2026-04-05-self-debugging-agents-implementation.md)
 
 ## Summary
 

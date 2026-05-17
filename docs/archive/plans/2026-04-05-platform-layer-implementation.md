@@ -1,5 +1,7 @@
 # Platform Layer Implementation Plan
 
+**Companion:** [Platform Layer: Hooks + Skills + MCP + Agent SDK (design)](2026-04-05-platform-layer-design.md)
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add hook expansion (3 tiers, ~20 hooks), 4 new skills, a FastMCP server for workflow observability, and an Agent SDK PR reviewer for headless Phase 6.

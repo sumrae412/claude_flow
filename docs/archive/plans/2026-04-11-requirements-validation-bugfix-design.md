@@ -1,6 +1,7 @@
 # Design: Requirements Phase, Validation Gate, Bug Fix Workflow
 
 **Created:** 2026-04-11 | **Status:** approved
+**Companion:** [Requirements Phase, Validation Gate, Bug Fix Workflow — Implementation Plan](2026-04-11-requirements-validation-bugfix-plan.md)
 
 ## Context
 

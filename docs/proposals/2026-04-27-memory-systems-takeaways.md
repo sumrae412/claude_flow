@@ -33,7 +33,7 @@ We already have partial machinery:
 - `memory/README.md` defines the 3-tier memory architecture.
 - `hooks/tier2/memory-triage-on-stop.py` writes a mechanical review queue for
   unindexed memory files.
-- `docs/superpowers/specs/2026-04-10-memory-compilation-design.md` proposes
+- `docs/archive/plans/2026-04-10-memory-compilation-design.md` proposes
   knowledge lint checks for broken links, orphan memories, stale entries, and
   contradictions.
 

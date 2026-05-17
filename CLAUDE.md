@@ -119,7 +119,7 @@ Always run `git rev-parse --show-toplevel` on the first turn. If cwd is a shadow
 - **Anthropic `cache_control` silently no-ops below 1024 tokens:** Sonnet/Opus prompt-cache writes require ≥1024 cached tokens (2048 for Haiku). Under that, `usage.cache_creation_input_tokens=0` + `cache_read_input_tokens=0`, no error raised. Verify live (not via unit tests) before claiming prompt caching works. Tool-use schemas (advisor-tool beta) may additionally break prefix reuse — assert `cache_read > 0` across consecutive calls, not just on the first. See `docs/decisions/2026-04-24-advisor-tool-verdict.md`.
 - **Verify LLM pricing before every cost eval:** Anthropic/OpenAI/Google rates can move 50%+ between plan authoring and execution (Opus 4.7 dropped 66% in ~6 weeks, Apr 2026). Triangulate against the provider's pricing page + a second surface (docs or console), stamp `# verified YYYY-MM-DD` in `scripts/pricing.py`, and re-run the check when resuming a paused eval plan.
 - **Keyword-substring rubrics are structurally broken for signal-to-noise:** Discriminator keywords like "however", "but", "trade-off" appear in nearly every non-trivial answer — rubrics that check for their *presence* score ~1.0 across all arms and hide real differences. Use LLM-as-judge for nuanced quality dimensions; reserve keyword checks for hard-required literals (specific API names, required section headings).
-- **Plan-step kill criteria actually save money:** The Step 6 re-pilot gate in `docs/plans/2026-04-24-advisor-ab-eval-tuning.md` caught a 66% price shift that invalidated the 20-trial premise at $0.76 spend vs $12-25 budgeted. When a plan has a measurable premise (cost, quality, latency), codify a mid-plan gate that re-verifies the premise before the expensive step.
+- **Plan-step kill criteria actually save money:** The Step 6 re-pilot gate in `docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md` caught a 66% price shift that invalidated the 20-trial premise at $0.76 spend vs $12-25 budgeted. When a plan has a measurable premise (cost, quality, latency), codify a mid-plan gate that re-verifies the premise before the expensive step.
 - **Decision-evidence artifacts (`results_*.json`) may be gitignored:** `evals/*/results_*.json` is gitignored, but pilot results that justify a decision doc need to be committed. Use `git add -f <file>` and reference the blob from the decision markdown. Consider narrowing the ignore pattern (e.g. only ignore `results_*_local.json`) if this recurs.
 
 ## Bundled Skills (relevant to claude-flow authorship)
@@ -161,7 +161,8 @@ cd /Users/summerrae/claude_code/claude-skills  # Edit canonical skills
 
 ## Documentation
 
-- `docs/plans/2026-04-05-platform-layer-design.md` — Platform layer design (approved)
-- `docs/plans/2026-04-05-platform-layer-implementation.md` — 22-task implementation plan (executed)
+- `docs/archive/plans/2026-04-05-platform-layer-design.md` — Platform layer design (approved, archived 2026-05-17 after shipping)
+- `docs/archive/plans/2026-04-05-platform-layer-implementation.md` — 22-task implementation plan (executed, archived 2026-05-17)
+- `docs/plans/INDEX.md` — Index of active plans + archived plans (90-day deletion window)
 - `README.md` — User-facing installation and usage guide
 - `skills/code-creation-workflow/references/` — Memory injection, hook templates, skill triggers, error recovery

@@ -2,7 +2,8 @@
 
 **Date:** 2026-04-24
 **Status:** Decided
-**Supersedes:** `docs/plans/2026-04-24-advisor-ab-eval-tuning.md` Step 7 (20-trial run)
+**Supersedes:** [`docs/archive/plans/2026-04-24-advisor-ab-eval-tuning.md`](../archive/plans/2026-04-24-advisor-ab-eval-tuning.md) Step 7 (20-trial run)
+**Metrics framework:** [docs/evaluation-metrics.md](../evaluation-metrics.md)
 
 ## Decision
 

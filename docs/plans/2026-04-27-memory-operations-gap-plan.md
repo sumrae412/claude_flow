@@ -75,8 +75,8 @@ Modify:
 Verify only:
 
 - `hooks/tier2/memory-triage-on-stop.py`
-- `docs/superpowers/specs/2026-04-10-memory-compilation-design.md`
-- `docs/superpowers/plans/2026-04-10-memory-compilation.md`
+- `docs/archive/plans/2026-04-10-memory-compilation-design.md`
+- `docs/archive/plans/2026-04-10-memory-compilation.md`
 
 ---
 
@@ -338,7 +338,7 @@ Acceptance criteria:
 
 **Files:**
 
-- Verify: `docs/superpowers/plans/2026-04-10-memory-compilation.md`
+- Verify: `docs/archive/plans/2026-04-10-memory-compilation.md`
 - Verify or modify canonical `lint-memory` skill if present
 
 ### Steps

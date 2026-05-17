@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-24
 **Status:** Decided
-**Eval plan:** `docs/plans/2026-04-24-sonnet-opus-downgrade-eval.md`
+**Eval plan:** `docs/archive/plans/2026-04-24-sonnet-opus-downgrade-eval.md`
 **Phase 6 scope:** explicitly deferred in [PR #50's decision doc](2026-04-24-advisor-tool-verdict.md); asymmetric miss cost on critical security findings makes the savings not worth it.
 
 ## Decision

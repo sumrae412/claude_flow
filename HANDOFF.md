@@ -14,7 +14,7 @@ The narrative below is preserved for archival. Items 1 and 2 are still accurate;
 
 Open a new Claude session with cwd = this worktree, then invoke `superpowers:executing-plans` and point it at:
 
-    docs/plans/2026-04-15-adversarial-evaluator-plan.md
+    docs/archive/plans/2026-04-15-adversarial-evaluator-plan.md
 
 ## Repo state (verified 2026-04-16)
 
@@ -47,7 +47,7 @@ Open a new Claude session with cwd = this worktree, then invoke `superpowers:exe
 4. **T4** (depends T3): Update `phases/phase-5-implementation.md` retry ladder to pull adversarial blockers into iter-N+1 prompts.
 5. **T5** (depends T1–T4): Golden fixture — planted race-condition diff; recorded LLM response for CI determinism.
 
-Full details + exact code in `docs/plans/2026-04-15-adversarial-evaluator-plan.md`. The plan's "Ruled Out" section documents why we didn't port Archon's full Generator/Evaluator state machine, CLI-backed reviewer variant, mid-Phase-5 injection, or binary pass/fail.
+Full details + exact code in `docs/archive/plans/2026-04-15-adversarial-evaluator-plan.md`. The plan's "Ruled Out" section documents why we didn't port Archon's full Generator/Evaluator state machine, CLI-backed reviewer variant, mid-Phase-5 injection, or binary pass/fail.
 
 ## Coordination note on `reviewer-registry.json`
 

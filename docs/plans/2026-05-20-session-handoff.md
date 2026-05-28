@@ -2,18 +2,21 @@
 
 ## Goal (next session)
 
-Implement Task 1 of [courierflow/docs/plans/2026-05-20-nvidia-llm-router.md](../../../../courierflow/docs/plans/2026-05-20-nvidia-llm-router.md) — declare the new NVIDIA + LLM-router settings fields in `app/config.py` and ship the first commit of the multi-PR migration.
+Implement **Task 3** of [courierflow/docs/plans/2026-05-20-nvidia-llm-router.md](../../../../courierflow/docs/plans/2026-05-20-nvidia-llm-router.md) — the `NvidiaProvider` implementation under `app/services/ai/providers/nvidia.py`. First task that actually instantiates an SDK client and touches a real network surface. Pattern is fixed by Tasks 1+2; this is execution, not design.
 
-## Current state (what shipped this session, what didn't)
+## Current state (what shipped, what didn't)
 
-**Shipped (this session, see PR list below):**
-- `claude_flow` PR: CLAUDE.md NVIDIA gotcha refresh + new plan doc for `llm_judge.py` NVIDIA provider option + this handoff doc.
-- `courierflow` PR: new plan doc `docs/plans/2026-05-20-nvidia-llm-router.md` — 11-task central LLM router with NVIDIA-first + Claude fallback + shadow-mode A/B audit. Plan-only, no code.
+**Shipped:**
+- `claude_flow` #61 — CLAUDE.md NVIDIA gotcha refresh + plan docs + this handoff doc (merged 2026-05-21)
+- `courierflow` #707 — 11-task NVIDIA LLM router plan doc (merged 2026-05-21)
+- `claude-skills` #104 — session-learnings from the planning session (merged 2026-05-21, 5 conflicts resolved at merge time)
+- `courierflow` #709 — **Task 1**: NVIDIA + router settings fields in `app/config.py` + 5 unit tests (merged 2026-05-22 as `939f45c1`)
+- `courierflow` #710 — **Task 2**: `LLMProvider` Protocol + `LLMResponse` dataclass + `LLMProviderError` + 5 unit tests (merged 2026-05-22 as `333ec278`)
 
-**In-flight: none.** Both PRs ship or merged before this handoff lands.
+**In-flight: none.**
 
 **Untouched but planned:**
-- Implementation of either plan. The courierflow plan is the bigger lever (production token spend); the claude_flow `llm_judge.py` plan is a 2-task warmup.
+- Tasks 3–11 of the courierflow plan. Tasks 3–5 (the three provider implementations) are parallelizable — they all depend on Task 2 and on nothing else. Task 6 (Alembic migration for `llm_shadow_audit`) is also independent and can run alongside.
 
 ## Empirical evidence collected this session
 
@@ -31,26 +34,23 @@ Logs at `/tmp/anthropic-run.log` and `/tmp/nvidia-run.log` (local-only, ephemera
 
 ## Exact next task
 
-**File:** `/Users/summerrae/claude_code/courierflow/app/config.py`
+**Files to create:**
+- `app/services/ai/providers/__init__.py` (empty)
+- `app/services/ai/providers/nvidia.py` — `NvidiaProvider` class implementing the `LLMProvider` protocol
+- `tests/unit/ai/providers/__init__.py` (empty)
+- `tests/unit/ai/providers/test_nvidia.py` — failing test first (TDD), then implement
 
-**Operation:** Add the fields specified in Task 1 of the plan inside `class Settings(BaseSettings):`. Verbatim from plan:
+**Operation:** Follow Task 3 Step 1–3 of [the plan](../../../../courierflow/docs/plans/2026-05-20-nvidia-llm-router.md) verbatim. The plan has the full code for both the test and the implementation.
 
-```python
-# NVIDIA / OpenAI-compatible provider
-nvidia_api_key: Optional[str] = None
-nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-nvidia_model: str = "moonshotai/kimi-k2.6"  # verified 2026-05-20; re-verify before changing
-nvidia_timeout_s: float = 240.0  # below NVIDIA's 5-min edge
+Key design choices already fixed by the plan — do not relitigate:
+- Uses the `openai` SDK pointed at `settings.nvidia_base_url` (NVIDIA's edge speaks OpenAI's chat-completions API)
+- Wraps SDK exceptions as `LLMProviderError(provider="nvidia", retryable=True)`
+- Maps `choice.message.tool_calls` into the unified `LLMResponse.tool_calls` shape (list of `{id, name, arguments}`)
+- `model` is held on the instance, not passed per-call
 
-# LLM router behavior
-llm_primary_provider: str = "anthropic"  # "nvidia" | "anthropic" | "openai"
-llm_shadow_mode: bool = False  # when True, also call shadow provider and log
-llm_shadow_provider: str = "nvidia"
-```
+**Acceptance:** `pytest tests/unit/ai/providers/test_nvidia.py -v` passes (3 tests minimum: parse OpenAI response, wrap provider error, pass through tool_calls).
 
-Then write `tests/unit/test_llm_router_settings.py` per Task 1 Step 2 and commit.
-
-**Acceptance:** `pytest tests/unit/test_llm_router_settings.py -v` passes; `pytest` overall still green.
+**Important — verify the live NVIDIA model ID before relying on it.** Task 1 committed `nvidia_model="moonshotai/kimi-k2.6"` un-reverified because there was no `.env` in courierflow. Task 3 is the first task that hits the live endpoint. Run the model-list curl from Pre-flight below; if `moonshotai/kimi-k2.6` is gone, update `nvidia_model` default in `app/config.py` and the plan doc as part of this PR.
 
 ## Architectural invariants to preserve
 
@@ -62,8 +62,9 @@ Then write `tests/unit/test_llm_router_settings.py` per Task 1 Step 2 and commit
 
 ## Template / reference PRs
 
-- `claude_flow` `agent-sdk/pr-reviewer/src/model-client.ts` — TypeScript reference for the NVIDIA-first router pattern. Architecture transfers to Python; code does not.
-- This session's `claude_flow` PR (NVIDIA gotcha refresh) — pattern for date-stamped gotcha updates.
+- **courierflow #710** (Task 2) — the protocol this task implements. `app/services/ai/llm_provider.py` defines the exact shape `NvidiaProvider` must conform to. Mock with the same pattern in the test.
+- **courierflow #709** (Task 1) — pattern for ship cadence on this plan: one PR per task, TDD test file alongside, standalone-test verification in PR body when local `pytest` can't run, `ruff format --check` clean before push.
+- `claude_flow/agent-sdk/pr-reviewer/src/model-client.ts` — TypeScript reference for the NVIDIA call pattern. Architecture transfers to Python; the message-mapping + tool_calls extraction is essentially the same.
 
 ## Pre-flight commands (run before touching code)
 
@@ -89,12 +90,14 @@ Also read these before starting:
 
 ```bash
 cd /Users/summerrae/claude_code/courierflow
-pytest tests/unit/test_llm_router_settings.py -v   # Task 1 acceptance
-pytest                                              # nothing regresses
-ruff format --check app/config.py tests/unit/test_llm_router_settings.py
+pytest tests/unit/ai/providers/test_nvidia.py -v   # Task 3 acceptance
+pytest tests/unit/ai/ -v                            # all router unit tests
+ruff format --check app/services/ai/providers/ tests/unit/ai/providers/
 ```
 
-No project-specific `quick_ci.sh` exists in courierflow as of this session — `pytest` alone is the gate.
+**Known local-env gap (carried from Tasks 1–2):** Courierflow's local `.venv` is missing prod deps (`procrastinate`, `sqlmodel` — installed mid-Task-1, but the venv is generally stale relative to `pyproject.toml`/`uv.lock`). `pytest` won't load `tests/conftest.py` locally. Verification pattern that worked for #709 and #710: run each test function standalone via `importlib` against the imported module; document the standalone proof in the PR body and let CI run the real gate. CI uses `pip install -r requirements.txt` and has been green on both Task 1 and Task 2.
+
+No project-specific `quick_ci.sh` exists in courierflow — Copilot Critical Eval Gate on the PR + CI `pytest` are the gates.
 
 ## Ship instructions
 
@@ -111,3 +114,7 @@ Auto mode. Surface premise contradictions only.
 ## Execution log
 
 - 2026-05-20 — Plans authored and gotcha-refreshed in claude_flow + courierflow. A/B run validated cost-saving premise (NVIDIA $0 + 24% faster on PR #60) but revealed calibration gap that drove Task 11 redesign. Ship'd both PRs.
+
+- 2026-05-21 — Merged the three open PRs from the planning session: claude_flow #61, courierflow #707, claude-skills #104. #104 needed conflict resolution at merge time: 1 hand-merged content conflict in `claude-flow/SKILL.md` (kept both: new table row from the branch + new `## Notes` section from main); 3 add/add conflicts on SKILL.md files where the branch's stale 2026-05-20 drafts were superseded by canonical versions on main — resolved with `git checkout --theirs`. Verified no branch-unique content was lost (files were `additions:N, deletions:0` on the branch).
+
+- 2026-05-22 — Shipped Tasks 1 and 2: courierflow #709 (settings) and #710 (LLMProvider protocol). Both verified via standalone-import test execution since local `.venv` lacks prod deps; both CI checks green. Five tests each. Task 2 added three tests beyond the plan's minimum to cover real failure modes (mutable-default isolation, safe-default constructor, `retryable=False` preservation). Scaffolding phase complete — next session opens with Task 3 (NVIDIA provider) as the first network-touching implementation.

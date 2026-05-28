@@ -42,6 +42,14 @@ export interface RunReviewResult {
   diffLines: number;
 }
 
+// Dynamic dispatch by diff size: small PRs get a single combined reviewer,
+// larger PRs fan out to N reviewers chosen by `selectReviewers`. The pattern
+// rhymes with poteto/noodle's adversarial-review (1 reviewer <50 LOC, 2 reviewers
+// 50–200, 3 reviewers 200+/5+ files); ours uses finer-grained selection rather
+// than fixed buckets. The multi-model fan-out (NVIDIA_MODEL_POOL) is validated
+// by Nolan Lawson's observation that multiple models for one PR review
+// "significantly reduces hallucinations and false positives" — see
+// https://nolanlawson.com/2026/05/25/using-ai-to-write-better-code-more-slowly/
 export async function runReview(
   diff: string,
   client: ModelClient,

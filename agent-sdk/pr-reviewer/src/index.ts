@@ -69,21 +69,36 @@ async function main(): Promise<void> {
   console.log(`PR #${prNumber}: ${diff.split('\n').length} lines in diff`);
   console.log(`Provider: ${client.providerName} (${client.modelId})`);
 
-  const { findings, reviewerCount } = await runReview(diff, client, { maxAgents });
+  const { findings, reviewerCount, plannedReviewerCount, degraded, skipped } =
+    await runReview(diff, client, { maxAgents });
+
+  // Rule 12 — surface degraded/skipped coverage explicitly, never let
+  // "review complete" imply every reviewer ran.
+  if (degraded.length > 0) {
+    console.warn(`Degraded reviewer calls (${degraded.length}): ${degraded.join(', ')}`);
+  }
+  if (skipped.length > 0) {
+    console.warn(`Skipped reviewers (agent cap, ${skipped.length}): ${skipped.join(', ')}`);
+  }
 
   const deduped = deduplicateFindings(findings);
 
   // Optional FP-filter pass (deepsec-inspired). Off by default — doubles
   // cost across the post-dedup findings list. Set PR_REVIEWER_REVALIDATE=1
   // to enable; useful when the primary provider is high-recall/low-precision
-  // (e.g. NVIDIA ensemble).
+  // (e.g. NVIDIA ensemble). Bounded by PR_REVIEWER_MAX_REVALIDATE (Rule 6).
   let final = deduped;
+  let unverifiedCount = 0;
+  let droppedCount = 0;
   if (process.env.PR_REVIEWER_REVALIDATE === '1' && deduped.length > 0) {
     console.log(`Revalidating ${deduped.length} findings for false positives...`);
-    const { kept, dropped, errors } = await revalidateFindings(deduped, diff, client);
+    const { kept, dropped, errors, unverified } = await revalidateFindings(deduped, diff, client);
+    unverifiedCount = unverified.length;
+    droppedCount = dropped.length;
     console.log(
       `Revalidation: kept ${kept.length}, dropped ${dropped.length} FP` +
-      (errors > 0 ? `, ${errors} errored (kept as uncertain)` : ''),
+      (errors > 0 ? `, ${errors} errored (kept as uncertain)` : '') +
+      (unverified.length > 0 ? `, ${unverified.length} unverified (budget)` : ''),
     );
     final = kept;
   }
@@ -95,7 +110,13 @@ async function main(): Promise<void> {
     `MEDIUM: ${triaged.medium.length}, LOW: ${triaged.low.length}, NITPICK: ${triaged.nitpick.length}`
   );
 
-  const comment = formatPRComment(triaged, reviewerCount);
+  const comment = formatPRComment(triaged, reviewerCount, {
+    plannedReviewerCount,
+    degraded,
+    skipped,
+    unverifiedCount,
+    droppedCount,
+  });
 
   if (dryRun) {
     console.log('\n─── PR Comment (dry run) ───\n');

@@ -12,9 +12,25 @@ function findingToMarkdown(f: Finding): string {
   return `- **[${f.severity}]** \`${location}\` — ${f.description}${consensus}`;
 }
 
+// Coverage status surfaced in the comment so partial runs never read as
+// full coverage (Rule 12). All fields optional/defaulted for back-compat.
+export interface ReviewCoverage {
+  // Reviewers selected before failures/truncation.
+  plannedReviewerCount?: number;
+  // Reviewer (or reviewer@model) labels that errored/timed out.
+  degraded?: string[];
+  // Reviewers dropped by the maxAgents cap.
+  skipped?: string[];
+  // Findings kept but not revalidated due to the revalidation budget.
+  unverifiedCount?: number;
+  // False positives dropped by the revalidation pass.
+  droppedCount?: number;
+}
+
 export function formatPRComment(
   triaged: TriagedFindings,
-  reviewerCount: number
+  reviewerCount: number,
+  coverage: ReviewCoverage = {}
 ): string {
   const totalCount =
     triaged.critical.length +
@@ -27,10 +43,34 @@ export function formatPRComment(
 
   lines.push('## Claude Flow Review');
   lines.push('');
+  const planned = coverage.plannedReviewerCount ?? reviewerCount;
+  const reviewerSummary =
+    planned > reviewerCount
+      ? `${reviewerCount} of ${planned} reviewer${planned !== 1 ? 's' : ''}`
+      : `${reviewerCount} reviewer${reviewerCount !== 1 ? 's' : ''}`;
   lines.push(
-    `Found **${totalCount} finding${totalCount !== 1 ? 's' : ''}** across ${reviewerCount} reviewer${reviewerCount !== 1 ? 's' : ''}.`
+    `Found **${totalCount} finding${totalCount !== 1 ? 's' : ''}** across ${reviewerSummary}.`
   );
   lines.push('');
+
+  // Partial-coverage banner — only when something was degraded/skipped/unverified.
+  const coverageNotes: string[] = [];
+  if (coverage.degraded && coverage.degraded.length > 0) {
+    coverageNotes.push(`${coverage.degraded.length} reviewer call(s) degraded: ${coverage.degraded.join(', ')}`);
+  }
+  if (coverage.skipped && coverage.skipped.length > 0) {
+    coverageNotes.push(`${coverage.skipped.length} reviewer(s) skipped (agent cap): ${coverage.skipped.join(', ')}`);
+  }
+  if (coverage.unverifiedCount && coverage.unverifiedCount > 0) {
+    coverageNotes.push(`${coverage.unverifiedCount} finding(s) kept but unverified (revalidation budget)`);
+  }
+  if (coverage.droppedCount && coverage.droppedCount > 0) {
+    coverageNotes.push(`${coverage.droppedCount} finding(s) dropped as false positives by revalidation`);
+  }
+  if (coverageNotes.length > 0) {
+    lines.push('> ⚠️ **Partial coverage** — ' + coverageNotes.join('; ') + '.');
+    lines.push('');
+  }
 
   // CRITICAL
   if (triaged.critical.length > 0) {

@@ -1,6 +1,23 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Agent, fetch as undiciFetch } from 'undici';
 
+// One ensemble member's output, tagged with the model that produced it.
+// Lets the caller parse each model's findings separately so per-model
+// provenance survives the join (Rule 7) instead of being flattened into a
+// cosmetic `--- from <model> ---` text separator that parseFindings ignores.
+export interface ReviewSegment {
+  source: string;
+  text: string;
+}
+
+// A source (ensemble model, or a wrapped primary provider) that errored.
+// Surfaced so the caller can report degraded coverage (Rule 12: fail loud)
+// instead of silently claiming every reviewer ran.
+export interface ReviewFailure {
+  source: string;
+  error: string;
+}
+
 // Shared response shape. `usage` mirrors Anthropic's prompt-cache fields so the
 // existing logCacheUsage() helper in index.ts keeps working; non-Anthropic
 // providers leave those fields undefined and the helper no-ops.
@@ -11,6 +28,14 @@ export interface ReviewResponse {
     cache_read_input_tokens?: number | null;
     input_tokens?: number | null;
   };
+  // Populated only in ensemble mode (NVIDIA_MODEL_POOL with >1 model): one
+  // entry per successful model. Single-model/Anthropic leave this undefined,
+  // and callers fall back to `text`. When present, callers SHOULD parse each
+  // segment separately to preserve provenance.
+  segments?: ReviewSegment[];
+  // Per-source failures (ensemble models that errored/timed out, or a primary
+  // that fell back). Empty/undefined means full coverage.
+  failures?: ReviewFailure[];
 }
 
 // Both prompt variants are passed through to the client, which picks based on
@@ -277,11 +302,18 @@ class NvidiaModelClient implements ModelClient {
       );
     }
 
-    // Merge: concatenate text with a separator that preserves provenance in
-    // logs but doesn't affect parseFindings (which scans line-by-line for
-    // [SEVERITY] markers). Sum input_tokens across successes.
-    const mergedText = successes
-      .map((s) => `\n--- from ${s.model} ---\n${s.response.text}`)
+    // Provenance-preserving join (Rule 7): expose one segment per successful
+    // model so the caller can parse each separately and tag findings with the
+    // model that produced them. `text` keeps the labelled concatenation for
+    // backward compatibility and logging, but `segments` is the source of
+    // truth for provenance. `failures` surfaces every model that didn't make
+    // it (Rule 12: degraded coverage is reported, never swallowed).
+    const segments: ReviewSegment[] = successes.map((s) => ({
+      source: s.model,
+      text: s.response.text,
+    }));
+    const mergedText = segments
+      .map((seg) => `\n--- from ${seg.source} ---\n${seg.text}`)
       .join('\n');
     const totalInputTokens = successes.reduce(
       (sum, s) => sum + (s.response.usage?.input_tokens ?? 0),
@@ -290,6 +322,8 @@ class NvidiaModelClient implements ModelClient {
     return {
       text: mergedText,
       usage: { input_tokens: totalInputTokens || null },
+      segments,
+      failures: failures.map((f) => ({ source: f.model, error: f.error })),
     };
   }
 }
@@ -328,7 +362,17 @@ class FallbackModelClient implements ModelClient {
       // Fallback picks its own variant — aggressive for Anthropic, soft for
       // NVIDIA. This is the fix for the prior "fallback inherits primary's
       // soft prompt" known-compromise.
-      return await this.fallback.createReview(systems, user);
+      const response = await this.fallback.createReview(systems, user);
+      // Record that the primary degraded (Rule 12) without discarding any
+      // failures the fallback itself reported.
+      const primaryFailure: ReviewFailure = {
+        source: this.primary.providerName,
+        error: msg,
+      };
+      return {
+        ...response,
+        failures: [primaryFailure, ...(response.failures ?? [])],
+      };
     }
   }
 }

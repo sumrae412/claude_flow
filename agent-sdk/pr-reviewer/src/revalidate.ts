@@ -69,7 +69,23 @@ export interface RevalidateResult {
   kept: RevalidatedFinding[];
   dropped: RevalidatedFinding[];
   errors: number;
+  // Findings NOT revalidated because the call budget was exhausted (Rule 6).
+  // They are kept in the final output (never dropped), but surfaced separately
+  // so the PR comment can flag that they went unverified (Rule 12).
+  unverified: RevalidatedFinding[];
 }
+
+// Severity order so the budget spends on the highest-stakes findings first;
+// the cheap-to-lose tail (LOW/NITPICK) is what goes unverified under a cap.
+const SEVERITY_ORDER: Record<string, number> = {
+  CRITICAL: 5, HIGH: 4, MEDIUM: 3, LOW: 2, NITPICK: 1,
+};
+
+// Default cap on revalidation model calls. Revalidation doubles cost across
+// the findings list, so without a ceiling a noisy high-recall ensemble can
+// blow the budget. Override with PR_REVIEWER_MAX_REVALIDATE; 0 disables the
+// cap (revalidate everything).
+const DEFAULT_MAX_REVALIDATE = 30;
 
 export async function revalidateFindings(
   findings: Finding[],
@@ -77,11 +93,24 @@ export async function revalidateFindings(
   client: ModelClient,
 ): Promise<RevalidateResult> {
   if (findings.length === 0) {
-    return { kept: [], dropped: [], errors: 0 };
+    return { kept: [], dropped: [], errors: 0, unverified: [] };
   }
 
+  const cap = parseInt(
+    process.env.PR_REVIEWER_MAX_REVALIDATE ?? String(DEFAULT_MAX_REVALIDATE),
+    10,
+  );
+  // Spend the budget on the highest-severity findings first.
+  const ordered = [...findings].sort(
+    (a, b) => (SEVERITY_ORDER[b.severity] ?? 0) - (SEVERITY_ORDER[a.severity] ?? 0),
+  );
+  const toRevalidate = cap > 0 ? ordered.slice(0, cap) : ordered;
+  const unverified: RevalidatedFinding[] = (cap > 0 ? ordered.slice(cap) : []).map(
+    (f) => ({ ...f, verdict: 'uncertain', verdictReasoning: 'revalidation budget exhausted' }),
+  );
+
   const results = await Promise.all(
-    findings.map(async (f): Promise<RevalidatedFinding> => {
+    toRevalidate.map(async (f): Promise<RevalidatedFinding> => {
       try {
         const response = await client.createReview(
           { aggressive: REVALIDATE_SYSTEM, soft: REVALIDATE_SYSTEM },
@@ -111,5 +140,7 @@ export async function revalidateFindings(
     if (r.verdict === 'false-positive') dropped.push(r);
     else kept.push(r);
   }
-  return { kept, dropped, errors };
+  // Budget-skipped findings are kept in the output but tracked as unverified.
+  kept.push(...unverified);
+  return { kept, dropped, errors, unverified };
 }

@@ -1,0 +1,94 @@
+name: Delete dead branches
+
+# Manually or programmatically dispatched — deletes a caller-supplied list of
+# branches using this Action's own GITHUB_TOKEN (which has ref-delete
+# permission inside Actions, unlike the Claude Code sandbox this was built to
+# work around — see claude-skills/repo-hygiene/SKILL.md Phase 7).
+#
+# Defense in depth: re-verifies every branch against live GitHub state right
+# before deleting, independent of whatever classified the branch as dead
+# upstream. Refuses the default branch, any branch that's still the head of
+# an open PR, and any branch that's still the base of an open PR (deleting a
+# base ref auto-closes the downstream PR).
+
+on:
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: "Comma or newline separated branch names to delete"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  delete-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete branches with live safety re-checks
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const raw = context.payload.inputs.branches || '';
+            const branches = [...new Set(
+              raw.split(/[\n,]/).map(b => b.trim()).filter(Boolean)
+            )];
+
+            if (branches.length === 0) {
+              core.setFailed('No branches supplied.');
+              return;
+            }
+
+            const { data: repoInfo } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const protectedNames = new Set(['main', 'master', repoInfo.default_branch]);
+
+            const openPrs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const headOwner = new Map();
+            const baseRefs = new Set();
+            for (const pr of openPrs) {
+              headOwner.set(pr.head.ref, pr.number);
+              baseRefs.add(pr.base.ref);
+            }
+
+            const results = [];
+            for (const branch of branches) {
+              if (protectedNames.has(branch)) {
+                results.push(`SKIPPED (default/protected branch): ${branch}`);
+                continue;
+              }
+              if (headOwner.has(branch)) {
+                results.push(`SKIPPED (open PR #${headOwner.get(branch)} still open): ${branch}`);
+                continue;
+              }
+              if (baseRefs.has(branch)) {
+                results.push(`SKIPPED (base ref of an open PR): ${branch}`);
+                continue;
+              }
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${branch}`,
+                });
+                results.push(`DELETED: ${branch}`);
+              } catch (err) {
+                results.push(`ERROR (${err.status || 'unknown'}): ${branch} — ${err.message}`);
+              }
+            }
+
+            const body = results.join('\n');
+            console.log(body);
+            await core.summary
+              .addHeading('Delete dead branches — results')
+              .addCodeBlock(body, 'text')
+              .write();

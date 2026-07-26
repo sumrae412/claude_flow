@@ -1,23 +1,33 @@
 name: Delete dead branches
 
-# Manually or programmatically dispatched — deletes a caller-supplied list of
-# branches using this Action's own GITHUB_TOKEN (which has ref-delete
-# permission inside Actions, unlike the Claude Code sandbox this was built to
-# work around — see claude-skills/repo-hygiene/SKILL.md Phase 7).
+# Two trigger modes:
+#  - schedule (cron): fully autonomous — discovers branches with a MERGED PR
+#    older than the grace period and deletes them via this Action's own
+#    GITHUB_TOKEN. Decoupled from any external session/token, so it isn't
+#    gated by e.g. a sandboxed dev session's proxy or a GitHub App's
+#    workflow-dispatch scope (both blocked manual dispatch from a Claude Code
+#    sandbox — see claude-skills/repo-hygiene/SKILL.md Phase 7).
+#  - workflow_dispatch: manual, optional `branches` input. Supply an explicit
+#    comma/newline list to delete exactly those branches (skips the grace
+#    period — use for a pre-vetted/hand-audited list). Leave empty to run the
+#    same auto-discovery the schedule uses, on demand.
 #
-# Defense in depth: re-verifies every branch against live GitHub state right
-# before deleting, independent of whatever classified the branch as dead
-# upstream. Refuses the default branch, any branch that's still the head of
-# an open PR, and any branch that's still the base of an open PR (deleting a
-# base ref auto-closes the downstream PR).
+# Defense in depth (both modes): re-verifies every branch against live GitHub
+# state right before deleting. Refuses the default branch, any branch that's
+# still the head of an open PR, and any branch that's still the base of an
+# open PR (deleting a base ref auto-closes the downstream PR). Auto-discovery
+# additionally requires a MERGED PR (never just "no unique commits" — squash
+# merges make ancestry checks lie) and a 48h grace period since merge.
 
 on:
   workflow_dispatch:
     inputs:
       branches:
-        description: "Comma or newline separated branch names to delete"
-        required: true
+        description: "Comma or newline separated branch names to delete (leave empty to run auto-discovery)"
+        required: false
         type: string
+  schedule:
+    - cron: '0 6 * * 0' # weekly, Sunday 06:00 UTC
 
 permissions:
   contents: write
@@ -31,15 +41,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const raw = context.payload.inputs.branches || '';
-            const branches = [...new Set(
+            const GRACE_MS = 48 * 60 * 60 * 1000;
+
+            const raw = context.payload.inputs?.branches || '';
+            const explicitBranches = [...new Set(
               raw.split(/[\n,]/).map(b => b.trim()).filter(Boolean)
             )];
-
-            if (branches.length === 0) {
-              core.setFailed('No branches supplied.');
-              return;
-            }
 
             const { data: repoInfo } = await github.rest.repos.get({
               owner: context.repo.owner,
@@ -58,6 +65,34 @@ jobs:
             for (const pr of openPrs) {
               headOwner.set(pr.head.ref, pr.number);
               baseRefs.add(pr.base.ref);
+            }
+
+            let branches = explicitBranches;
+            let mode = 'explicit-list';
+
+            if (branches.length === 0) {
+              mode = 'auto-discovery';
+              const now = Date.now();
+              const closedPrs = await github.paginate(github.rest.pulls.list, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'closed',
+                per_page: 100,
+              });
+              const dead = new Set();
+              for (const pr of closedPrs) {
+                if (!pr.merged_at) continue; // closed-but-not-merged: content never landed, keep
+                if (now - new Date(pr.merged_at).getTime() < GRACE_MS) continue; // too recent
+                dead.add(pr.head.ref);
+              }
+              branches = [...dead];
+            }
+
+            core.notice(`Mode: ${mode}. Candidates: ${branches.length}`);
+
+            if (branches.length === 0) {
+              core.notice('Nothing to delete this run.');
+              return;
             }
 
             const results = [];
@@ -82,11 +117,15 @@ jobs:
                 });
                 results.push(`DELETED: ${branch}`);
               } catch (err) {
-                results.push(`ERROR (${err.status || 'unknown'}): ${branch} — ${err.message}`);
+                if (err.status === 422) {
+                  results.push(`SKIPPED (already gone): ${branch}`);
+                } else {
+                  results.push(`ERROR (${err.status || 'unknown'}): ${branch} — ${err.message}`);
+                }
               }
             }
 
-            const body = results.join('\n');
+            const body = `Mode: ${mode}\n\n${results.join('\n')}`;
             console.log(body);
             await core.summary
               .addHeading('Delete dead branches — results')

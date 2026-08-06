@@ -108,6 +108,18 @@ Phase boundaries already checkpoint. For long Phase 5 runs (>30 min or >5 file e
 - `[X]` audit downgrades (PR #67) → emit `[~]` with reason, not silent removal
 - Test suites with skipped cases → never report "tests pass" without surfacing skip count
 
+### Rule 13 — Three-Layer Termination Check (lint → tests/startup → user flow)
+Phase 5 "complete" requires passing all three layers IN ORDER. Do not proceed to layer 2 while layer 1 fails; do not declare success on layer 2 without exercising layer 3 for surfaces a user would touch. Extends Rule 12 with an ordering contract — the existing "fail loud" rule covered the WHAT (surface every gap) but not the WHEN (don't run integration tests on code that won't compile). Pattern sourced from walkinglabs/learn-harness-engineering lecture 09. Specific surfaces:
+- Pre-commit / typecheck / format errors → block before any test run is reported
+- Unit + integration test failures → block before any "ship it" / runtime claim
+- User-facing flow (dev server start, endpoint response, UI render) → required before "feature works" is claimed
+- For PR reviewer: the three layers map to `tsc --noEmit` → `npm test` → `node dist/index.js --dry-run <PR>`
+
+### Process Patterns — observed in 2026-05 triage
+
+- **Session scoping: prefer weeks-of-work tasks over granular Phase 5 batches** when work has a natural through-line. Simon Last's lesson (2026-05-23): long-running implementer sessions (days to weeks, compacting many times) accumulate convention memory that short-lived per-feature sessions lose. Validate against claude-flow Phase 3 (requirements) sizing — if a feature splits into 5+ thin sub-features that share state and conventions, default to one larger session with intra-session checkpoints (Rule 10) rather than a sub-feature relay. The relay overhead (handoff cost + re-loading context) is often higher than the per-session compaction tax.
+- **Side-quest workflow during PR review** — AI review (especially multi-model ensemble) routinely surfaces pre-existing bugs unrelated to the PR's stated scope. Default disposition: file each as a `mcp__ccd_session__spawn_task` chip rather than expanding the current PR. The current PR's review comment should note "N side-quests filed" so the user can decide which to spin off. Pattern sourced from Nolan Lawson's "Using AI to write better code more slowly" (2026-05-25).
+
 ## Multi-Clone Gotcha
 
 The "two-clones" gotcha is not unique to this repo. Any project cloned more than once on the same filesystem can trigger it. Confirmed instances:
